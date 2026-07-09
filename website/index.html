@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mendonca Technical Services — Home Maintenance, Engineered</title>
+  <meta name="description" content="Mendonca Technical Services LLC — premium home maintenance in Dubai & UAE. AMC contracts, electrical, plumbing, AC, renovation & handyman services for villas, flats and buildings. One call covers it all." />
+  <meta name="theme-color" content="#050810" />
+
+  <meta property="og:title" content="Mendonca Technical Services — Home Maintenance, Engineered" />
+  <meta property="og:description" content="AMC contracts, electrical, plumbing, AC, renovation & handyman services for villas, flats and buildings across Dubai & UAE." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.mendtechservices.com" />
+
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23050810'/%3E%3Cpath d='M6 50 L18 14 L25 14 L13 50 Z' fill='%23E8B368'/%3E%3Cpath d='M22 50 L34 14 L41 14 L29 50 Z' fill='%23E8B368'/%3E%3Cpath d='M38 50 L50 14 L57 14 L45 50 Z' fill='%23E8B368'/%3E%3C/svg%3E" />
+  <link rel="canonical" href="https://www.mendtechservices.com/" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="css/style.css" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "HomeAndConstructionBusiness",
+    "name": "Mendonca Technical Services LLC",
+    "url": "https://www.mendtechservices.com",
+    "email": "info@mendtechservices.com",
+    "telephone": "+971522338499",
+    "areaServed": "Dubai, United Arab Emirates",
+    "description": "Home maintenance company: AMC contracts, electrical, plumbing, AC, renovation and handyman services for villas, flats and buildings."
+  }
+  </script>
+
+  <script type="importmap">
+  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+  </script>
+</head>
+<body>
+
+  <!-- ══════════ LOADER ══════════ -->
+  <div class="loader" id="loader">
+    <div class="loader-grid" aria-hidden="true"></div>
+    <div class="loader-scan" aria-hidden="true"></div>
+    <div class="loader-frame" aria-hidden="true">
+      <i class="lfc lfc-tl"></i><i class="lfc lfc-tr"></i><i class="lfc lfc-bl"></i><i class="lfc lfc-br"></i>
+    </div>
+
+    <div class="loader-inner">
+      <div class="boot-stage" aria-hidden="true">
+        <div class="cube">
+          <i class="cf cf-1"></i><i class="cf cf-2"></i><i class="cf cf-3"></i>
+          <i class="cf cf-4"></i><i class="cf cf-5"></i><i class="cf cf-6"></i>
+        </div>
+        <div class="cube cube-inner">
+          <i class="cf cf-1"></i><i class="cf cf-2"></i><i class="cf cf-3"></i>
+          <i class="cf cf-4"></i><i class="cf cf-5"></i><i class="cf cf-6"></i>
+        </div>
+        <svg class="loader-mark" viewBox="0 0 66 48">
+          <path class="lm-1" d="M2 44 L18 6 L28 6 L12 44 Z" />
+          <path class="lm-2" d="M20 44 L36 6 L46 6 L30 44 Z" />
+          <path class="lm-3" d="M38 44 L54 6 L64 6 L48 44 Z" />
+        </svg>
+      </div>
+      <div class="loader-label">MENDONCA TECHNICAL SERVICES</div>
+      <div class="loader-bar"><span id="loaderBar"></span></div>
+      <div class="loader-pct" id="loaderPct">00</div>
+    </div>
+
+    <div class="boot-log mono" id="bootLog"></div>
+  </div>
+
+  <!-- ══════════ 3D SCENE ══════════ -->
+  <canvas id="scene" aria-hidden="true"></canvas>
+  <div class="scene-vignette" aria-hidden="true"></div>
+
+  <!-- ══════════ NAV ══════════ -->
+  <header class="nav" id="nav">
+    <a class="nav-logo" href="#home" aria-label="Mendonca Technical Services — home">
+      <svg class="logo-mark" viewBox="0 0 66 48" aria-hidden="true">
+        <path d="M2 44 L18 6 L28 6 L12 44 Z" />
+        <path d="M20 44 L36 6 L46 6 L30 44 Z" />
+        <path d="M38 44 L54 6 L64 6 L48 44 Z" />
+      </svg>
+      <span class="logo-text">
+        <strong>MENDONCA</strong>
+        <em>TECHNICAL&nbsp;SERVICES</em>
+      </span>
+    </a>
+
+    <nav class="nav-links" id="navLinks">
+      <a href="#services">Services</a>
+      <a href="#amc">AMC Plans</a>
+      <a href="#process">Process</a>
+      <a href="#why">Why Us</a>
+      <a href="#contact">Contact</a>
+    </nav>
+
+    <div class="nav-cta">
+      <a class="btn btn-gold btn-sm" href="https://wa.me/971522338499" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" class="ic"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm5.3 14.2c-.2.6-1.2 1.2-1.7 1.2-.4.1-1 .1-1.6-.1a13 13 0 0 1-5.7-5A6.6 6.6 0 0 1 7 9.1c0-.9.5-1.4.7-1.6.2-.2.4-.2.6-.2h.4c.2 0 .4-.1.6.4l.8 2c.1.2.1.4 0 .6l-.4.6c-.1.2-.3.4-.1.7.1.3.7 1.2 1.6 1.9 1.1 1 2 1.3 2.3 1.4.3.1.5.1.6-.1l.7-.9c.2-.2.4-.2.6-.1l1.9.9c.2.1.4.2.4.3.1.1.1.5-.1 1.2Z"/></svg>
+        WhatsApp
+      </a>
+      <button class="nav-burger" id="navBurger" aria-label="Menu"><span></span><span></span></button>
+    </div>
+  </header>
+
+  <main id="smooth-content">
+
+    <!-- ══════════ HERO ══════════ -->
+    <section class="hero" id="home">
+      <div class="hero-frame" aria-hidden="true">
+        <i class="fc fc-tl"></i><i class="fc fc-tr"></i><i class="fc fc-bl"></i><i class="fc fc-br"></i>
+      </div>
+
+      <div class="hero-inner">
+        <div class="hero-eyebrow mono" data-hero>
+          <span class="pulse-dot"></span> SYSTEM ONLINE · DUBAI, UAE · 24/7
+        </div>
+
+        <h1 class="hero-title">
+          <span class="line"><span class="w" data-hero-line>YOUR HOME.</span></span>
+          <span class="line"><span class="w grad" data-hero-line>ENGINEERED</span></span>
+          <span class="line"><span class="w" data-hero-line>TO PERFECTION.</span></span>
+        </h1>
+
+        <p class="hero-sub" data-hero>
+          From annual maintenance contracts to emergency call-outs — electrical, plumbing,
+          AC, renovation and every trade in between. One team. One number. Zero hassle.
+        </p>
+
+        <div class="hero-cta" data-hero>
+          <a class="btn btn-gold" href="https://wa.me/971522338499?text=Hello%20Mendonca%20Technical%20Services!%20I%27d%20like%20to%20book%20a%20service." target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" class="ic"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm5.3 14.2c-.2.6-1.2 1.2-1.7 1.2-.4.1-1 .1-1.6-.1a13 13 0 0 1-5.7-5A6.6 6.6 0 0 1 7 9.1c0-.9.5-1.4.7-1.6.2-.2.4-.2.6-.2h.4c.2 0 .4-.1.6.4l.8 2c.1.2.1.4 0 .6l-.4.6c-.1.2-.3.4-.1.7.1.3.7 1.2 1.6 1.9 1.1 1 2 1.3 2.3 1.4.3.1.5.1.6-.1l.7-.9c.2-.2.4-.2.6-.1l1.9.9c.2.1.4.2.4.3.1.1.1.5-.1 1.2Z"/></svg>
+            Book on WhatsApp
+          </a>
+          <a class="btn btn-ghost" href="#services">Explore Services <span class="arr">↓</span></a>
+        </div>
+
+        <div class="hero-hud mono" data-hero>
+          <div class="hud-chip"><b>RESPONSE</b><span>RAPID DISPATCH</span></div>
+          <div class="hud-chip"><b>COVERAGE</b><span>VILLA · FLAT · BUILDING</span></div>
+          <div class="hud-chip"><b>TRADES</b><span>ALL-IN-ONE</span></div>
+        </div>
+      </div>
+
+      <div class="scroll-cue mono" aria-hidden="true">
+        <span>SCROLL</span>
+        <i></i>
+      </div>
+    </section>
+
+    <!-- ══════════ MARQUEE ══════════ -->
+    <div class="marquee" aria-hidden="true">
+      <div class="marquee-track">
+        <span>ELECTRICAL <i>///</i> PLUMBING <i>///</i> AC &amp; HVAC <i>///</i> RENOVATION <i>///</i> HANDYMAN <i>///</i> PAINTING <i>///</i> AMC CONTRACTS <i>///</i> VILLA CARE <i>///</i>&nbsp;</span>
+        <span>ELECTRICAL <i>///</i> PLUMBING <i>///</i> AC &amp; HVAC <i>///</i> RENOVATION <i>///</i> HANDYMAN <i>///</i> PAINTING <i>///</i> AMC CONTRACTS <i>///</i> VILLA CARE <i>///</i>&nbsp;</span>
+      </div>
+    </div>
+
+    <!-- ══════════ SERVICES ══════════ -->
+    <section class="section" id="services">
+      <div class="section-head" data-reveal>
+        <div class="section-eyebrow mono">// 01 — CAPABILITIES</div>
+        <h2 class="section-title">Every trade.<br /><span class="grad">One command center.</span></h2>
+        <p class="section-sub">Complete home maintenance for villas, flats and buildings — delivered by licensed, uniformed technicians.</p>
+      </div>
+
+      <div class="svc-grid">
+        <article class="svc-card" data-reveal>
+          <div class="svc-ic"><svg viewBox="0 0 24 24"><path d="M9 3H4a1 1 0 0 0-1 1v5m18 6v5a1 1 0 0 1-1 1h-5M3 15v5a1 1 0 0 0 1 1h5M15 3h5a1 1 0 0 1 1 1v5"/><rect x="8.5" y="8.5" width="7" height="7" rx="1"/></svg></div>
+          <h3>AMC Contracts</h3>
+          <p>Annual maintenance contracts for villas, flats &amp; buildings. Scheduled preventive care, priority call-outs, total peace of mind.</p>
+          <span class="svc-tag mono">// FLAGSHIP</span>
+        </article>
+
+        <article class="svc-card" data-reveal>
+          <div class="svc-ic"><svg viewBox="0 0 24 24"><path d="M13 2 4.5 13.5H11l-1 8.5L18.5 10.5H12L13 2Z"/></svg></div>
+          <h3>Electrical</h3>
+          <p>Wiring, DB boards, lighting, fittings, fault-finding and load testing — by qualified electricians, to code.</p>
+          <span class="svc-tag mono">// POWER</span>
+        </article>
+
+        <article class="svc-card" data-reveal>
+          <div class="svc-ic"><svg viewBox="0 0 24 24"><path d="M12 2.5S5.5 9.5 5.5 14a6.5 6.5 0 0 0 13 0c0-4.5-6.5-11.5-6.5-11.5Z"/><path d="M9 14a3 3 0 0 0 3 3"/></svg></div>
+          <h3>Plumbing</h3>
+          <p>Leak detection, water heaters, pumps, drainage, sanitary installation and repair — fixed fast, fixed clean.</p>
+          <span class="svc-tag mono">// FLOW</span>
+        </article>
+
+        <article class="svc-card" data-reveal>
+          <div class="svc-ic"><svg viewBox="0 0 24 24"><path d="M12 2v20M12 6l3-3M12 6 9 3m3 15 3 3m-3-3-3 3M2 12h20M6 12 3 9m3 3-3 3m15-3 3-3m-3 3 3 3"/></svg></div>
+          <h3>AC &amp; HVAC</h3>
+          <p>AC servicing, gas refill, coil &amp; duct cleaning, thermostat repair and full unit installation for cool that lasts.</p>
+          <span class="svc-tag mono">// CLIMATE</span>
+        </article>
+
+        <article class="svc-card" data-reveal>
+          <div class="svc-ic"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="13" height="7" rx="1.5"/><path d="M16 6.5h3.5a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H12v3"/><rect x="10.5" y="15" width="3" height="6.5" rx="1"/></svg></div>
+          <h3>Renovation &amp; Fit-Out</h3>
+          <p>Kitchens, bathrooms, flooring, gypsum, tiling and painting — end-to-end refurbishment with a premium finish.</p>
+          <span class="svc-tag mono">// REBUILD</span>
+        </article>
+
+        <article class="svc-card" data-reveal>
+          <div class="svc-ic"><svg viewBox="0 0 24 24"><path d="M14.5 6.5a4.5 4.5 0 0 0-6.1 5.6L3 17.5V21h3.5l5.4-5.4a4.5 4.5 0 0 0 5.6-6.1L14.6 12l-2.6-2.6 2.5-2.9Z"/></svg></div>
+          <h3>Handyman</h3>
+          <p>TV mounting, curtains, doors, locks, furniture assembly — all the small jobs, done right the first time.</p>
+          <span class="svc-tag mono">// FIX-IT</span>
+        </article>
+
+        <article class="svc-card" data-reveal>
+          <div class="svc-ic"><svg viewBox="0 0 24 24"><path d="M19 3H7a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2ZM5 7H3v6a1 1 0 0 0 1 1h7v2"/><rect x="9.5" y="16" width="3" height="6" rx="1"/></svg></div>
+          <h3>Painting</h3>
+          <p>Interior &amp; exterior painting with surface prep, premium coatings and a spotless handover.</p>
+          <span class="svc-tag mono">// FINISH</span>
+        </article>
+
+        <article class="svc-card" data-reveal>
+          <div class="svc-ic"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v16m0-11h4a1 1 0 0 1 1 1v10M8 8h2m-2 4h2m-2 4h2m7-2h1"/></svg></div>
+          <h3>Building &amp; Villa Care</h3>
+          <p>Complete upkeep for buildings, villas and apartments — from common areas to rooftops, on one contract.</p>
+          <span class="svc-tag mono">// SCALE</span>
+        </article>
+      </div>
+    </section>
+
+    <!-- ══════════ AMC PLANS ══════════ -->
+    <section class="section" id="amc">
+      <div class="section-head" data-reveal>
+        <div class="section-eyebrow mono">// 02 — AMC PROTOCOLS</div>
+        <h2 class="section-title">Annual Maintenance<br /><span class="grad">Contracts.</span></h2>
+        <p class="section-sub">Your property, monitored and maintained all year. Pick a protocol — we tailor it after a free site survey.</p>
+      </div>
+
+      <div class="plans">
+        <article class="plan" data-reveal>
+          <div class="plan-name mono">ESSENTIAL</div>
+          <div class="plan-for">Flats &amp; Apartments</div>
+          <ul>
+            <li>2 scheduled preventive visits / year</li>
+            <li>AC servicing included</li>
+            <li>Priority booking window</li>
+            <li>Discounted repair call-outs</li>
+            <li>WhatsApp support line</li>
+          </ul>
+          <a class="btn btn-ghost btn-block" href="https://wa.me/971522338499?text=Hello!%20I%27m%20interested%20in%20the%20ESSENTIAL%20AMC%20plan." target="_blank" rel="noopener">Request Quote</a>
+        </article>
+
+        <article class="plan plan-featured" data-reveal>
+          <div class="plan-badge mono">MOST POPULAR</div>
+          <div class="plan-name mono">COMFORT</div>
+          <div class="plan-for">Villas &amp; Townhouses</div>
+          <ul>
+            <li>4 scheduled preventive visits / year</li>
+            <li>Emergency call-outs included</li>
+            <li>AC + plumbing + electrical checks</li>
+            <li>Preferential rates on repairs &amp; materials</li>
+            <li>Dedicated account manager</li>
+          </ul>
+          <a class="btn btn-gold btn-block" href="https://wa.me/971522338499?text=Hello!%20I%27m%20interested%20in%20the%20COMFORT%20AMC%20plan." target="_blank" rel="noopener">Request Quote</a>
+        </article>
+
+        <article class="plan" data-reveal>
+          <div class="plan-name mono">ELITE</div>
+          <div class="plan-for">Buildings &amp; Portfolios</div>
+          <ul>
+            <li>Custom visit schedule</li>
+            <li>24/7 emergency cover</li>
+            <li>Full MEP maintenance scope</li>
+            <li>On-call technician team</li>
+            <li>Monthly condition reports</li>
+          </ul>
+          <a class="btn btn-ghost btn-block" href="https://wa.me/971522338499?text=Hello!%20I%27m%20interested%20in%20the%20ELITE%20AMC%20plan." target="_blank" rel="noopener">Request Quote</a>
+        </article>
+      </div>
+      <p class="plans-note mono" data-reveal>* ALL PLANS ARE TAILORED TO YOUR PROPERTY AFTER A FREE SITE SURVEY</p>
+    </section>
+
+    <!-- ══════════ PROCESS ══════════ -->
+    <section class="section" id="process">
+      <div class="section-head" data-reveal>
+        <div class="section-eyebrow mono">// 03 — EXECUTION SEQUENCE</div>
+        <h2 class="section-title">From fault<br /><span class="grad">to flawless.</span></h2>
+        <p class="section-sub">A precise, transparent workflow — the same discipline on a dripping tap as on a full renovation.</p>
+      </div>
+
+      <div class="steps">
+        <div class="steps-line" aria-hidden="true"><span id="stepsProgress"></span></div>
+
+        <article class="step" data-reveal>
+          <div class="step-num mono">01</div>
+          <h3>Book</h3>
+          <p>Message us on WhatsApp or call. Describe the issue, send a photo — dispatched in minutes.</p>
+        </article>
+        <article class="step" data-reveal>
+          <div class="step-num mono">02</div>
+          <h3>Diagnose</h3>
+          <p>A certified technician arrives, inspects and quotes transparently — before any work begins.</p>
+        </article>
+        <article class="step" data-reveal>
+          <div class="step-num mono">03</div>
+          <h3>Execute</h3>
+          <p>We fix it right the first time — genuine parts, clean workmanship, site left spotless.</p>
+        </article>
+        <article class="step" data-reveal>
+          <div class="step-num mono">04</div>
+          <h3>Guarantee</h3>
+          <p>Every job is quality-checked and backed by our workmanship warranty. Signed. Sealed. Certified.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ══════════ STATS ══════════ -->
+    <section class="stats" id="stats">
+      <div class="stat" data-reveal>
+        <div class="stat-val"><span data-count="24">0</span><em>/7</em></div>
+        <div class="stat-label mono">EMERGENCY RESPONSE</div>
+      </div>
+      <div class="stat" data-reveal>
+        <div class="stat-val"><span data-count="8">0</span><em>+</em></div>
+        <div class="stat-label mono">TRADES UNDER ONE ROOF</div>
+      </div>
+      <div class="stat" data-reveal>
+        <div class="stat-val"><span data-count="1">0</span><em></em></div>
+        <div class="stat-label mono">CALL COVERS IT ALL</div>
+      </div>
+      <div class="stat" data-reveal>
+        <div class="stat-val"><span data-count="100">0</span><em>%</em></div>
+        <div class="stat-label mono">TRANSPARENT QUOTES</div>
+      </div>
+    </section>
+
+    <!-- ══════════ WHY US ══════════ -->
+    <section class="section" id="why">
+      <div class="why-grid">
+        <div class="why-copy" data-reveal>
+          <div class="section-eyebrow mono">// 04 — WHY MENDONCA</div>
+          <h2 class="section-title">Built on trust.<br /><span class="grad">Run like a machine.</span></h2>
+          <p class="section-sub">
+            Mendonca Technical Services LLC is a UAE home-maintenance company built around one idea:
+            your home deserves the same engineering discipline as a commercial facility —
+            without the commercial attitude.
+          </p>
+          <a class="btn btn-gold" href="#contact">Get a Free Survey</a>
+        </div>
+
+        <ul class="why-list">
+          <li class="why-item" data-reveal><i class="tick"></i><div><b>Licensed &amp; insured technicians</b><span>Vetted, trained and uniformed professionals on every job.</span></div></li>
+          <li class="why-item" data-reveal><i class="tick"></i><div><b>Transparent, upfront pricing</b><span>You approve the quote before a single tool comes out.</span></div></li>
+          <li class="why-item" data-reveal><i class="tick"></i><div><b>Genuine spare parts only</b><span>No shortcuts, no imitations — components that last.</span></div></li>
+          <li class="why-item" data-reveal><i class="tick"></i><div><b>Workmanship warranty</b><span>Every repair is backed. If it fails, we return — free.</span></div></li>
+          <li class="why-item" data-reveal><i class="tick"></i><div><b>One point of contact</b><span>Electrician, plumber, AC tech — one number handles all of it.</span></div></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ══════════ CONTACT ══════════ -->
+    <section class="section" id="contact">
+      <div class="contact-panel" data-reveal>
+        <div class="contact-left">
+          <div class="section-eyebrow mono">// 05 — INITIATE CONTACT</div>
+          <h2 class="section-title">Ready when<br /><span class="grad">you are.</span></h2>
+          <p class="section-sub">Tell us what needs fixing — we'll take it from there. Free site surveys for AMC and renovation projects.</p>
+
+          <div class="contact-chips">
+            <a class="c-chip" href="https://wa.me/971522338499" target="_blank" rel="noopener">
+              <b class="mono">WHATSAPP / CALL</b><span>+971 52 233 8499</span>
+            </a>
+            <a class="c-chip" href="mailto:info@mendtechservices.com">
+              <b class="mono">EMAIL</b><span>info@mendtechservices.com</span>
+            </a>
+            <a class="c-chip" href="https://www.mendtechservices.com" target="_blank" rel="noopener">
+              <b class="mono">WEB</b><span>www.mendtechservices.com</span>
+            </a>
+          </div>
+        </div>
+
+        <form class="contact-form" id="contactForm">
+          <div class="ff">
+            <label class="mono" for="fName">NAME</label>
+            <input id="fName" name="name" type="text" placeholder="Your name" required />
+          </div>
+          <div class="ff">
+            <label class="mono" for="fPhone">PHONE</label>
+            <input id="fPhone" name="phone" type="tel" placeholder="+971 ..." />
+          </div>
+          <div class="ff">
+            <label class="mono" for="fService">SERVICE</label>
+            <select id="fService" name="service">
+              <option>AMC Contract</option>
+              <option>Electrical</option>
+              <option>Plumbing</option>
+              <option>AC &amp; HVAC</option>
+              <option>Renovation / Fit-Out</option>
+              <option>Handyman</option>
+              <option>Painting</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="ff">
+            <label class="mono" for="fMsg">MESSAGE</label>
+            <textarea id="fMsg" name="message" rows="4" placeholder="Describe the issue or project..."></textarea>
+          </div>
+          <button type="submit" class="btn btn-gold btn-block">
+            Send via WhatsApp
+            <svg viewBox="0 0 24 24" class="ic"><path d="M5 12h14m0 0-6-6m6 6-6 6"/></svg>
+          </button>
+          <p class="form-note mono">OPENS WHATSAPP WITH YOUR MESSAGE PRE-FILLED</p>
+        </form>
+      </div>
+    </section>
+
+    <!-- ══════════ FOOTER ══════════ -->
+    <footer class="footer">
+      <div class="footer-top">
+        <a class="nav-logo" href="#home">
+          <svg class="logo-mark" viewBox="0 0 66 48" aria-hidden="true">
+            <path d="M2 44 L18 6 L28 6 L12 44 Z" />
+            <path d="M20 44 L36 6 L46 6 L30 44 Z" />
+            <path d="M38 44 L54 6 L64 6 L48 44 Z" />
+          </svg>
+          <span class="logo-text">
+            <strong>MENDONCA</strong>
+            <em>TECHNICAL&nbsp;SERVICES</em>
+          </span>
+        </a>
+        <nav class="footer-links">
+          <a href="#services">Services</a>
+          <a href="#amc">AMC Plans</a>
+          <a href="#process">Process</a>
+          <a href="#why">Why Us</a>
+          <a href="#contact">Contact</a>
+        </nav>
+      </div>
+      <div class="footer-bottom mono">
+        <span>© 2026 MENDONCA TECHNICAL SERVICES LLC — ALL RIGHTS RESERVED</span>
+        <span>DUBAI · UNITED ARAB EMIRATES · +971 52 233 8499</span>
+      </div>
+    </footer>
+
+  </main>
+
+  <!-- ══════════ FLOATING WHATSAPP ══════════ -->
+  <a class="wa-float" href="https://wa.me/971522338499" target="_blank" rel="noopener" aria-label="Chat on WhatsApp">
+    <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm5.3 14.2c-.2.6-1.2 1.2-1.7 1.2-.4.1-1 .1-1.6-.1a13 13 0 0 1-5.7-5A6.6 6.6 0 0 1 7 9.1c0-.9.5-1.4.7-1.6.2-.2.4-.2.6-.2h.4c.2 0 .4-.1.6.4l.8 2c.1.2.1.4 0 .6l-.4.6c-.1.2-.3.4-.1.7.1.3.7 1.2 1.6 1.9 1.1 1 2 1.3 2.3 1.4.3.1.5.1.6-.1l.7-.9c.2-.2.4-.2.6-.1l1.9.9c.2.1.4.2.4.3.1.1.1.5-.1 1.2Z"/></svg>
+  </a>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lenis@1.1.18/dist/lenis.min.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
