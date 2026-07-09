@@ -1,0 +1,26 @@
+MTS Field Ops v4
+Built for starting structure:
+- Owner
+- 1 Admin
+- 1 HR
+- 2 Supervisors
+- Workers
+- Driver
+
+New in v4:
+- Owner-only approval for every new team member (any role, permanent or temp)
+- Slack and Zoho tabs visible to supervisory level and above only
+- Zoho backend sync endpoint on the relay (/api/zoho/sync)
+- Photo compression, storage protection, temp access auto-expiry
+- Real PNG app icons for PC and phone install
+
+Slack:
+- Channel: #mts-field-updates
+- Channel ID: C0BFZLRJ8AX
+
+Local app:
+- http://localhost:5178/index.html
+
+Local relay:
+- http://localhost:8787/api/slack/alerts
+- http://localhost:8787/api/zoho/sync

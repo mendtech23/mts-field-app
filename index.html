@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MTS Field Ops</title>
+    <meta name="theme-color" content="#0f766e">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="icon" type="image/png" href="./icon-192.png">
+    <link rel="apple-touch-icon" href="./icon-192.png">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Mendonca Technical Services</p>
+          <h1>MTS Field Ops</h1>
+        </div>
+        <label class="profile-switch">
+          <span>Access</span>
+          <select id="profileSelect" aria-label="Select profile"></select>
+        </label>
+      </header>
+
+      <nav class="tabs" aria-label="Primary">
+        <button class="tab active" data-view="board">Board</button>
+        <button class="tab" data-view="job">Job</button>
+        <button class="tab" data-view="team">Team</button>
+        <button class="tab" data-view="slack">Slack</button>
+        <button class="tab" data-view="sync">Zoho</button>
+      </nav>
+
+      <main>
+        <section id="boardView" class="view active" aria-labelledby="boardTitle">
+          <div class="section-head">
+            <div>
+              <h2 id="boardTitle">Today Jobs</h2>
+              <p id="boardSummary">Field visibility, sub-job assignment, acceptance confirmations, issues, and transport.</p>
+            </div>
+            <button id="newJobButton" class="primary">New Job</button>
+          </div>
+
+          <div class="quick-stats" id="quickStats"></div>
+          <div class="filters" id="statusFilters"></div>
+          <form id="newJobForm" class="panel hidden" autocomplete="off">
+            <h3>Create Job</h3>
+            <div class="form-grid">
+              <label>Customer
+                <input name="customer" required placeholder="Customer or site name">
+              </label>
+              <label>Service
+                <input name="service" required placeholder="Painting, AC, electrical...">
+              </label>
+              <label>Location
+                <input name="location" required placeholder="Villa, office, area">
+              </label>
+              <label>Priority
+                <select name="priority">
+                  <option>Normal</option>
+                  <option>Urgent</option>
+                  <option>Inspection</option>
+                </select>
+              </label>
+              <label>Supervisor
+                <select name="supervisor" id="newJobSupervisor"></select>
+              </label>
+              <label>Driver
+                <select name="driver" id="newJobDriver"></select>
+              </label>
+            </div>
+            <label>Work Brief
+              <textarea name="brief" rows="3" placeholder="Scope, customer notes, access details"></textarea>
+            </label>
+            <div class="actions">
+              <button type="submit" class="primary">Save Job</button>
+              <button type="button" id="cancelNewJob">Cancel</button>
+            </div>
+          </form>
+
+          <div id="jobList" class="job-list"></div>
+        </section>
+
+        <section id="jobView" class="view" aria-labelledby="jobTitle">
+          <div id="jobDetail"></div>
+        </section>
+
+        <section id="teamView" class="view" aria-labelledby="teamTitle">
+          <div class="section-head">
+            <div>
+              <h2 id="teamTitle">Team And Drivers</h2>
+              <p>Owner, admin, HR, and supervisors can manage employees, drivers, temporary outsourced workers, access status, and latest GPS check-ins.</p>
+            </div>
+          </div>
+          <div id="teamGrid" class="team-grid"></div>
+        </section>
+
+        <section id="slackView" class="view" aria-labelledby="slackTitle">
+          <div class="section-head">
+            <div>
+              <h2 id="slackTitle">Slack Alerts</h2>
+              <p>Field events are prepared for your MTS Slack channel so office, supervisors, and owner see site movement fast.</p>
+            </div>
+            <button id="testSlackButton" class="primary">Test Alert</button>
+          </div>
+          <form id="slackSettingsForm" class="panel">
+            <h3>Alert Settings</h3>
+            <div class="form-grid">
+              <label>Slack Channel
+                <input name="channel" id="slackChannel" placeholder="#mts-field-updates">
+              </label>
+              <label>Slack Channel ID
+                <input name="channelId" id="slackChannelId" placeholder="C0BFZLRJ8AX">
+              </label>
+              <label>Backend Relay URL
+                <input name="relayUrl" id="slackRelayUrl" placeholder="https://your-backend.example.com/slack/mts">
+              </label>
+            </div>
+            <div class="toggle-grid">
+              <label><input type="checkbox" name="assignments"> Assignments and accept/reject</label>
+              <label><input type="checkbox" name="issues"> Worker issues and blockers</label>
+              <label><input type="checkbox" name="materials"> Material and transport requests</label>
+              <label><input type="checkbox" name="photos"> Photos and GPS check-ins</label>
+            </div>
+            <div class="actions">
+              <button type="submit" class="primary">Save Slack Settings</button>
+              <button type="button" id="sendPendingSlackButton">Send Pending Alerts</button>
+            </div>
+            <p class="small">For security, the production app should send Slack alerts through a backend relay, not directly from worker phones.</p>
+          </form>
+          <div id="slackAlerts" class="sync-list"></div>
+        </section>
+
+        <section id="syncView" class="view" aria-labelledby="syncTitle">
+          <div class="section-head">
+            <div>
+              <h2 id="syncTitle">Zoho Sync Queue</h2>
+              <p>Every field update is stored locally and prepared for Zoho CRM, Zoho Books, or Zoho Creator.</p>
+            </div>
+            <button id="exportButton" class="primary">Export JSON</button>
+          </div>
+          <form id="zohoSettingsForm" class="panel">
+            <h3>Backend Sync</h3>
+            <div class="form-grid">
+              <label>Backend Sync URL
+                <input name="zohoRelayUrl" id="zohoRelayUrl" placeholder="http://localhost:8787/api/zoho/sync">
+              </label>
+            </div>
+            <div class="actions">
+              <button type="submit" class="primary">Save Sync Settings</button>
+              <button type="button" id="syncAllPendingButton">Sync All Pending</button>
+            </div>
+            <p class="small">Events post to your backend relay. The relay stores them and forwards to Zoho automatically once a Zoho Flow webhook or API credential is configured on the server.</p>
+          </form>
+          <div class="panel">
+            <h3>Recommended Zoho Mapping</h3>
+            <ul class="mapping-list">
+              <li><strong>Jobs:</strong> custom module or Deals/Projects record.</li>
+              <li><strong>Sub-jobs:</strong> child tasks linked to Jobs with assigned workers and acceptance status.</li>
+              <li><strong>Assignment alerts:</strong> pending, accepted, or rejected confirmation records.</li>
+              <li><strong>Issues:</strong> worker-to-supervisor help requests with open/resolved status.</li>
+              <li><strong>Photos:</strong> Zoho attachments linked to each job.</li>
+              <li><strong>Time logs:</strong> custom module for worker hours and cost control.</li>
+              <li><strong>Materials:</strong> request records, then convert approved items into Zoho Books expenses or items.</li>
+              <li><strong>Transport:</strong> driver trips linked to job, workers, pickup, drop, and GPS check-ins.</li>
+              <li><strong>Temporary workers:</strong> outsource profiles with expiry date and revoked access status.</li>
+            </ul>
+          </div>
+          <div id="syncQueue" class="sync-list"></div>
+        </section>
+      </main>
+    </div>
+
+    <template id="emptyStateTemplate">
+      <div class="empty-state">
+        <h3>No records yet</h3>
+        <p>Updates will appear here as soon as the team starts using the app.</p>
+      </div>
+    </template>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
