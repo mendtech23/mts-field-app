@@ -1,5 +1,17 @@
 # Install MTS Field Ops
 
+## Live App (HTTPS, For Phone Install)
+
+The app is deployed and live at:
+
+```text
+https://mendtech23.github.io/mts-field-app/
+```
+
+On any phone: open that link in Chrome > browser menu > `Install app` (or `Add to Home screen`). `MTS Ops` appears with the MTS icon, and GPS check-ins and offline mode work because the link is HTTPS.
+
+To publish app updates: commit and push to the `main` branch of `github.com/mendtech23/mts-field-app` — GitHub Pages redeploys in about a minute and installed phones pick up the new version on next open.
+
 ## What Is Included
 
 - Mobile-first MTS Field Ops PWA.
