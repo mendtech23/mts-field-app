@@ -477,20 +477,90 @@ function initCards() {
 }
 
 /* ────────────────────────────────────────────
-   CONTACT FORM → WHATSAPP
+   CONTACT FORM → ZOHO CRM LEAD (WhatsApp fallback)
+   Tokens come from Zoho CRM > Setup > Developer Space
+   > Webforms > (form) > embed code. Until both tokens
+   are pasted in, the form falls back to WhatsApp.
    ──────────────────────────────────────────── */
+const ZOHO_WEBFORM = {
+  action: "https://crm.zoho.com/crm/WebToLeadForm",
+  xnQsjsdp: "PASTE_XNQSJSDP_TOKEN",
+  xmIwtLD: "PASTE_XMIWTLD_TOKEN",
+  actionType: "TGVhZHM=",
+  returnURL: "https://www.mendtechservices.com/",
+};
+window.ZOHO_WEBFORM = ZOHO_WEBFORM;
+
+function zohoReady() {
+  return !ZOHO_WEBFORM.xnQsjsdp.startsWith("PASTE_") && !ZOHO_WEBFORM.xmIwtLD.startsWith("PASTE_");
+}
+
+function postLeadToZoho(fields) {
+  let frame = document.getElementById("zohoLeadFrame");
+  if (!frame) {
+    frame = document.createElement("iframe");
+    frame.id = "zohoLeadFrame";
+    frame.name = "zohoLeadFrame";
+    frame.style.display = "none";
+    document.body.appendChild(frame);
+  }
+  const f = document.createElement("form");
+  f.action = ZOHO_WEBFORM.action;
+  f.method = "POST";
+  f.target = "zohoLeadFrame";
+  f.style.display = "none";
+  const data = {
+    xnQsjsdp: ZOHO_WEBFORM.xnQsjsdp,
+    xmIwtLD: ZOHO_WEBFORM.xmIwtLD,
+    actionType: ZOHO_WEBFORM.actionType,
+    returnURL: ZOHO_WEBFORM.returnURL,
+    ...fields,
+  };
+  for (const [k, v] of Object.entries(data)) {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = k;
+    input.value = v;
+    f.appendChild(input);
+  }
+  document.body.appendChild(f);
+  f.submit();
+  setTimeout(() => f.remove(), 3000);
+}
+
 function initForm() {
   const form = document.getElementById("contactForm");
+  const label = document.getElementById("fSubmitLabel");
+  const note = document.getElementById("fNote");
+  if (zohoReady()) {
+    label.textContent = "Send Request";
+    note.textContent = "GOES STRAIGHT TO OUR TEAM — WE CALL YOU BACK";
+  }
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     const name = form.name.value.trim();
     const phone = form.phone.value.trim();
+    const email = form.email.value.trim();
     const service = form.service.value;
     const message = form.message.value.trim();
-    let text = `Hello Mendonca Technical Services!\n\nName: ${name}\nService: ${service}`;
-    if (phone) text += `\nPhone: ${phone}`;
-    if (message) text += `\n\n${message}`;
-    window.open("https://wa.me/971522338499?text=" + encodeURIComponent(text), "_blank", "noopener");
+    if (zohoReady()) {
+      postLeadToZoho({
+        "Last Name": name || "Website visitor",
+        "Phone": phone,
+        "Email": email,
+        "Description": `Service: ${service}` + (message ? `\n\n${message}` : ""),
+      });
+      form.reset();
+      label.textContent = "Received ✓";
+      note.textContent = "THANKS — WE'LL CALL YOU BACK SHORTLY. URGENT? WHATSAPP +971 52 233 8499";
+      setTimeout(() => { label.textContent = "Send Request"; }, 4000);
+    } else {
+      let text = `Hello Mendonca Technical Services!\n\nName: ${name}\nService: ${service}`;
+      if (phone) text += `\nPhone: ${phone}`;
+      if (email) text += `\nEmail: ${email}`;
+      if (message) text += `\n\n${message}`;
+      window.open("https://wa.me/971522338499?text=" + encodeURIComponent(text), "_blank", "noopener");
+    }
   });
 }
 

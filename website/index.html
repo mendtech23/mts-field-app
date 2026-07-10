@@ -388,6 +388,10 @@
             <input id="fPhone" name="phone" type="tel" placeholder="+971 ..." />
           </div>
           <div class="ff">
+            <label class="mono" for="fEmail">EMAIL</label>
+            <input id="fEmail" name="email" type="email" placeholder="you@email.com" />
+          </div>
+          <div class="ff">
             <label class="mono" for="fService">SERVICE</label>
             <select id="fService" name="service">
               <option>AMC Contract</option>
@@ -404,11 +408,11 @@
             <label class="mono" for="fMsg">MESSAGE</label>
             <textarea id="fMsg" name="message" rows="4" placeholder="Describe the issue or project..."></textarea>
           </div>
-          <button type="submit" class="btn btn-gold btn-block">
-            Send via WhatsApp
+          <button type="submit" class="btn btn-gold btn-block" id="fSubmit">
+            <span id="fSubmitLabel">Send via WhatsApp</span>
             <svg viewBox="0 0 24 24" class="ic"><path d="M5 12h14m0 0-6-6m6 6-6 6"/></svg>
           </button>
-          <p class="form-note mono">OPENS WHATSAPP WITH YOUR MESSAGE PRE-FILLED</p>
+          <p class="form-note mono" id="fNote">OPENS WHATSAPP WITH YOUR MESSAGE PRE-FILLED</p>
         </form>
       </div>
     </section>
