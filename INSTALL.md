@@ -12,6 +12,14 @@ On any phone: open that link in Chrome > browser menu > `Install app` (or `Add t
 
 To publish app updates: commit and push to the `main` branch of `github.com/mendtech23/mts-field-app` — GitHub Pages redeploys in about a minute and installed phones pick up the new version on next open.
 
+The customer-facing marketing website is live from the same deploy at:
+
+```text
+https://mendtech23.github.io/mts-field-app/website/
+```
+
+See `website/README.md` for connecting `www.mendtechservices.com` and finishing the Zoho CRM lead form.
+
 ## What Is Included
 
 - Mobile-first MTS Field Ops PWA.

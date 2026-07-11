@@ -4,6 +4,13 @@ This is a mobile-first prototype for Mendonca Technical Services field operation
 
 Open `index.html` in a browser to try it. It stores data in the browser using `localStorage`, so it works as a realistic clickable MVP without a backend.
 
+## Live Links
+
+- Field app (PWA, phone-installable): https://mendtech23.github.io/mts-field-app/
+- Marketing website: https://mendtech23.github.io/mts-field-app/website/ (see `website/README.md` for the custom-domain and Zoho lead-form steps)
+
+Both deploy automatically from the `main` branch via GitHub Pages.
+
 ## What It Covers
 
 - Owner, 1 admin, 1 HR, and 2 supervisor access profiles.
