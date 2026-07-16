@@ -14,7 +14,7 @@
     <div id="lockOverlay" class="lock-overlay hidden">
       <div class="lock-card">
         <div class="brand-logo brand-logo-lock" aria-hidden="true">
-          <span class="brand-mark"><i></i><i></i></span>
+          <span class="brand-mark"><i></i><i></i><i></i></span>
           <span class="brand-text"><b>MENDONCA</b><small>FIELD OPS</small></span>
         </div>
         <div id="lockEnter" class="hidden">
@@ -141,6 +141,9 @@
             </div>
             <h4>Checklist</h4>
             <div id="inspectionChecklist" class="inspection-checklist"></div>
+            <label>Site Photos
+              <input type="file" name="photos" id="inspectionPhotos" accept="image/*" multiple>
+            </label>
             <label>Summary
               <textarea name="summary" rows="2" placeholder="Overall condition and findings"></textarea>
             </label>

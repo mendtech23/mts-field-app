@@ -515,12 +515,17 @@ function renderProfiles() {
 
 function renderTabs() {
   const managementOnly = ["slack", "sync"];
+  const ownerOnly = ["inspect"];
   const canManage = Boolean(currentProfile().canManage);
-  if (!canManage && managementOnly.includes(state.activeView)) {
+  const isOwner = canEditInspections(); // owner role AND master-code unlocked
+  const hidden = (view) =>
+    (managementOnly.includes(view) && !canManage) ||
+    (ownerOnly.includes(view) && !isOwner);
+  if (hidden(state.activeView)) {
     state.activeView = "board";
   }
   document.querySelectorAll(".tab").forEach((tab) => {
-    tab.classList.toggle("hidden", managementOnly.includes(tab.dataset.view) && !canManage);
+    tab.classList.toggle("hidden", hidden(tab.dataset.view));
     tab.classList.toggle("active", tab.dataset.view === state.activeView);
   });
   document.querySelectorAll(".view").forEach((view) => {
@@ -1177,6 +1182,7 @@ document.addEventListener("click", (event) => {
   if (event.target.id === "newInspectionButton") { toggleNewInspection(true); return; }
   if (event.target.id === "cancelInspection") { toggleNewInspection(false); return; }
   if (event.target.dataset.deleteInspection) { deleteInspection(event.target.dataset.deleteInspection); return; }
+  if (event.target.dataset.quoteInspection) { generateQuotation(event.target.dataset.quoteInspection); return; }
   const tab = event.target.closest(".tab");
   if (tab) {
     state.activeView = tab.dataset.view;
@@ -1833,9 +1839,18 @@ function renderInspections() {
         </div>
         <p class="small">Inspector: ${escapeHtml(rep.inspector || "")}</p>
         <ul class="inspection-items">${rows}</ul>
+        ${(rep.photos && rep.photos.length) ? `<div class="inspection-photos">${rep.photos.map((p) => `<img src="${p.dataUrl}" alt="${escapeHtml(p.name)}" loading="lazy">`).join("")}</div>` : ""}
         ${rep.summary ? `<p><strong>Summary:</strong> ${escapeHtml(rep.summary)}</p>` : ""}
         ${rep.recommendation ? `<p><strong>Recommendation:</strong> ${escapeHtml(rep.recommendation)}</p>` : ""}
-        ${owner ? `<div class="actions"><button data-delete-inspection="${rep.id}">Delete</button></div>` : ""}
+        ${rep.quotation ? `<div class="quotation-block">
+          <h4>Quotation draft (${escapeHtml(rep.quotation.status)})</h4>
+          <ul class="quotation-lines">${rep.quotation.lines.map((l) => `<li><span>${escapeHtml(l.description)}</span><span class="qt-price">${l.price != null ? "AED " + l.price : "[PRICE]"}</span></li>`).join("")}</ul>
+          <p class="small">Fill prices and send from Zoho Books.</p>
+        </div>` : ""}
+        ${owner ? `<div class="actions">
+          <button class="primary" data-quote-inspection="${rep.id}">${rep.quotation ? "Regenerate Quotation" : "Generate Quotation"}</button>
+          <button data-delete-inspection="${rep.id}">Delete</button>
+        </div>` : ""}
       </article>`;
     })
     .join("");
@@ -1870,7 +1885,17 @@ function toggleNewInspection(show) {
   form.classList.toggle("hidden", !show);
 }
 
-function createInspection(form) {
+function readImageFiles(fileList) {
+  const files = Array.from(fileList || []).slice(0, 8);
+  return Promise.all(files.map((file) => new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve({ name: file.name, dataUrl: reader.result, at: new Date().toISOString() });
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  }))).then((arr) => arr.filter(Boolean));
+}
+
+async function createInspection(form) {
   if (!canEditInspections()) return;
   const data = new FormData(form);
   const jobId = data.get("jobId") || "";
@@ -1880,6 +1905,7 @@ function createInspection(form) {
     result: data.get(`result-${i}`),
     note: (data.get(`note-${i}`) || "").trim()
   }));
+  const photos = await readImageFiles(byId("inspectionPhotos")?.files);
   const anyFail = items.some((it) => it.result === "Fail");
   const anyFollow = items.some((it) => it.result === "Follow-up");
   const overall = anyFail ? "Fail" : anyFollow ? "Follow-up" : "Pass";
@@ -1890,9 +1916,11 @@ function createInspection(form) {
     location: (data.get("location") || job?.location || "").trim(),
     inspector: currentProfile().name,
     items,
+    photos,
     overall,
     summary: (data.get("summary") || "").trim(),
     recommendation: (data.get("recommendation") || "").trim(),
+    quotation: null,
     at: new Date().toISOString()
   };
   state.inspections.unshift(inspection);
@@ -1900,6 +1928,28 @@ function createInspection(form) {
   form.reset();
   byId("inspectionChecklist").innerHTML = "";
   toggleNewInspection(false);
+  render();
+}
+
+function generateQuotation(id) {
+  if (!canEditInspections()) return;
+  const rep = state.inspections.find((r) => r.id === id);
+  if (!rep) return;
+  const flagged = (rep.items || []).filter((it) => it.result === "Fail" || it.result === "Follow-up");
+  const lines = (flagged.length ? flagged : rep.items).map((it) => ({
+    description: it.note ? `${it.item} — ${it.note}` : it.item,
+    qty: 1,
+    price: null // owner fills the price
+  }));
+  rep.quotation = {
+    id: `QT-DRAFT-${Date.now()}`,
+    site: rep.site,
+    location: rep.location,
+    lines,
+    createdAt: new Date().toISOString(),
+    status: "Draft — prices pending"
+  };
+  queueSync("Quotation Draft", rep.jobId || "QUOTATION", { inspectionId: rep.id, ...rep.quotation });
   render();
 }
 

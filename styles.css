@@ -547,9 +547,10 @@ label {
 /* ── Field Ops branding ── */
 :root { --navy: #24384f; --navy-2: #33506e; }
 .brand-logo { display: flex; align-items: center; gap: 10px; }
-.brand-mark { display: inline-flex; gap: 3px; transform: skewX(-12deg); }
-.brand-mark i { display: block; width: 9px; height: 30px; border-radius: 2px; background: var(--navy); }
-.brand-mark i:last-child { background: var(--navy-2); }
+.brand-mark { display: inline-flex; gap: 3px; transform: skewX(-14deg); }
+.brand-mark i { display: block; width: 8px; height: 30px; border-radius: 2px; background: var(--navy); }
+.brand-mark i:nth-child(2) { background: var(--navy-2); }
+.brand-mark i:nth-child(3) { background: #5c7899; }
 .brand-text { display: flex; flex-direction: column; line-height: 1; }
 .brand-text b { font-size: 20px; letter-spacing: 1px; color: var(--navy); font-weight: 800; }
 .brand-text small { font-size: 11px; letter-spacing: 3px; color: var(--muted); }
@@ -586,3 +587,12 @@ label {
 .ins-overall-fail { background: #fdecea; color: var(--danger); }
 .ins-overall-follow-up { background: #fdf3e0; color: var(--warn); }
 @media (max-width: 560px) { .checklist-row { grid-template-columns: 1fr; } }
+
+/* ── Inspection photos & quotation ── */
+.inspection-photos { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.inspection-photos img { width: 88px; height: 88px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+.quotation-block { background: #f7f9fb; border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 12px 0; }
+.quotation-block h4 { margin: 0 0 8px; color: var(--navy); }
+.quotation-lines { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.quotation-lines li { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; border-bottom: 1px dashed var(--line); padding-bottom: 6px; }
+.qt-price { color: var(--navy); font-weight: 700; white-space: nowrap; }

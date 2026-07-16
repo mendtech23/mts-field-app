@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MTS Auto Concierge</title>
+    <meta name="theme-color" content="#13303f">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="icon" type="image/png" href="./icon-192.png">
+    <link rel="apple-touch-icon" href="./icon-192.png">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Mendonca Technical Services</p>
+          <h1>MTS Auto Concierge</h1>
+          <p class="tagline">Your car problem solved. We find, compare, negotiate and manage.</p>
+        </div>
+        <label class="profile-switch">
+          <span>Portal / Profile</span>
+          <select id="profileSelect" aria-label="Select portal profile"></select>
+        </label>
+      </header>
+
+      <nav class="tabs" id="tabs" aria-label="Primary"></nav>
+
+      <main id="appMain"></main>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

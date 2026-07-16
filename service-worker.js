@@ -1,4 +1,4 @@
-const CACHE_NAME = "mts-field-ops-v6";
+const CACHE_NAME = "mts-field-ops-v7";
 const ASSETS = [
   "./",
   "./index.html",
