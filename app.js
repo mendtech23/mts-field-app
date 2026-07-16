@@ -191,7 +191,8 @@ function hashCode(str) {
 }
 
 function canEditInspections() {
-  return unlocked && currentProfile().role === "Owner";
+  // Owner mode = the master code has been entered this session.
+  return unlocked;
 }
 
 function loadState() {
@@ -639,6 +640,7 @@ function renderJobDetail() {
       <div class="actions">
         <a href="${whatsappUrl(job)}" target="_blank" rel="noreferrer"><button>WhatsApp Update</button></a>
         <a href="${whatsappSupervisor}" target="_blank" rel="noreferrer"><button>Speak To Supervisor</button></a>
+        <button data-call-supervisor="${supervisorPhone(job) || ""}">📞 Call Supervisor</button>
         <button class="primary" data-gps="${job.id}">GPS Check-In</button>
       </div>
     </div>
@@ -1178,7 +1180,10 @@ document.addEventListener("change", (event) => {
 });
 
 document.addEventListener("click", (event) => {
+  if (event.target.id === "ownerLoginButton") { openOwnerLogin(); return; }
+  if (event.target.id === "cancelOwnerLogin" || event.target.id === "cancelOwnerLogin2") { closeOwnerLogin(); return; }
   if (event.target.id === "lockButton") { lockApp(); return; }
+  if (event.target.dataset.callSupervisor) { window.location.href = `tel:${event.target.dataset.callSupervisor}`; return; }
   if (event.target.id === "newInspectionButton") { toggleNewInspection(true); return; }
   if (event.target.id === "cancelInspection") { toggleNewInspection(false); return; }
   if (event.target.dataset.deleteInspection) { deleteInspection(event.target.dataset.deleteInspection); return; }
@@ -1738,28 +1743,42 @@ function exportJson() {
 }
 
 /* ────────────────────────────────────────────
-   MASTER CODE LOCK (device gate for the owner)
-   Note: this is a device-level access gate for a
-   static app, not bank-grade encryption. It keeps
-   the app closed until the master code is entered.
+   OWNER MODE (master code)
+   The app is open for workers/approved staff by
+   their role. Owner-only tools (inspections,
+   quotations) stay hidden until the owner enters
+   the master code. Workers never need the code.
+   Note: device-level access gate for a static app,
+   not bank-grade encryption. Session-only unlock.
    ──────────────────────────────────────────── */
+let ownerLoginOpen = false;
+
 function renderLock() {
   const overlay = byId("lockOverlay");
-  const shell = document.querySelector(".app-shell");
   if (!overlay) return;
   const needsSetup = !state.security.masterCodeHash;
-  const locked = state.security.lockEnabled && !unlocked;
-
-  overlay.classList.toggle("hidden", !locked);
-  if (shell) shell.classList.toggle("blurred", locked);
-
+  overlay.classList.toggle("hidden", !ownerLoginOpen);
   byId("lockSetup").classList.toggle("hidden", !needsSetup);
   byId("lockEnter").classList.toggle("hidden", needsSetup);
   const err = byId("lockError");
-  if (err) err.textContent = "";
+  if (err && !ownerLoginOpen) err.textContent = "";
 
+  const ownerBtn = byId("ownerLoginButton");
   const lockBtn = byId("lockButton");
-  if (lockBtn) lockBtn.classList.toggle("hidden", !state.security.masterCodeHash || !unlocked);
+  if (ownerBtn) ownerBtn.classList.toggle("hidden", unlocked);
+  if (lockBtn) lockBtn.classList.toggle("hidden", !unlocked);
+}
+
+function openOwnerLogin() {
+  ownerLoginOpen = true;
+  renderLock();
+}
+
+function closeOwnerLogin() {
+  ownerLoginOpen = false;
+  const err = byId("lockError");
+  if (err) err.textContent = "";
+  renderLock();
 }
 
 function setupMasterCode(form) {
@@ -1771,6 +1790,7 @@ function setupMasterCode(form) {
   if (code !== confirm) { if (err) err.textContent = "The two codes do not match."; return; }
   state.security.masterCodeHash = hashCode(code);
   unlocked = true;
+  ownerLoginOpen = false;
   saveState();
   renderLock();
   render();
@@ -1782,6 +1802,7 @@ function submitMasterCode(form) {
   const err = byId("lockError");
   if (hashCode(code) === state.security.masterCodeHash) {
     unlocked = true;
+    ownerLoginOpen = false;
     renderLock();
     render();
   } else if (err) {
@@ -1792,7 +1813,9 @@ function submitMasterCode(form) {
 
 function lockApp() {
   unlocked = false;
+  ownerLoginOpen = false;
   renderLock();
+  render();
 }
 
 /* ────────────────────────────────────────────

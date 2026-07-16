@@ -18,20 +18,22 @@
           <span class="brand-text"><b>MENDONCA</b><small>FIELD OPS</small></span>
         </div>
         <div id="lockEnter" class="hidden">
-          <h2>Enter Master Code</h2>
-          <p class="small">This app is locked. Enter your master code to open it.</p>
+          <h2>Owner Login</h2>
+          <p class="small">Enter your master code to open owner tools (inspections, quotations).</p>
           <form id="lockEnterForm" autocomplete="off">
-            <input name="code" type="password" inputmode="numeric" placeholder="Master code" autofocus>
-            <button type="submit" class="primary">Unlock</button>
+            <input name="code" type="password" inputmode="numeric" placeholder="Master code">
+            <button type="submit" class="primary">Unlock Owner Mode</button>
+            <button type="button" id="cancelOwnerLogin">Cancel</button>
           </form>
         </div>
         <div id="lockSetup" class="hidden">
           <h2>Set Your Master Code</h2>
-          <p class="small">First-time setup. Choose a code only you know — you will need it every time the app opens.</p>
+          <p class="small">First time. Choose a code only you know — it unlocks your owner tools. Workers never need it.</p>
           <form id="lockSetupForm" autocomplete="off">
             <input name="code" type="password" inputmode="numeric" placeholder="New master code (min 4)">
             <input name="confirm" type="password" inputmode="numeric" placeholder="Confirm master code">
-            <button type="submit" class="primary">Set Code & Open</button>
+            <button type="submit" class="primary">Set Code & Unlock</button>
+            <button type="button" id="cancelOwnerLogin2">Cancel</button>
           </form>
         </div>
         <p id="lockError" class="lock-error"></p>
@@ -45,7 +47,8 @@
           <span class="brand-text"><b>MENDONCA</b><small>FIELD OPS</small></span>
         </div>
         <div class="topbar-right">
-          <button id="lockButton" class="lock-button hidden" title="Lock app">🔒 Lock</button>
+          <button id="ownerLoginButton" class="lock-button" title="Owner login">🔑 Owner</button>
+          <button id="lockButton" class="lock-button hidden" title="Exit owner mode">🔒 Lock</button>
           <label class="profile-switch">
             <span>Access</span>
             <select id="profileSelect" aria-label="Select profile"></select>
