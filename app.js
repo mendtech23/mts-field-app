@@ -1188,6 +1188,8 @@ document.addEventListener("click", (event) => {
   if (event.target.id === "cancelInspection") { toggleNewInspection(false); return; }
   if (event.target.dataset.deleteInspection) { deleteInspection(event.target.dataset.deleteInspection); return; }
   if (event.target.dataset.quoteInspection) { generateQuotation(event.target.dataset.quoteInspection); return; }
+  if (event.target.id === "addServiceButton") { addPendingService(); return; }
+  if (event.target.dataset.removeService != null) { removePendingService(event.target.dataset.removeService); return; }
   const tab = event.target.closest(".tab");
   if (tab) {
     state.activeView = tab.dataset.view;
@@ -1830,6 +1832,35 @@ const INSPECTION_CHECKLIST = [
   "General handyman items"
 ];
 
+// Service catalog synced from Zoho Products (organized by category).
+const SERVICE_CATALOG = [{"group":"AC & HVAC","items":[{"name":"AC Installation Split","rate":0},{"name":"AC Service Package - 1 Unit","rate":0},{"name":"AC Service Package - 4 Units","rate":0},{"name":"AC Vacuum & Recharge","rate":0},{"name":"Ac Duct Cleaning 1 FCU","rate":650},{"name":"Ac Duct Cleaning 2 FCU","rate":950},{"name":"Ac Duct Cleaning 3 FCU","rate":1300},{"name":"Ac Duct Cleaning 4 FCU","rate":1800},{"name":"Ac Duct Cleaning 5 FCU","rate":2100},{"name":"Ac Duct Cleaning 6 FCU","rate":2600},{"name":"Ac Pc Board Change","rate":1100},{"name":"Split AC Deep Cleaning","rate":0},{"name":"Split AC General Service","rate":0}]},{"group":"Plumbing","items":[{"name":"Bathroom Complete Plumbing Works","rate":0},{"name":"Drain Blockage Removal","rate":0},{"name":"Handy man Hourly rate - 1 hr - Plumbing Call outs","rate":300},{"name":"Handy man Hourly rate - 2 hr - Plumbing Call outs","rate":500},{"name":"Handy man Hourly rate - After 2 hrs adittional - Plumbing Call outs","rate":250},{"name":"Water Heater Repair","rate":0},{"name":"Water Leak Detection","rate":0},{"name":"Water Tank Cleaning","rate":0},{"name":"water Heater Replacement 80 Lts 5 Yrs Warranty","rate":850}]},{"group":"Electrical","items":[{"name":"DB Panel Inspection","rate":0},{"name":"Electrical Inspection","rate":0},{"name":"Electrical Preventive Maintenance","rate":0},{"name":"Electrical Rewiring","rate":0},{"name":"Light Installation","rate":0},{"name":"Villa Electrical Maintenance","rate":0}]},{"group":"Painting","items":[{"name":"3 Bedroom Apartment Painting","rate":0},{"name":"3 Bedroom Villa Painting","rate":0},{"name":"Exterior Wall Painting","rate":0},{"name":"Interior Wall Painting","rate":0},{"name":"Luxury Villa Painting","rate":0},{"name":"Painting ( White) - 1 BR","rate":1800},{"name":"Painting ( White) - 2 BR","rate":2400},{"name":"Painting ( White) - 3 BR","rate":3200},{"name":"Painting ( White) - 4 BR ( Floors -1-2)","rate":4000},{"name":"Painting ( White) - 5 BR or more ( Floors -1-2)","rate":5000},{"name":"Painting ( White) - Studio","rate":1300},{"name":"Painting ( White) - Townhouse 2 BR or more ( Floors -1-2)","rate":2500},{"name":"Painting ( White) - Townhouse 3 BR ( Floors -1-2)","rate":3300},{"name":"Painting ( White) - Townhouse 4 BR ( Floors -1-2)","rate":4500},{"name":"Painting ( White) - Townhouse 5 BR ( Floors -1-2)","rate":5500},{"name":"Painting ( White) - Townhouse 6 BR ( Floors -1-2)","rate":6500},{"name":"Painting (Color) - 1 BR","rate":2000},{"name":"Painting (Color) - 2 BR","rate":2500},{"name":"Painting (Color) - 4 BR ( Floors -1-2)","rate":4200},{"name":"Painting (Color) - 5 BR or more ( Floors -1-2)","rate":5200},{"name":"Painting (Color) - Studio","rate":1500},{"name":"Painting (Color) - Townhouse 2 BR or more ( Floors -1-2)","rate":2600},{"name":"Painting (Color) - Townhouse 3 BR ( Floors -1-2)","rate":3500},{"name":"Painting (Color) - Townhouse 4 BR ( Floors -1-2)","rate":4500},{"name":"Painting (Color) - Townhouse 5 BR ( Floors -1-2)","rate":5800},{"name":"Painting (Color) - Townhouse 6 BR ( Floors -1-2)","rate":7000},{"name":"Painting (color) - 3 BR","rate":3400},{"name":"Painting 1 Br","rate":2200}]},{"group":"Cleaning","items":[{"name":"Apartment Deep Cleaning 2BR","rate":0},{"name":"Cleaning","rate":12500},{"name":"Move-In Cleaning","rate":0},{"name":"Move-Out Cleaning","rate":0},{"name":"Office Deep Cleaning","rate":0},{"name":"Villa Deep Cleaning","rate":0}]},{"group":"Waterproofing","items":[{"name":"Bathroom Waterproofing","rate":0},{"name":"Roof Water proofing and interior repainting","rate":10200},{"name":"Roof Waterproofing","rate":0},{"name":"Scrapping, repainting wall with waterproof material small - Color or white","rate":300}]},{"group":"Renovation & Fit-Out","items":[{"name":"Apartment Renovation","rate":0},{"name":"Bathroom Renovation","rate":0},{"name":"Commercial Fit-Out Works","rate":0},{"name":"Complete Villa Renovation","rate":0},{"name":"Complete renovation of 2 bathrooms according to the approved design","rate":50000},{"name":"Kitchen Renovation","rate":0}]},{"group":"Carpentry & Installation","items":[{"name":"Cooker Plates replacement","rate":850},{"name":"Custom Furniture Works","rate":0},{"name":"Furniture Assembly","rate":0},{"name":"Gypsum Ceiling Installation","rate":0},{"name":"Gypsum Partition Installation","rate":0},{"name":"Kitchen Cabinet Installation","rate":0},{"name":"TV Mounting","rate":0},{"name":"Tile Installation","rate":0},{"name":"Vinyl Flooring Installation","rate":0},{"name":"Wardrobe Installation","rate":0}]},{"group":"Windows & Doors","items":[{"name":"Aluminium Door Repair","rate":0},{"name":"Aluminium Window Repair","rate":0},{"name":"Door Repair","rate":0},{"name":"Flynet fixing - 1 Door","rate":200},{"name":"Flynet fixing - 1 Window","rate":150},{"name":"Installation Of Side Frame Works And Guider Rails Fixed To The Existing Side Wall Amd Ceiling Using Steel Anchor Bolts","rate":4000},{"name":"Mosquito Net Black in existing doorframe","rate":90},{"name":"Mosquito Net silver in existing door frame","rate":80}]},{"group":"Handyman","items":[{"name":"Handy man Hourly rate - 1 hr - Ac Call outs","rate":300},{"name":"Handy man Hourly rate - 1 hr - General Call outs","rate":300},{"name":"Handy man Hourly rate - 2 hr - Ac Call outs","rate":500},{"name":"Handy man Hourly rate - 2 hr - General Call outs","rate":500},{"name":"Handy man Hourly rate - After 2 hrs adittional - Ac Call outs","rate":250},{"name":"Handy man Hourly rate - After 2 hrs adittional - general Call outs","rate":250},{"name":"Handyman Visit","rate":0},{"name":"Manpower supply","rate":0}]},{"group":"AMC / Contracts","items":[{"name":"Annual AC Maintenance Contract","rate":0},{"name":"Apartment Maintenance AMC","rate":0},{"name":"Complete Property Maintenance AMC","rate":0},{"name":"Office Maintenance AMC","rate":0},{"name":"Villa Maintenance AMC","rate":0},{"name":"Villa Plumbing AMC","rate":0}]},{"group":"Emergency","items":[{"name":"Emergency AC Breakdown","rate":0},{"name":"Emergency Electrical Repair","rate":0},{"name":"Emergency Plumbing Repair","rate":0},{"name":"Emergency Power Failure Repair","rate":0}]},{"group":"Packages & Other","items":[{"name":"Complete Home Maintenance Package","rate":0}]}];
+
+let pendingServices = [];
+
+function serviceOptionsHtml() {
+  return `<option value="">— Select a service —</option>` + SERVICE_CATALOG
+    .map((g) => `<optgroup label="${escapeHtml(g.group)}">${g.items
+      .map((it) => `<option value="${escapeHtml(it.name)}" data-rate="${it.rate}">${escapeHtml(it.name)}${it.rate ? " — AED " + it.rate : ""}</option>`)
+      .join("")}</optgroup>`)
+    .join("");
+}
+
+function serviceRate(name) {
+  for (const g of SERVICE_CATALOG) {
+    const hit = g.items.find((it) => it.name === name);
+    if (hit) return hit.rate;
+  }
+  return 0;
+}
+
+function renderPendingServices() {
+  const box = byId("pendingServices");
+  if (!box) return;
+  box.innerHTML = pendingServices.length
+    ? pendingServices.map((s, i) => `<span class="service-chip">${escapeHtml(s.name)}${s.rate ? ` · AED ${s.rate}` : ""}<button type="button" data-remove-service="${i}" aria-label="Remove">×</button></span>`).join("")
+    : `<span class="small">No services added yet.</span>`;
+}
+
 function renderInspections() {
   const view = byId("inspectView");
   if (!view) return;
@@ -1862,13 +1893,15 @@ function renderInspections() {
         </div>
         <p class="small">Inspector: ${escapeHtml(rep.inspector || "")}</p>
         <ul class="inspection-items">${rows}</ul>
+        ${(rep.services && rep.services.length) ? `<p class="small"><strong>Services:</strong> ${rep.services.map((s) => escapeHtml(s.name)).join(", ")}</p>` : ""}
         ${(rep.photos && rep.photos.length) ? `<div class="inspection-photos">${rep.photos.map((p) => `<img src="${p.dataUrl}" alt="${escapeHtml(p.name)}" loading="lazy">`).join("")}</div>` : ""}
         ${rep.summary ? `<p><strong>Summary:</strong> ${escapeHtml(rep.summary)}</p>` : ""}
         ${rep.recommendation ? `<p><strong>Recommendation:</strong> ${escapeHtml(rep.recommendation)}</p>` : ""}
         ${rep.quotation ? `<div class="quotation-block">
           <h4>Quotation draft (${escapeHtml(rep.quotation.status)})</h4>
           <ul class="quotation-lines">${rep.quotation.lines.map((l) => `<li><span>${escapeHtml(l.description)}</span><span class="qt-price">${l.price != null ? "AED " + l.price : "[PRICE]"}</span></li>`).join("")}</ul>
-          <p class="small">Fill prices and send from Zoho Books.</p>
+          ${rep.quotation.total ? `<p class="qt-total">Subtotal: AED ${rep.quotation.total}</p>` : ""}
+          <p class="small">Fill any blank prices and send from Zoho Books.</p>
         </div>` : ""}
         ${owner ? `<div class="actions">
           <button class="primary" data-quote-inspection="${rep.id}">${rep.quotation ? "Regenerate Quotation" : "Generate Quotation"}</button>
@@ -1905,6 +1938,9 @@ function toggleNewInspection(show) {
         <input type="hidden" name="item-${i}" value="${escapeHtml(item)}">
       </div>`).join("");
   }
+  const svcSel = byId("inspectionService");
+  if (svcSel && !svcSel.options.length) svcSel.innerHTML = serviceOptionsHtml();
+  if (show) { pendingServices = []; renderPendingServices(); }
   form.classList.toggle("hidden", !show);
 }
 
@@ -1939,6 +1975,7 @@ async function createInspection(form) {
     location: (data.get("location") || job?.location || "").trim(),
     inspector: currentProfile().name,
     items,
+    services: pendingServices.slice(),
     photos,
     overall,
     summary: (data.get("summary") || "").trim(),
@@ -1958,22 +1995,47 @@ function generateQuotation(id) {
   if (!canEditInspections()) return;
   const rep = state.inspections.find((r) => r.id === id);
   if (!rep) return;
-  const flagged = (rep.items || []).filter((it) => it.result === "Fail" || it.result === "Follow-up");
-  const lines = (flagged.length ? flagged : rep.items).map((it) => ({
-    description: it.note ? `${it.item} — ${it.note}` : it.item,
-    qty: 1,
-    price: null // owner fills the price
-  }));
+  let lines;
+  if (rep.services && rep.services.length) {
+    // Preferred: real Zoho services picked during inspection, with their rates.
+    lines = rep.services.map((s) => ({ description: s.name, qty: 1, price: s.rate || null }));
+  } else {
+    // Fallback: build lines from flagged checklist items (prices left blank).
+    const flagged = (rep.items || []).filter((it) => it.result === "Fail" || it.result === "Follow-up");
+    lines = (flagged.length ? flagged : rep.items).map((it) => ({
+      description: it.note ? `${it.item} — ${it.note}` : it.item,
+      qty: 1,
+      price: null
+    }));
+  }
+  const total = lines.reduce((sum, l) => sum + (l.price || 0), 0);
+  const anyBlank = lines.some((l) => l.price == null);
   rep.quotation = {
     id: `QT-DRAFT-${Date.now()}`,
     site: rep.site,
     location: rep.location,
     lines,
+    total,
     createdAt: new Date().toISOString(),
-    status: "Draft — prices pending"
+    status: anyBlank ? "Draft — some prices pending" : "Draft — priced from Zoho rates"
   };
   queueSync("Quotation Draft", rep.jobId || "QUOTATION", { inspectionId: rep.id, ...rep.quotation });
   render();
+}
+
+function addPendingService() {
+  const sel = byId("inspectionService");
+  if (!sel || !sel.value) return;
+  const name = sel.value;
+  if (pendingServices.some((s) => s.name === name)) { sel.value = ""; return; }
+  pendingServices.push({ name, rate: serviceRate(name) });
+  sel.value = "";
+  renderPendingServices();
+}
+
+function removePendingService(idx) {
+  pendingServices.splice(Number(idx), 1);
+  renderPendingServices();
 }
 
 function deleteInspection(id) {
