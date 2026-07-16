@@ -171,10 +171,28 @@ const seedState = {
         at: "2026-07-09T09:05:00+04:00"
       }
     ]
-  }
+  },
+  security: {
+    masterCodeHash: null,
+    lockEnabled: true
+  },
+  inspections: []
 };
 
 let state = loadState();
+let unlocked = false;
+
+function hashCode(str) {
+  let h = 5381;
+  for (let i = 0; i < String(str).length; i += 1) {
+    h = ((h << 5) + h + String(str).charCodeAt(i)) >>> 0;
+  }
+  return "h" + h.toString(16);
+}
+
+function canEditInspections() {
+  return unlocked && currentProfile().role === "Owner";
+}
 
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
@@ -233,6 +251,12 @@ function normalizeState(nextState) {
     ...(nextState.slack.notify || {})
   };
   nextState.slack.alerts = nextState.slack.alerts || [];
+  nextState.security = {
+    masterCodeHash: null,
+    lockEnabled: true,
+    ...(nextState.security || {})
+  };
+  nextState.inspections = nextState.inspections || [];
   return nextState;
 }
 
@@ -472,6 +496,7 @@ function render() {
   renderTeam();
   renderSlack();
   renderSync();
+  renderInspections();
   hydrateNewJobOptions();
   saveState();
 }
@@ -1148,6 +1173,10 @@ document.addEventListener("change", (event) => {
 });
 
 document.addEventListener("click", (event) => {
+  if (event.target.id === "lockButton") { lockApp(); return; }
+  if (event.target.id === "newInspectionButton") { toggleNewInspection(true); return; }
+  if (event.target.id === "cancelInspection") { toggleNewInspection(false); return; }
+  if (event.target.dataset.deleteInspection) { deleteInspection(event.target.dataset.deleteInspection); return; }
   const tab = event.target.closest(".tab");
   if (tab) {
     state.activeView = tab.dataset.view;
@@ -1300,6 +1329,9 @@ document.addEventListener("submit", (event) => {
   if (event.target.id === "teamMemberForm") addTeamMember(event.target);
   if (event.target.id === "slackSettingsForm") saveSlackSettings(event.target);
   if (event.target.id === "zohoSettingsForm") saveZohoSettings(event.target);
+  if (event.target.id === "inspectionForm") createInspection(event.target);
+  if (event.target.id === "lockSetupForm") setupMasterCode(event.target);
+  if (event.target.id === "lockEnterForm") submitMasterCode(event.target);
 });
 
 function hydrateNewJobOptions() {
@@ -1699,6 +1731,190 @@ function exportJson() {
   URL.revokeObjectURL(url);
 }
 
+/* ────────────────────────────────────────────
+   MASTER CODE LOCK (device gate for the owner)
+   Note: this is a device-level access gate for a
+   static app, not bank-grade encryption. It keeps
+   the app closed until the master code is entered.
+   ──────────────────────────────────────────── */
+function renderLock() {
+  const overlay = byId("lockOverlay");
+  const shell = document.querySelector(".app-shell");
+  if (!overlay) return;
+  const needsSetup = !state.security.masterCodeHash;
+  const locked = state.security.lockEnabled && !unlocked;
+
+  overlay.classList.toggle("hidden", !locked);
+  if (shell) shell.classList.toggle("blurred", locked);
+
+  byId("lockSetup").classList.toggle("hidden", !needsSetup);
+  byId("lockEnter").classList.toggle("hidden", needsSetup);
+  const err = byId("lockError");
+  if (err) err.textContent = "";
+
+  const lockBtn = byId("lockButton");
+  if (lockBtn) lockBtn.classList.toggle("hidden", !state.security.masterCodeHash || !unlocked);
+}
+
+function setupMasterCode(form) {
+  const data = new FormData(form);
+  const code = String(data.get("code") || "").trim();
+  const confirm = String(data.get("confirm") || "").trim();
+  const err = byId("lockError");
+  if (code.length < 4) { if (err) err.textContent = "Use at least 4 characters."; return; }
+  if (code !== confirm) { if (err) err.textContent = "The two codes do not match."; return; }
+  state.security.masterCodeHash = hashCode(code);
+  unlocked = true;
+  saveState();
+  renderLock();
+  render();
+}
+
+function submitMasterCode(form) {
+  const data = new FormData(form);
+  const code = String(data.get("code") || "").trim();
+  const err = byId("lockError");
+  if (hashCode(code) === state.security.masterCodeHash) {
+    unlocked = true;
+    renderLock();
+    render();
+  } else if (err) {
+    err.textContent = "Wrong master code.";
+    form.reset();
+  }
+}
+
+function lockApp() {
+  unlocked = false;
+  renderLock();
+}
+
+/* ────────────────────────────────────────────
+   INSPECTION REPORTS (owner-only edit, all view)
+   ──────────────────────────────────────────── */
+const INSPECTION_CHECKLIST = [
+  "AC cooling & gas",
+  "Electrical points & DB",
+  "Plumbing & leaks",
+  "Paint & wall condition",
+  "Safety & fire points",
+  "General handyman items"
+];
+
+function renderInspections() {
+  const view = byId("inspectView");
+  if (!view) return;
+  const owner = canEditInspections();
+  const newBtn = byId("newInspectionButton");
+  if (newBtn) newBtn.classList.toggle("hidden", !owner);
+  const gate = byId("inspectGateNote");
+  if (gate) gate.classList.toggle("hidden", owner);
+
+  hydrateInspectionJobOptions();
+
+  const list = byId("inspectionList");
+  if (!list) return;
+  if (!state.inspections.length) {
+    list.innerHTML = `<div class="empty-state"><h3>No inspection reports yet</h3><p>${owner ? "Tap New Inspection to run one on site." : "Reports added by the owner will appear here."}</p></div>`;
+    return;
+  }
+  list.innerHTML = state.inspections
+    .map((rep) => {
+      const rows = (rep.items || [])
+        .map((it) => `<li><span class="ins-item">${escapeHtml(it.item)}</span> <span class="ins-res ins-${(it.result || "").toLowerCase()}">${escapeHtml(it.result || "-")}</span>${it.note ? `<span class="ins-note">${escapeHtml(it.note)}</span>` : ""}</li>`)
+        .join("");
+      return `<article class="panel inspection-card">
+        <div class="inspection-head">
+          <div>
+            <h3>${escapeHtml(rep.site)}</h3>
+            <p class="small">${escapeHtml(rep.location || "")} · ${new Date(rep.at).toLocaleString()}</p>
+          </div>
+          <span class="status-pill ins-overall-${(rep.overall || "").toLowerCase().replace(/\s+/g, "-")}">${escapeHtml(rep.overall || "")}</span>
+        </div>
+        <p class="small">Inspector: ${escapeHtml(rep.inspector || "")}</p>
+        <ul class="inspection-items">${rows}</ul>
+        ${rep.summary ? `<p><strong>Summary:</strong> ${escapeHtml(rep.summary)}</p>` : ""}
+        ${rep.recommendation ? `<p><strong>Recommendation:</strong> ${escapeHtml(rep.recommendation)}</p>` : ""}
+        ${owner ? `<div class="actions"><button data-delete-inspection="${rep.id}">Delete</button></div>` : ""}
+      </article>`;
+    })
+    .join("");
+}
+
+function hydrateInspectionJobOptions() {
+  const sel = byId("inspectionJob");
+  if (!sel) return;
+  const opts = state.jobs
+    .map((job) => `<option value="${job.id}">${escapeHtml(job.customer)} — ${escapeHtml(job.location)}</option>`)
+    .join("");
+  sel.innerHTML = `<option value="">— Site not in job list —</option>${opts}`;
+}
+
+function toggleNewInspection(show) {
+  const form = byId("inspectionForm");
+  if (!form) return;
+  if (!byId("inspectionChecklist").children.length) {
+    byId("inspectionChecklist").innerHTML = INSPECTION_CHECKLIST.map((item, i) => `
+      <div class="checklist-row">
+        <span class="checklist-label">${escapeHtml(item)}</span>
+        <select name="result-${i}">
+          <option>Pass</option>
+          <option>Fail</option>
+          <option>Follow-up</option>
+          <option>N/A</option>
+        </select>
+        <input name="note-${i}" placeholder="Note (optional)">
+        <input type="hidden" name="item-${i}" value="${escapeHtml(item)}">
+      </div>`).join("");
+  }
+  form.classList.toggle("hidden", !show);
+}
+
+function createInspection(form) {
+  if (!canEditInspections()) return;
+  const data = new FormData(form);
+  const jobId = data.get("jobId") || "";
+  const job = state.jobs.find((j) => j.id === jobId);
+  const items = INSPECTION_CHECKLIST.map((_, i) => ({
+    item: data.get(`item-${i}`),
+    result: data.get(`result-${i}`),
+    note: (data.get(`note-${i}`) || "").trim()
+  }));
+  const anyFail = items.some((it) => it.result === "Fail");
+  const anyFollow = items.some((it) => it.result === "Follow-up");
+  const overall = anyFail ? "Fail" : anyFollow ? "Follow-up" : "Pass";
+  const inspection = {
+    id: `INS-${Date.now()}`,
+    jobId,
+    site: (data.get("site") || job?.customer || "Site").trim(),
+    location: (data.get("location") || job?.location || "").trim(),
+    inspector: currentProfile().name,
+    items,
+    overall,
+    summary: (data.get("summary") || "").trim(),
+    recommendation: (data.get("recommendation") || "").trim(),
+    at: new Date().toISOString()
+  };
+  state.inspections.unshift(inspection);
+  queueSync("Inspection Report", jobId || "INSPECTION", inspection);
+  form.reset();
+  byId("inspectionChecklist").innerHTML = "";
+  toggleNewInspection(false);
+  render();
+}
+
+function deleteInspection(id) {
+  if (!canEditInspections()) return;
+  state.inspections = state.inspections.filter((rep) => rep.id !== id);
+  render();
+}
+
+function escapeHtml(str) {
+  return String(str == null ? "" : str)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("./service-worker.js").catch(() => {});
   const hadController = Boolean(navigator.serviceWorker.controller);
@@ -1711,3 +1927,4 @@ if ("serviceWorker" in navigator) {
 }
 
 render();
+renderLock();

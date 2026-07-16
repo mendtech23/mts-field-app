@@ -543,3 +543,46 @@ label {
     font-size: 25px;
   }
 }
+
+/* ── Field Ops branding ── */
+:root { --navy: #24384f; --navy-2: #33506e; }
+.brand-logo { display: flex; align-items: center; gap: 10px; }
+.brand-mark { display: inline-flex; gap: 3px; transform: skewX(-12deg); }
+.brand-mark i { display: block; width: 9px; height: 30px; border-radius: 2px; background: var(--navy); }
+.brand-mark i:last-child { background: var(--navy-2); }
+.brand-text { display: flex; flex-direction: column; line-height: 1; }
+.brand-text b { font-size: 20px; letter-spacing: 1px; color: var(--navy); font-weight: 800; }
+.brand-text small { font-size: 11px; letter-spacing: 3px; color: var(--muted); }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.lock-button { min-height: 36px; padding: 0 12px; border-color: var(--navy); color: var(--navy); background: #fff; }
+
+/* ── Lock overlay ── */
+.app-shell.blurred { filter: blur(6px); pointer-events: none; user-select: none; }
+.lock-overlay { position: fixed; inset: 0; z-index: 999; background: rgba(20,28,38,0.92); display: flex; align-items: center; justify-content: center; padding: 24px; }
+.lock-overlay.hidden { display: none; }
+.lock-card { background: var(--surface); border-radius: 16px; padding: 28px 24px; width: 100%; max-width: 380px; box-shadow: var(--shadow); text-align: center; }
+.brand-logo-lock { justify-content: center; margin-bottom: 18px; }
+.lock-card h2 { margin: 6px 0; color: var(--navy); }
+.lock-card form { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.lock-card input { min-height: 46px; border: 1px solid var(--line); border-radius: 10px; padding: 0 14px; text-align: center; letter-spacing: 4px; }
+.lock-card .primary { background: var(--navy); border-color: var(--navy); color: #fff; }
+.lock-error { color: var(--danger); min-height: 18px; margin: 10px 0 0; font-size: 14px; }
+
+/* ── Inspection reports ── */
+.inspection-checklist { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 14px; }
+.checklist-row { display: grid; grid-template-columns: 1.4fr 0.9fr 1.4fr; gap: 8px; align-items: center; }
+.checklist-label { font-size: 14px; }
+.inspection-card { margin-bottom: 14px; }
+.inspection-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.inspection-items { list-style: none; padding: 0; margin: 10px 0; display: flex; flex-direction: column; gap: 6px; }
+.inspection-items li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.ins-item { flex: 1; font-size: 14px; }
+.ins-res { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.ins-pass { background: #e5f4ea; color: var(--ok); }
+.ins-fail { background: #fdecea; color: var(--danger); }
+.ins-follow-up { background: #fdf3e0; color: var(--warn); }
+.ins-note { flex-basis: 100%; font-size: 12px; color: var(--muted); }
+.ins-overall-pass { background: #e5f4ea; color: var(--ok); }
+.ins-overall-fail { background: #fdecea; color: var(--danger); }
+.ins-overall-follow-up { background: #fdf3e0; color: var(--warn); }
+@media (max-width: 560px) { .checklist-row { grid-template-columns: 1fr; } }

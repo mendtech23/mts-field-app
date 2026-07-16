@@ -4,28 +4,59 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MTS Field Ops</title>
-    <meta name="theme-color" content="#0f766e">
+    <meta name="theme-color" content="#24384f">
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" type="image/png" href="./icon-192.png">
     <link rel="apple-touch-icon" href="./icon-192.png">
     <link rel="stylesheet" href="./styles.css">
   </head>
   <body>
+    <div id="lockOverlay" class="lock-overlay hidden">
+      <div class="lock-card">
+        <div class="brand-logo brand-logo-lock" aria-hidden="true">
+          <span class="brand-mark"><i></i><i></i></span>
+          <span class="brand-text"><b>MENDONCA</b><small>FIELD OPS</small></span>
+        </div>
+        <div id="lockEnter" class="hidden">
+          <h2>Enter Master Code</h2>
+          <p class="small">This app is locked. Enter your master code to open it.</p>
+          <form id="lockEnterForm" autocomplete="off">
+            <input name="code" type="password" inputmode="numeric" placeholder="Master code" autofocus>
+            <button type="submit" class="primary">Unlock</button>
+          </form>
+        </div>
+        <div id="lockSetup" class="hidden">
+          <h2>Set Your Master Code</h2>
+          <p class="small">First-time setup. Choose a code only you know — you will need it every time the app opens.</p>
+          <form id="lockSetupForm" autocomplete="off">
+            <input name="code" type="password" inputmode="numeric" placeholder="New master code (min 4)">
+            <input name="confirm" type="password" inputmode="numeric" placeholder="Confirm master code">
+            <button type="submit" class="primary">Set Code & Open</button>
+          </form>
+        </div>
+        <p id="lockError" class="lock-error"></p>
+      </div>
+    </div>
+
     <div class="app-shell">
       <header class="topbar">
-        <div>
-          <p class="eyebrow">Mendonca Technical Services</p>
-          <h1>MTS Field Ops</h1>
+        <div class="brand-logo">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
+          <span class="brand-text"><b>MENDONCA</b><small>FIELD OPS</small></span>
         </div>
-        <label class="profile-switch">
-          <span>Access</span>
-          <select id="profileSelect" aria-label="Select profile"></select>
-        </label>
+        <div class="topbar-right">
+          <button id="lockButton" class="lock-button hidden" title="Lock app">🔒 Lock</button>
+          <label class="profile-switch">
+            <span>Access</span>
+            <select id="profileSelect" aria-label="Select profile"></select>
+          </label>
+        </div>
       </header>
 
       <nav class="tabs" aria-label="Primary">
         <button class="tab active" data-view="board">Board</button>
         <button class="tab" data-view="job">Job</button>
+        <button class="tab" data-view="inspect">Inspect</button>
         <button class="tab" data-view="team">Team</button>
         <button class="tab" data-view="slack">Slack</button>
         <button class="tab" data-view="sync">Zoho</button>
@@ -83,6 +114,46 @@
 
         <section id="jobView" class="view" aria-labelledby="jobTitle">
           <div id="jobDetail"></div>
+        </section>
+
+        <section id="inspectView" class="view" aria-labelledby="inspectTitle">
+          <div class="section-head">
+            <div>
+              <h2 id="inspectTitle">Inspection Reports</h2>
+              <p>Run a site inspection and file the report. Reports sync to Zoho. Only the owner can create or edit — everyone else can view.</p>
+            </div>
+            <button id="newInspectionButton" class="primary hidden">New Inspection</button>
+          </div>
+          <p id="inspectGateNote" class="small hidden">View-only. Inspection reports are created and updated by the owner.</p>
+
+          <form id="inspectionForm" class="panel hidden" autocomplete="off">
+            <h3>Run Inspection</h3>
+            <div class="form-grid">
+              <label>Linked Job
+                <select name="jobId" id="inspectionJob"></select>
+              </label>
+              <label>Site / Customer
+                <input name="site" placeholder="If not in job list">
+              </label>
+              <label>Location
+                <input name="location" placeholder="Villa, tower, area">
+              </label>
+            </div>
+            <h4>Checklist</h4>
+            <div id="inspectionChecklist" class="inspection-checklist"></div>
+            <label>Summary
+              <textarea name="summary" rows="2" placeholder="Overall condition and findings"></textarea>
+            </label>
+            <label>Recommendation
+              <textarea name="recommendation" rows="2" placeholder="Recommended works, quote, or follow-up"></textarea>
+            </label>
+            <div class="actions">
+              <button type="submit" class="primary">Save & Sync Report</button>
+              <button type="button" id="cancelInspection">Cancel</button>
+            </div>
+          </form>
+
+          <div id="inspectionList" class="job-list"></div>
         </section>
 
         <section id="teamView" class="view" aria-labelledby="teamTitle">

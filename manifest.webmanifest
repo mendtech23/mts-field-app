@@ -4,8 +4,8 @@
   "description": "Field operations app for Mendonca Technical Services.",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#f5f7f8",
-  "theme_color": "#0f766e",
+  "background_color": "#24384f",
+  "theme_color": "#24384f",
   "icons": [
     {
       "src": "./icon-192.png",
