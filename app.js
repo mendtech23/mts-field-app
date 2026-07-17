@@ -1693,21 +1693,27 @@ async function sendSyncItem(itemId) {
   item.status = "Sending";
   item.error = "";
   render();
+  const body = JSON.stringify({
+    source: "mts-field-ops",
+    event: item,
+    sentBy: currentProfile().name,
+    sentAt: new Date().toISOString()
+  });
   try {
-    const response = await fetch(state.zoho.relayUrl, {
+    // Zoho Flow (and most webhooks) don't return CORS headers, so a normal
+    // cross-origin fetch is blocked ("Failed to fetch"). no-cors mode lets the
+    // POST through (Zoho receives it) but returns an opaque response we can't
+    // read — so we treat a resolved request as delivered. text/plain keeps it a
+    // CORS-safe "simple" request (no preflight); Zoho Flow still parses the JSON body.
+    await fetch(state.zoho.relayUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        source: "mts-field-ops",
-        event: item,
-        sentBy: currentProfile().name,
-        sentAt: new Date().toISOString()
-      })
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=UTF-8" },
+      body
     });
-    if (!response.ok) throw new Error(`Backend returned ${response.status}`);
     item.status = "Synced";
     item.syncedAt = new Date().toISOString();
-    toast("✓ Synced to Zoho");
+    toast("✓ Sent to Zoho");
   } catch (error) {
     item.status = "Pending";
     item.error = error.message;
