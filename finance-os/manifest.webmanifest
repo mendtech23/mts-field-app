@@ -1,0 +1,15 @@
+{
+  "name": "Finance OS — Private CFO",
+  "short_name": "Finance OS",
+  "description": "AI-powered Financial Operating System — net worth, investments, spending and Mendtech cash flow in one command centre.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0c111d",
+  "theme_color": "#0c111d",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

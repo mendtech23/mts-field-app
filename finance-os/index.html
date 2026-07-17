@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0c111d" />
+  <title>Finance OS — Private CFO</title>
+  <meta name="description" content="AI-powered Financial Operating System — personal wealth + Mendtech cash flow in one command centre." />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="stylesheet" href="styles.css?v=1" />
+</head>
+<body>
+  <div id="app">
+
+    <header id="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div class="brand-text">
+          <strong>Finance&nbsp;OS</strong>
+          <small id="lastRefreshLabel">Never refreshed</small>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button id="themeBtn" class="icon-btn" title="Toggle theme" aria-label="Toggle theme">◐</button>
+        <button id="refreshBtn" class="refresh-btn" title="Refresh all data on demand">
+          <span class="refresh-ic">⟳</span> Refresh
+        </button>
+      </div>
+    </header>
+
+    <main id="views">
+      <section id="view-home" class="view active" aria-label="Dashboard"></section>
+      <section id="view-money" class="view" aria-label="Money — income, spending, transactions"></section>
+      <section id="view-invest" class="view" aria-label="Investment command centre"></section>
+      <section id="view-biz" class="view" aria-label="Mendtech cash flow"></section>
+      <section id="view-cfo" class="view" aria-label="AI CFO"></section>
+      <section id="view-settings" class="view" aria-label="Settings"></section>
+    </main>
+
+    <nav id="tabbar" aria-label="Main navigation">
+      <button class="tab active" data-view="home"><span class="t-ic">◧</span>Home</button>
+      <button class="tab" data-view="money"><span class="t-ic">↔</span>Money</button>
+      <button class="tab" data-view="invest"><span class="t-ic">◮</span>Invest</button>
+      <button class="tab" data-view="biz"><span class="t-ic">▦</span>Biz</button>
+      <button class="tab" data-view="cfo"><span class="t-ic">✦</span>CFO</button>
+      <button class="tab" data-view="settings"><span class="t-ic">⚙</span>More</button>
+    </nav>
+
+    <div id="modalRoot"></div>
+    <div id="toastRoot" aria-live="polite"></div>
+  </div>
+
+  <script src="app.js?v=1"></script>
+</body>
+</html>
