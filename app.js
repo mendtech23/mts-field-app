@@ -391,6 +391,23 @@ function byId(id) {
   return document.getElementById(id);
 }
 
+let toastTimer = null;
+function toast(message) {
+  let el = byId("appToast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "appToast";
+    el.className = "toast";
+    document.body.appendChild(el);
+  }
+  el.textContent = message;
+  // force reflow so re-triggering the animation works
+  void el.offsetWidth;
+  el.classList.add("show");
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
+}
+
 function currentProfile() {
   return state.profiles.find((profile) => profile.id === state.activeProfileId) || state.profiles[0];
 }
@@ -1612,6 +1629,7 @@ function saveSlackSettings(form) {
   }));
   saveState();
   render();
+  toast("✓ Slack settings saved");
 }
 
 async function sendSlackAlert(alertId) {
@@ -1660,6 +1678,7 @@ function saveZohoSettings(form) {
   state.zoho.relayUrl = data.get("zohoRelayUrl") || "";
   saveState();
   render();
+  toast(state.zoho.relayUrl ? "✓ Zoho sync URL saved" : "Sync URL cleared");
 }
 
 async function sendSyncItem(itemId) {
@@ -1667,6 +1686,7 @@ async function sendSyncItem(itemId) {
   if (!item || item.status === "Synced" || item.status === "Sending") return;
   if (!state.zoho.relayUrl) {
     item.error = "Add a backend sync URL first, for example http://localhost:8787/api/zoho/sync";
+    toast("⚠ Add the Zoho sync URL first");
     render();
     return;
   }
@@ -1687,14 +1707,19 @@ async function sendSyncItem(itemId) {
     if (!response.ok) throw new Error(`Backend returned ${response.status}`);
     item.status = "Synced";
     item.syncedAt = new Date().toISOString();
+    toast("✓ Synced to Zoho");
   } catch (error) {
     item.status = "Pending";
     item.error = error.message;
+    toast(`⚠ Sync failed: ${error.message}`);
   }
   render();
 }
 
 function syncAllPending() {
+  const pending = state.syncQueue.filter((item) => item.status === "Pending").length;
+  if (!pending) { toast("Nothing pending to sync"); return; }
+  toast(`Syncing ${pending} item${pending > 1 ? "s" : ""}…`);
   state.syncQueue
     .filter((item) => item.status === "Pending")
     .slice()
@@ -1989,6 +2014,7 @@ async function createInspection(form) {
   byId("inspectionChecklist").innerHTML = "";
   toggleNewInspection(false);
   render();
+  toast("✓ Inspection saved & queued for Zoho");
 }
 
 function generateQuotation(id) {
@@ -2021,6 +2047,7 @@ function generateQuotation(id) {
   };
   queueSync("Quotation Draft", rep.jobId || "QUOTATION", { inspectionId: rep.id, ...rep.quotation });
   render();
+  toast(rep.quotation.total ? `✓ Quotation drafted — AED ${rep.quotation.total}` : "✓ Quotation drafted");
 }
 
 function addPendingService() {
