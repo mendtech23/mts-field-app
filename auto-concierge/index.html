@@ -12,21 +12,37 @@
   </head>
   <body>
     <div class="app-shell">
-      <header class="topbar">
+      <header class="topbar" id="topbar">
         <div>
           <p class="eyebrow">Mendonca Technical Services</p>
           <h1>MTS Auto Concierge</h1>
           <p class="tagline">Your car problem solved. We find, compare, negotiate and manage.</p>
         </div>
-        <label class="profile-switch">
-          <span>Portal / Profile</span>
-          <select id="profileSelect" aria-label="Select portal profile"></select>
-        </label>
+        <div class="topbar-controls">
+          <button id="portalsButton" data-action="show-welcome" title="Switch portal">⇄ Portals</button>
+          <label class="profile-switch">
+            <span>Signed in as</span>
+            <select id="profileSelect" aria-label="Select portal profile"></select>
+          </label>
+        </div>
       </header>
 
       <nav class="tabs" id="tabs" aria-label="Primary"></nav>
 
       <main id="appMain"></main>
+    </div>
+
+    <div id="modalRoot" class="modal-backdrop hidden" data-action="modal-backdrop">
+      <div class="modal" role="dialog" aria-modal="true">
+        <div class="modal-head no-print">
+          <strong id="modalTitle">Document</strong>
+          <div class="actions" style="margin:0">
+            <button data-action="print-doc" class="primary">🖨️ Print / Save PDF</button>
+            <button data-action="close-modal">Close</button>
+          </div>
+        </div>
+        <div id="printDoc" class="doc"></div>
+      </div>
     </div>
 
     <script src="./app.js"></script>

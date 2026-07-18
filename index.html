@@ -8,7 +8,7 @@
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" type="image/png" href="./icon-192.png">
     <link rel="apple-touch-icon" href="./icon-192.png">
-    <link rel="stylesheet" href="./styles.css?v=11">
+    <link rel="stylesheet" href="./styles.css?v=12">
   </head>
   <body>
     <div id="lockOverlay" class="lock-overlay hidden">
@@ -43,7 +43,7 @@
     <div class="app-shell">
       <header class="topbar">
         <div class="brand-logo">
-          <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
           <span class="brand-text"><b>MENDONCA</b><small>FIELD OPS</small></span>
         </div>
         <div class="topbar-right">
@@ -88,6 +88,12 @@
               </label>
               <label>Location
                 <input name="location" required placeholder="Villa, office, area">
+              </label>
+              <label>Customer Phone
+                <input name="customerPhone" type="tel" placeholder="+971... (for review request)">
+              </label>
+              <label>Customer Email
+                <input name="customerEmail" type="email" placeholder="customer@email.com (optional)">
               </label>
               <label>Priority
                 <select name="priority">
@@ -228,6 +234,9 @@
               <label>Backend Sync URL
                 <input name="zohoRelayUrl" id="zohoRelayUrl" placeholder="http://localhost:8787/api/zoho/sync">
               </label>
+              <label>Google Review Link
+                <input name="reviewLink" id="reviewLinkInput" placeholder="https://g.page/r/.../review">
+              </label>
             </div>
             <div class="actions">
               <button type="submit" class="primary">Save Sync Settings</button>
@@ -261,6 +270,6 @@
       </div>
     </template>
 
-    <script src="./app.js?v=11"></script>
+    <script src="./app.js?v=12"></script>
   </body>
 </html>

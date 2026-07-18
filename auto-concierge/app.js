@@ -1,6 +1,6 @@
-/* MTS Auto Concierge - Phase 1 marketplace prototype.
-   One shared backend state, four connected portals:
-   Customer App <-> MTS Admin <-> Garage Portal <-> Parts Supplier Portal (+ Recovery).
+/* MTS Auto Concierge - marketplace prototype (complete demo build).
+   One shared backend state, connected portals:
+   Customer App <-> MTS Admin <-> Garage Portal <-> Parts Supplier Portal <-> Recovery.
    Data lives in localStorage so it works as a realistic clickable MVP without a server. */
 
 const STORAGE_KEY = "mts-auto-concierge-v1";
@@ -11,6 +11,9 @@ const INSPECTION_TYPES = ["Pre-Purchase Inspection", "Annual Registration Check"
 const PART_TYPES = ["Genuine New Part", "Aftermarket Part", "Used OEM Part", "Labour Only"];
 const OFFER_TYPES = ["Genuine New", "Aftermarket", "Used OEM"];
 const REQUEST_TYPES = ["Repair", "Service", "Used Part", "Inspection", "Emergency Breakdown", "Towing"];
+
+const INSPECTION_AREAS = ["Engine", "Transmission / Gearbox", "Brakes", "Suspension & Steering", "Tyres & Wheels", "AC / Cooling", "Battery & Electrical", "Body & Paint", "Interior", "Lights & Electronics"];
+const RESULT_OPTIONS = ["Pass", "Attention", "Fail"];
 
 const WORKSHOP_STATUSES = ["Approved", "Vehicle In Garage", "In Repair", "Quality Check"];
 const NEXT_STEP = {
@@ -31,13 +34,15 @@ const ROLE_TABS = {
 };
 
 const seedState = {
+  showWelcome: true,
   activeProfileId: "cust-1",
   activeView: "home",
   selectedJobId: null,
   activeThreadId: "cust-1",
   adminFilter: "All",
+  adminSearch: "",
   customerFilter: "All",
-  counters: { job: 1004, invoice: 2 },
+  counters: { job: 1005, invoice: 2 },
   profiles: [
     { id: "owner", name: "Johnson (MTS Concierge)", role: "MTS Admin", phone: "+971501112223" },
     { id: "cust-1", name: "Ramesh Kumar", role: "Customer", phone: "+971502224441" },
@@ -97,7 +102,9 @@ const seedState = {
       selectedOptionId: null,
       assignedGarageId: null,
       recovery: null,
+      inspection: null,
       invoice: null,
+      review: null,
       chat: [
         { by: "cust-1", name: "Ramesh Kumar", text: "How soon can this be fixed? I need the car for the weekend.", at: "2026-07-10T14:10:00+04:00" },
         { by: "owner", name: "MTS Concierge", text: "We prepared 3 options for you - the aftermarket and used options can be done same day. Open My Jobs to compare and approve.", at: "2026-07-10T14:22:00+04:00" }
@@ -144,7 +151,9 @@ const seedState = {
       selectedOptionId: "OPT-1",
       assignedGarageId: "gar-2",
       recovery: null,
+      inspection: null,
       invoice: null,
+      review: null,
       chat: [],
       timeline: [
         { text: "Request submitted", by: "Fatima Al Ali", at: "2026-07-09T08:55:00+04:00" },
@@ -173,12 +182,72 @@ const seedState = {
       selectedOptionId: null,
       assignedGarageId: null,
       recovery: { companyId: null, status: "Awaiting Assignment" },
+      inspection: null,
       invoice: null,
+      review: null,
       chat: [],
       timeline: [
         { text: "EMERGENCY breakdown reported", by: "Ramesh Kumar", at: "2026-07-11T08:05:00+04:00" }
       ],
       createdAt: "2026-07-11T08:05:00+04:00"
+    },
+    {
+      id: "AC-0994",
+      customerId: "cust-2",
+      vehicleId: "veh-3",
+      type: "Inspection",
+      category: "Pre-Purchase Inspection",
+      partName: "",
+      description: "Full pre-purchase style health check before a long road trip. Please check everything.",
+      location: "Deira Auto Workshop drop-off",
+      media: [],
+      urgent: false,
+      status: "Closed",
+      dispatches: [],
+      partsRequests: [],
+      options: [],
+      selectedOptionId: null,
+      assignedGarageId: "gar-2",
+      recovery: null,
+      inspection: {
+        by: "Deira Auto Workshop",
+        items: [
+          { area: "Engine", result: "Pass", note: "No leaks, healthy idle." },
+          { area: "Transmission / Gearbox", result: "Pass", note: "Smooth shifts." },
+          { area: "Brakes", result: "Attention", note: "Front pads at 30% - replace within 2 months." },
+          { area: "Suspension & Steering", result: "Pass", note: "" },
+          { area: "Tyres & Wheels", result: "Attention", note: "Rear tyres 4mm, plan replacement." },
+          { area: "AC / Cooling", result: "Pass", note: "Cools well, 6C at vent." },
+          { area: "Battery & Electrical", result: "Pass", note: "Battery health 82%." },
+          { area: "Body & Paint", result: "Pass", note: "Minor stone chips only." },
+          { area: "Interior", result: "Pass", note: "" },
+          { area: "Lights & Electronics", result: "Pass", note: "All functional." }
+        ],
+        summary: "Vehicle is in good overall condition and safe for the road trip.",
+        recommendation: "Budget for front brake pads and rear tyres within 2 months. No urgent repairs.",
+        at: "2026-07-06T13:30:00+04:00"
+      },
+      invoice: {
+        id: "INV-0002",
+        lines: [
+          { label: "Pre-Purchase Inspection - 10-point report (Deira Auto Workshop)", amount: 250 },
+          { label: "MTS Concierge fee", amount: 50 }
+        ],
+        total: 300,
+        status: "Paid",
+        at: "2026-07-06T15:00:00+04:00"
+      },
+      review: { rating: 5, comment: "Very detailed report, gave me total peace of mind before the trip.", by: "Fatima Al Ali", at: "2026-07-06T18:00:00+04:00" },
+      chat: [],
+      timeline: [
+        { text: "Inspection request submitted", by: "Fatima Al Ali", at: "2026-07-06T09:00:00+04:00" },
+        { text: "Assigned to Deira Auto Workshop", by: "MTS Concierge", at: "2026-07-06T09:20:00+04:00" },
+        { text: "10-point inspection report completed", by: "Deira Auto Workshop", at: "2026-07-06T13:30:00+04:00" },
+        { text: "Invoice INV-0002 issued - AED 300", by: "MTS Concierge", at: "2026-07-06T15:00:00+04:00" },
+        { text: "Invoice paid. Job closed.", by: "MTS Concierge", at: "2026-07-06T16:10:00+04:00" },
+        { text: "Customer rated the job 5 stars", by: "Fatima Al Ali", at: "2026-07-06T18:00:00+04:00" }
+      ],
+      createdAt: "2026-07-06T09:00:00+04:00"
     },
     {
       id: "AC-0993",
@@ -205,6 +274,7 @@ const seedState = {
       selectedOptionId: "OPT-1",
       assignedGarageId: "gar-1",
       recovery: null,
+      inspection: null,
       invoice: {
         id: "INV-0001",
         lines: [
@@ -215,13 +285,15 @@ const seedState = {
         status: "Paid",
         at: "2026-07-02T16:00:00+04:00"
       },
+      review: { rating: 4, comment: "Quick and fair price. Battery fitted same day.", by: "Ramesh Kumar", at: "2026-07-02T19:00:00+04:00" },
       chat: [],
       timeline: [
         { text: "Request submitted", by: "Ramesh Kumar", at: "2026-07-02T08:30:00+04:00" },
         { text: "Customer approved Genuine New Part option - AED 420", by: "Ramesh Kumar", at: "2026-07-02T10:00:00+04:00" },
         { text: "Vehicle ready for delivery", by: "Al Quoz Star Garage", at: "2026-07-02T14:45:00+04:00" },
         { text: "Invoice INV-0001 issued - AED 470", by: "MTS Concierge", at: "2026-07-02T16:00:00+04:00" },
-        { text: "Invoice paid. Job closed.", by: "MTS Concierge", at: "2026-07-02T18:20:00+04:00" }
+        { text: "Invoice paid. Job closed.", by: "MTS Concierge", at: "2026-07-02T18:20:00+04:00" },
+        { text: "Customer rated the job 4 stars", by: "Ramesh Kumar", at: "2026-07-02T19:00:00+04:00" }
       ],
       createdAt: "2026-07-02T08:30:00+04:00"
     }
@@ -241,14 +313,30 @@ const seedState = {
 };
 
 let state = loadState();
-let draft = null; // in-progress customer request wizard, not persisted
+let draft = null;         // in-progress customer request wizard, not persisted
+let ratingDraft = 0;      // in-progress star rating
+let lastDoc = null;       // { title, html } for print modal
 
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return migrate(parsed);
+    }
   } catch (err) { /* fall through to seed */ }
   return JSON.parse(JSON.stringify(seedState));
+}
+
+/* keep older saved states working as the model grows */
+function migrate(s) {
+  if (typeof s.showWelcome === "undefined") s.showWelcome = false;
+  if (typeof s.adminSearch === "undefined") s.adminSearch = "";
+  (s.jobs || []).forEach((j) => {
+    if (typeof j.inspection === "undefined") j.inspection = null;
+    if (typeof j.review === "undefined") j.review = null;
+  });
+  return s;
 }
 
 function saveState() {
@@ -263,44 +351,26 @@ function esc(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-function nowIso() {
-  return new Date().toISOString();
-}
+function nowIso() { return new Date().toISOString(); }
 
 function fmtTime(iso) {
   if (!iso) return "";
-  const d = new Date(iso);
-  return d.toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
-function aed(n) {
-  return "AED " + Number(n || 0).toLocaleString("en-US");
+function fmtDate(iso) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function profileById(id) {
-  return state.profiles.find((p) => p.id === id) || null;
-}
+function aed(n) { return "AED " + Number(n || 0).toLocaleString("en-US"); }
 
-function profileName(id) {
-  const p = profileById(id);
-  return p ? p.name : "Unknown";
-}
-
-function profilesByRole(role) {
-  return state.profiles.filter((p) => p.role === role);
-}
-
-function currentProfile() {
-  return profileById(state.activeProfileId) || state.profiles[0];
-}
-
-function jobById(id) {
-  return state.jobs.find((j) => j.id === id) || null;
-}
-
-function vehicleById(id) {
-  return state.vehicles.find((v) => v.id === id) || null;
-}
+function profileById(id) { return state.profiles.find((p) => p.id === id) || null; }
+function profileName(id) { const p = profileById(id); return p ? p.name : "Unknown"; }
+function profilesByRole(role) { return state.profiles.filter((p) => p.role === role); }
+function currentProfile() { return profileById(state.activeProfileId) || state.profiles[0]; }
+function jobById(id) { return state.jobs.find((j) => j.id === id) || null; }
+function vehicleById(id) { return state.vehicles.find((v) => v.id === id) || null; }
 
 function vehicleLabel(vehicleOrId) {
   const v = typeof vehicleOrId === "string" ? vehicleById(vehicleOrId) : vehicleOrId;
@@ -308,24 +378,13 @@ function vehicleLabel(vehicleOrId) {
   return `${v.make} ${v.model} ${v.year}`;
 }
 
-function jobVehicle(job) {
-  return vehicleById(job.vehicleId);
-}
+function jobVehicle(job) { return vehicleById(job.vehicleId); }
 
 function statusPillClass(status) {
   const map = {
-    "New Request": "danger",
-    "MTS Review": "warn",
-    "Sourcing Quotes": "blue",
-    "Options Ready": "accent",
-    "Approved": "blue",
-    "Vehicle In Garage": "blue",
-    "In Repair": "blue",
-    "Quality Check": "warn",
-    "Ready For Delivery": "ok",
-    "Invoiced": "warn",
-    "Closed": "ok",
-    "Cancelled": "danger"
+    "New Request": "danger", "MTS Review": "warn", "Sourcing Quotes": "blue", "Options Ready": "accent",
+    "Approved": "blue", "Vehicle In Garage": "blue", "In Repair": "blue", "Quality Check": "warn",
+    "Ready For Delivery": "ok", "Invoiced": "warn", "Closed": "ok", "Cancelled": "danger"
   };
   return map[status] || "";
 }
@@ -360,16 +419,71 @@ function categoryOptions(type) {
   return REPAIR_CATEGORIES;
 }
 
-function jobIsOpen(job) {
-  return job.status !== "Closed" && job.status !== "Cancelled";
-}
-
-function customerCanCancel(job) {
-  return ["New Request", "MTS Review", "Sourcing Quotes", "Options Ready"].includes(job.status);
-}
+function jobIsOpen(job) { return job.status !== "Closed" && job.status !== "Cancelled"; }
+function customerCanCancel(job) { return ["New Request", "MTS Review", "Sourcing Quotes", "Options Ready"].includes(job.status); }
+function isInspection(job) { return job.type === "Inspection"; }
 
 function emptyState(title, text) {
   return `<div class="empty-state"><h3>${esc(title)}</h3><p>${esc(text)}</p></div>`;
+}
+
+function starsHtml(rating) {
+  const r = Math.round(rating || 0);
+  let out = "";
+  for (let i = 1; i <= 5; i++) out += i <= r ? "★" : `<span class="empty">★</span>`;
+  return `<span class="stars">${out}</span>`;
+}
+
+function garageRating(garageId) {
+  const rated = state.jobs.filter((j) => j.assignedGarageId === garageId && j.review);
+  if (!rated.length) return { avg: 0, count: 0 };
+  const sum = rated.reduce((s, j) => s + j.review.rating, 0);
+  return { avg: sum / rated.length, count: rated.length };
+}
+
+function partnerStats(p) {
+  if (p.role === "Garage") {
+    const done = state.jobs.filter((j) => j.assignedGarageId === p.id && j.status === "Closed").length;
+    const quotes = state.jobs.reduce((s, j) => s + j.dispatches.filter((d) => d.garageId === p.id && d.quote).length, 0);
+    const rating = garageRating(p.id);
+    return { jobs: done, quotes, rating };
+  }
+  if (p.role === "Parts Supplier") {
+    const offers = state.jobs.reduce((s, j) => s + j.partsRequests.reduce((n, pr) => n + pr.offers.filter((o) => o.supplierId === p.id).length, 0), 0);
+    return { offers };
+  }
+  if (p.role === "Recovery") {
+    const tows = state.jobs.filter((j) => j.recovery && j.recovery.companyId === p.id).length;
+    return { tows };
+  }
+  return {};
+}
+
+/* per-role tab notification counts */
+function badgeCounts(role, meId) {
+  const c = {};
+  if (role === "Customer") {
+    const mine = state.jobs.filter((j) => j.customerId === meId);
+    c.jobs = mine.filter((j) => j.status === "Options Ready" && !j.selectedOptionId).length
+      + mine.filter((j) => j.status === "Closed" && j.assignedGarageId && !j.review).length;
+    c.invoices = mine.filter((j) => j.invoice && j.invoice.status === "Unpaid").length;
+  } else if (role === "MTS Admin") {
+    c.dashboard = state.jobs.filter((j) => j.status === "New Request").length;
+    c.jobs = state.jobs.filter((j) => j.status === "New Request" || j.status === "Ready For Delivery").length;
+  } else if (role === "Garage") {
+    c.requests = state.jobs.reduce((s, j) => s + (jobIsOpen(j) ? j.dispatches.filter((d) => d.garageId === meId && d.status === "Awaiting Quote").length : 0), 0);
+    c.active = state.jobs.filter((j) => j.assignedGarageId === meId && WORKSHOP_STATUSES.includes(j.status)).length;
+  } else if (role === "Parts Supplier") {
+    let n = 0;
+    state.jobs.forEach((j) => {
+      if (!jobIsOpen(j) || j.selectedOptionId) return;
+      j.partsRequests.forEach((pr) => { if (!pr.offers.some((o) => o.supplierId === meId)) n++; });
+    });
+    c.requests = n;
+  } else if (role === "Recovery") {
+    c.tows = state.jobs.filter((j) => j.recovery && j.recovery.companyId === meId && jobIsOpen(j) && j.recovery.status !== "Delivered To Garage").length;
+  }
+  return c;
 }
 
 /* ---------- top-level render ---------- */
@@ -377,8 +491,27 @@ function emptyState(title, text) {
 const appMain = document.getElementById("appMain");
 const tabsNav = document.getElementById("tabs");
 const profileSelect = document.getElementById("profileSelect");
+const topbar = document.getElementById("topbar");
+const portalsButton = document.getElementById("portalsButton");
+const modalRoot = document.getElementById("modalRoot");
+const modalTitle = document.getElementById("modalTitle");
+const printDoc = document.getElementById("printDoc");
 
 function render() {
+  if (state.showWelcome) {
+    topbar.classList.add("welcome-mode");
+    tabsNav.innerHTML = "";
+    tabsNav.classList.add("hidden");
+    portalsButton.classList.add("hidden");
+    profileSelect.parentElement.classList.add("hidden");
+    appMain.innerHTML = renderWelcome();
+    saveState();
+    return;
+  }
+  topbar.classList.remove("welcome-mode");
+  tabsNav.classList.remove("hidden");
+  portalsButton.classList.remove("hidden");
+  profileSelect.parentElement.classList.remove("hidden");
   renderProfileSelect();
   renderTabs();
   renderMain();
@@ -386,14 +519,37 @@ function render() {
   saveState();
 }
 
-function renderProfileSelect() {
+function renderWelcome() {
   const groups = [
-    ["Customers", "Customer"],
-    ["MTS Office", "MTS Admin"],
-    ["Garages", "Garage"],
-    ["Parts Suppliers", "Parts Supplier"],
-    ["Recovery", "Recovery"]
+    { key: "Customer", icon: "🚗", who: "For car owners", title: "Customer App", desc: "Report a problem, compare MTS-negotiated options, approve and track - one number for every car issue." },
+    { key: "Vendor", icon: "🔧", who: "For partners", title: "Vendor Portal", desc: "Garages, parts suppliers and recovery companies receive steady work from MTS - no marketing needed." },
+    { key: "MTS Admin", icon: "🎧", who: "MTS internal", title: "MTS Concierge Desk", desc: "The hub. Understand the problem, source quotes, negotiate, coordinate every job end to end." }
   ];
+  return `
+    <div class="welcome">
+      <div class="welcome-hero">
+        <div class="logo-badge">🚘</div>
+        <p class="eyebrow">Mendonca Technical Services</p>
+        <h2>MTS Auto Concierge</h2>
+        <p>Your car problem solved. We find, compare, negotiate and manage. Choose a portal to explore the demo.</p>
+      </div>
+      <div class="portal-grid">
+        ${groups.map((g) => `
+          <button class="portal-card" data-action="pick-portal" data-group="${esc(g.key)}">
+            <span class="p-icon">${g.icon}</span>
+            <span class="who">${esc(g.who)}</span>
+            <h3>${esc(g.title)}</h3>
+            <p>${esc(g.desc)}</p>
+            ${g.key === "Customer" ? `<div class="portal-sub">${profilesByRole("Customer").map((p) => `<span class="pill">${esc(p.name)}</span>`).join("")}</div>` : ""}
+            ${g.key === "Vendor" ? `<div class="portal-sub">${["Garage", "Parts Supplier", "Recovery"].map((r) => `<span class="pill">${esc(r)}</span>`).join("")}</div>` : ""}
+          </button>`).join("")}
+      </div>
+      <p class="small" style="text-align:center">Prototype demo - all data is stored locally in this browser. Use "⇄ Portals" any time to switch roles.</p>
+    </div>`;
+}
+
+function renderProfileSelect() {
+  const groups = [["Customers", "Customer"], ["MTS Office", "MTS Admin"], ["Garages", "Garage"], ["Parts Suppliers", "Parts Supplier"], ["Recovery", "Recovery"]];
   profileSelect.innerHTML = groups.map(([label, role]) => {
     const people = profilesByRole(role);
     if (!people.length) return "";
@@ -406,8 +562,12 @@ function renderTabs() {
   const role = currentProfile().role;
   const tabs = ROLE_TABS[role] || [];
   const active = state.activeView === "jobdetail" ? "jobs" : state.activeView;
-  tabsNav.innerHTML = tabs.map(([view, label]) =>
-    `<button class="tab ${view === active ? "active" : ""}" data-action="switch-view" data-view="${view}">${esc(label)}</button>`).join("");
+  const counts = badgeCounts(role, state.activeProfileId);
+  tabsNav.innerHTML = tabs.map(([view, label]) => {
+    const n = counts[view] || 0;
+    const activeCls = (view === active || (active === "jobs" && view === "jobs")) ? "active" : "";
+    return `<button class="tab ${activeCls}" data-action="switch-view" data-view="${view}">${esc(label)}${n ? `<span class="badge">${n}</span>` : ""}</button>`;
+  }).join("");
 }
 
 function renderMain() {
@@ -447,10 +607,12 @@ function jobCard(job, audience) {
   bits.push(`<span class="pill">${esc(job.type)}</span>`);
   if (job.category) bits.push(`<span class="pill">${esc(job.category)}</span>`);
   if (job.urgent) bits.push(`<span class="pill danger">URGENT</span>`);
+  if (audience === "customer" && job.status === "Options Ready" && !job.selectedOptionId) bits.push(`<span class="pill accent">Action needed: choose an option</span>`);
+  if (audience === "customer" && job.status === "Closed" && job.assignedGarageId && !job.review) bits.push(`<span class="pill accent">Rate this job</span>`);
   if (audience === "admin" && job.status === "Options Ready" && !job.selectedOptionId) bits.push(`<span class="pill warn">Waiting customer approval</span>`);
-  if (job.status === "Options Ready" && audience === "customer" && !job.selectedOptionId) bits.push(`<span class="pill accent">Action needed: choose an option</span>`);
   const quoted = job.dispatches.filter((d) => d.status === "Quoted").length;
   if (audience === "admin" && job.dispatches.length) bits.push(`<span class="pill blue">${quoted}/${job.dispatches.length} quotes in</span>`);
+  if (job.review) bits.push(`<span class="pill">${starsHtml(job.review.rating)}</span>`);
   return `
     <article class="job-card" data-action="open-job" data-id="${esc(job.id)}">
       <div>
@@ -527,7 +689,9 @@ function renderCustomerVehicles() {
       <div class="actions"><button type="submit" class="primary">Save Vehicle</button></div>
     </form>
     <div class="team-grid">
-      ${mine.length ? mine.map((v) => `
+      ${mine.length ? mine.map((v) => {
+        const history = state.jobs.filter((j) => j.vehicleId === v.id);
+        return `
         <div class="person-card">
           <h3>${esc(vehicleLabel(v))}</h3>
           <dl>
@@ -535,9 +699,13 @@ function renderCustomerVehicles() {
             <dt>Plate</dt><dd>${esc(v.plate || "-")}</dd>
             <dt>Mileage</dt><dd>${esc(v.mileage || "-")}</dd>
             <dt>VIN</dt><dd>${esc(v.vin || "-")}</dd>
-            <dt>Jobs</dt><dd>${state.jobs.filter((j) => j.vehicleId === v.id).length}</dd>
           </dl>
-        </div>`).join("") : emptyState("No vehicles yet", "Add your first vehicle to start requesting repairs and services.")}
+          <h4 style="margin:12px 0 6px">Service history (${history.length})</h4>
+          ${history.length ? `<ul class="timeline">${history.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((j) =>
+            `<li><a href="#" data-action="open-job" data-id="${esc(j.id)}">${esc(j.id)}</a> ${esc(j.category || j.type)} <span class="small">${esc(j.status)} - ${fmtDate(j.createdAt)}</span></li>`).join("")}</ul>`
+            : `<p class="small">No jobs yet for this vehicle.</p>`}
+        </div>`;
+      }).join("") : emptyState("No vehicles yet", "Add your first vehicle to start requesting repairs and services.")}
     </div>`;
 }
 
@@ -582,6 +750,7 @@ function renderCustomerInvoices() {
             <span class="pill ${j.invoice.status === "Paid" ? "ok" : "warn"}">${esc(j.invoice.status)}</span>
           </div>
           ${invoiceTable(j.invoice)}
+          <div class="actions"><button data-action="print-invoice" data-job="${esc(j.id)}">🖨️ View / Print Invoice</button></div>
         </div>`).join("") : emptyState("No invoices yet", "Invoices appear here after a job is completed.")}
     </div>`;
 }
@@ -660,9 +829,7 @@ function renderWizard() {
         <label>${quick ? "Situation" : "Describe the problem"}<textarea name="description" rows="3" required placeholder="${quick ? "Engine cut off, flat tyre, accident..." : "What happens, since when, any sounds or warning lights..."}">${esc(draft.description)}</textarea></label>
         <div class="form-grid">
           <label>Location<input name="location" required placeholder="Area, street, landmark" value="${esc(draft.location)}"></label>
-          <label>Photos / videos
-            <input type="file" name="media" data-media multiple accept="image/*,video/*">
-          </label>
+          <label>Photos / videos<input type="file" name="media" data-media multiple accept="image/*,video/*"></label>
         </div>
         ${draft.media.length ? `<div class="chip-list" style="margin-top:8px">${draft.media.map((m) => `<span class="pill">${esc(m)}</span>`).join("")}</div>` : ""}
         <p class="small">Photos help garages give accurate quotes. In this prototype only file names are stored.</p>
@@ -708,7 +875,9 @@ function createJobFromDraft(form) {
     selectedOptionId: null,
     assignedGarageId: null,
     recovery: quick ? { companyId: null, status: "Awaiting Assignment" } : null,
+    inspection: null,
     invoice: null,
+    review: null,
     chat: [],
     timeline: [],
     createdAt: nowIso()
@@ -727,7 +896,7 @@ function createJobFromDraft(form) {
 
 function renderJobDetail(mode) {
   const job = jobById(state.selectedJobId);
-  if (!job) { state.activeView = "jobs"; return renderCustomerJobs(); }
+  if (!job) { state.activeView = "jobs"; return currentProfile().role === "MTS Admin" ? renderAdminJobs() : renderCustomerJobs(); }
   const v = jobVehicle(job);
   const cust = profileById(job.customerId);
   const me = currentProfile();
@@ -786,7 +955,10 @@ function renderJobDetail(mode) {
         <span class="pill ${job.invoice.status === "Paid" ? "ok" : "warn"}">${esc(job.invoice.status)}</span>
       </div>
       ${invoiceTable(job.invoice)}
-      ${mode === "admin" && job.invoice.status === "Unpaid" ? `<div class="actions"><button class="primary" data-action="mark-paid" data-job="${esc(job.id)}">Mark Paid & Close Job</button></div>` : ""}
+      <div class="actions">
+        <button data-action="print-invoice" data-job="${esc(job.id)}">🖨️ View / Print Invoice</button>
+        ${mode === "admin" && job.invoice.status === "Unpaid" ? `<button class="primary" data-action="mark-paid" data-job="${esc(job.id)}">Mark Paid & Close Job</button>` : ""}
+      </div>
     </div>` : "";
 
   if (mode === "customer") {
@@ -794,8 +966,10 @@ function renderJobDetail(mode) {
       <div class="job-layout">
         <div class="stack">
           ${optionsPanel(job, "customer")}
+          ${job.inspection ? inspectionDisplay(job, "customer") : ""}
           ${facts}
           ${invoicePanel}
+          ${reviewPanel(job)}
           ${chatPanel}
         </div>
         <div class="stack">
@@ -819,11 +993,13 @@ function renderJobDetail(mode) {
         ${facts}
         ${statusControlPanel(job)}
         ${job.recovery ? recoveryAdminPanel(job) : ""}
-        ${dispatchPanel(job)}
-        ${partsPanel(job, "admin")}
-        ${optionsPanel(job, "admin")}
+        ${isInspection(job) ? inspectionAdminPanel(job) : ""}
+        ${!isInspection(job) ? dispatchPanel(job) : ""}
+        ${!isInspection(job) ? partsPanel(job, "admin") : ""}
+        ${!isInspection(job) ? optionsPanel(job, "admin") : ""}
         ${adminInvoicePanel(job)}
         ${invoicePanel}
+        ${job.review ? reviewPanel(job) : ""}
       </div>
       <div class="stack">
         ${whatsappPanel(job)}
@@ -860,45 +1036,125 @@ function optionsPanel(job, mode) {
   if (mode === "customer") {
     return `
       <div class="panel">
-        <h3>${showChoose ? "Your options - compare and approve" : "Approved solution"}</h3>
+        <div class="section-head" style="margin-bottom:8px">
+          <h3 style="margin-bottom:0">${showChoose ? "Your options - compare and approve" : "Approved solution"}</h3>
+          <button data-action="print-quote" data-job="${esc(job.id)}">🖨️ Quotation</button>
+        </div>
         <p class="small">Prices are final MTS-negotiated prices including parts, labour and coordination.</p>
         ${cards}
       </div>`;
   }
 
-  /* admin: option builder */
   const quotedGarages = job.dispatches.filter((d) => d.quote);
   return `
     <div class="panel">
-      <h3>Solution Options (sent to customer)</h3>
+      <div class="section-head" style="margin-bottom:8px">
+        <h3 style="margin-bottom:0">Solution Options (sent to customer)</h3>
+        ${job.options.length ? `<button data-action="print-quote" data-job="${esc(job.id)}">🖨️ Quotation</button>` : ""}
+      </div>
       ${job.options.length ? cards : `<p class="small">No options built yet. Use garage quotes + part offers below to build 2-3 transparent options.</p>`}
       ${!job.selectedOptionId ? `
       <form data-form="add-option" data-job="${esc(job.id)}" autocomplete="off" style="margin-top:14px" class="compact-form">
         <h4>Build option</h4>
         <div class="form-grid-3">
-          <label>Type
-            <select name="label">${PART_TYPES.map((t) => `<option>${esc(t)}</option>`).join("")}</select>
-          </label>
+          <label>Type<select name="label">${PART_TYPES.map((t) => `<option>${esc(t)}</option>`).join("")}</select></label>
           <label>Customer price (AED)<input name="cost" type="number" min="0" step="1" required placeholder="1300"></label>
           <label>Time<input name="timeText" required placeholder="Same day / 2 days"></label>
           <label>Warranty<input name="warranty" required placeholder="6 months"></label>
           <label>Garage
-            <select name="garageId">
-              <option value="">MTS network</option>
-              ${quotedGarages.map((d) => `<option value="${esc(d.garageId)}">${esc(profileName(d.garageId))}</option>`).join("")}
-            </select>
+            <select name="garageId"><option value="">MTS network</option>${quotedGarages.map((d) => `<option value="${esc(d.garageId)}">${esc(profileName(d.garageId))}</option>`).join("")}</select>
           </label>
           <label>Note<input name="note" placeholder="Best value / Best for long-term"></label>
         </div>
-        <div class="toggle-grid" style="grid-template-columns:1fr">
-          <label><input type="checkbox" name="recommended"> Mark as ⭐ Recommended</label>
-        </div>
+        <div class="toggle-grid" style="grid-template-columns:1fr"><label><input type="checkbox" name="recommended"> Mark as ⭐ Recommended</label></div>
         <div class="actions">
           <button type="submit" class="primary">Add Option</button>
           ${job.options.length && job.status !== "Options Ready" ? `<button type="button" class="accent" data-action="send-options" data-job="${esc(job.id)}">Send ${job.options.length} option(s) to customer</button>` : ""}
         </div>
+      </form>` : ""}
+    </div>`;
+}
+
+function reviewPanel(job) {
+  const me = currentProfile();
+  if (job.review) {
+    return `
+      <div class="panel">
+        <h3>Customer Rating</h3>
+        <div class="review-card">
+          ${starsHtml(job.review.rating)} <strong>${job.review.rating}/5</strong>
+          <p style="margin:6px 0 4px">${esc(job.review.comment || "")}</p>
+          <span class="small">${esc(job.review.by)} - ${fmtTime(job.review.at)} - ${esc(profileName(job.assignedGarageId))}</span>
+        </div>
+      </div>`;
+  }
+  if (me.role !== "Customer" || job.status !== "Closed" || !job.assignedGarageId) return "";
+  return `
+    <div class="panel">
+      <h3>Rate this job</h3>
+      <p class="small">How was ${esc(profileName(job.assignedGarageId))}? Your rating helps MTS keep quality high.</p>
+      <div class="rate-row" data-rate="${esc(job.id)}">
+        ${[1, 2, 3, 4, 5].map((n) => `<span class="rstar ${n <= ratingDraft ? "on" : ""}" data-action="set-rating" data-value="${n}">★</span>`).join("")}
+      </div>
+      <form data-form="submit-review" data-job="${esc(job.id)}" style="margin-top:10px">
+        <label>Comment<input name="comment" placeholder="Tell MTS how it went"></label>
+        <div class="actions"><button type="submit" class="primary">Submit Rating</button></div>
       </form>
-      ${job.options.length && job.status !== "Options Ready" ? "" : ""}` : ""}
+    </div>`;
+}
+
+function inspectionAdminPanel(job) {
+  if (job.inspection) return inspectionDisplay(job, "admin");
+  const garages = profilesByRole("Garage");
+  return `
+    <div class="panel">
+      <h3>Inspection Report</h3>
+      <p class="small">Fill the ${INSPECTION_AREAS.length}-point report, then send it to the customer.</p>
+      <form data-form="save-inspection" data-job="${esc(job.id)}" autocomplete="off">
+        <label>Inspected by
+          <select name="garageId"><option value="">MTS Inspector</option>${garages.map((g) => `<option value="${esc(g.id)}" ${g.id === job.assignedGarageId ? "selected" : ""}>${esc(g.name)}</option>`).join("")}</select>
+        </label>
+        <div class="inspect-grid" style="margin-top:12px">
+          ${INSPECTION_AREAS.map((area, i) => `
+            <div class="inspect-row">
+              <strong>${esc(area)}</strong>
+              <select name="result-${i}">${RESULT_OPTIONS.map((r) => `<option ${r === "Pass" ? "selected" : ""}>${esc(r)}</option>`).join("")}</select>
+              <input name="note-${i}" placeholder="Notes (optional)">
+            </div>`).join("")}
+        </div>
+        <label style="margin-top:12px">Overall summary<textarea name="summary" rows="2" required placeholder="Overall condition of the vehicle"></textarea></label>
+        <label>Recommendation<textarea name="recommendation" rows="2" placeholder="What the customer should do next"></textarea></label>
+        <div class="actions"><button type="submit" class="primary">Save & Send Report</button></div>
+      </form>
+    </div>`;
+}
+
+function inspectionDisplay(job, mode) {
+  const insp = job.inspection;
+  const counts = { Pass: 0, Attention: 0, Fail: 0 };
+  insp.items.forEach((it) => { counts[it.result] = (counts[it.result] || 0) + 1; });
+  return `
+    <div class="panel">
+      <div class="section-head" style="margin-bottom:8px">
+        <h3 style="margin-bottom:0">Inspection Report</h3>
+        <button data-action="print-inspection" data-job="${esc(job.id)}">🖨️ Report</button>
+      </div>
+      <div class="meta" style="margin-top:0">
+        <span class="pill ok">${counts.Pass} Pass</span>
+        <span class="pill warn">${counts.Attention} Attention</span>
+        <span class="pill danger">${counts.Fail} Fail</span>
+        <span class="pill">By ${esc(insp.by)}</span>
+      </div>
+      <div class="inspect-grid" style="margin-top:12px">
+        ${insp.items.map((it) => `
+          <div class="inspect-row">
+            <strong>${esc(it.area)}</strong>
+            <span class="result-${it.result.toLowerCase()}">${esc(it.result)}</span>
+            <span class="small">${esc(it.note || "")}</span>
+          </div>`).join("")}
+      </div>
+      <p style="margin-top:12px"><strong>Summary:</strong> ${esc(insp.summary)}</p>
+      ${insp.recommendation ? `<p><strong>Recommendation:</strong> ${esc(insp.recommendation)}</p>` : ""}
     </div>`;
 }
 
@@ -914,7 +1170,8 @@ function statusControlPanel(job) {
         ${job.status === "Ready For Delivery" && !job.invoice ? `<span class="pill warn">Generate the invoice below to finish</span>` : ""}
         ${!isFinal && job.status !== "Invoiced" ? `<button class="danger" data-action="cancel-job" data-job="${esc(job.id)}">Cancel Job</button>` : ""}
       </div>
-      ${dispatchable ? `<p class="small" style="margin-top:10px">Next: review the request, then dispatch quote requests to garages and parts suppliers below.</p>` : ""}
+      ${dispatchable && !isInspection(job) ? `<p class="small" style="margin-top:10px">Next: review the request, then dispatch quote requests to garages and parts suppliers below.</p>` : ""}
+      ${dispatchable && isInspection(job) ? `<p class="small" style="margin-top:10px">Inspection job: assign a garage/inspector and fill the report below, then invoice.</p>` : ""}
     </div>`;
 }
 
@@ -926,10 +1183,10 @@ function dispatchPanel(job) {
     <div class="panel">
       <h3>Garage Quotes</h3>
       ${job.dispatches.length ? `<div class="sync-list" style="margin-bottom:12px">
-        ${job.dispatches.map((d, i) => `
+        ${job.dispatches.map((d) => `
           <div class="sync-item">
             <div class="section-head" style="margin-bottom:6px">
-              <strong>${esc(profileName(d.garageId))}</strong>
+              <strong>${esc(profileName(d.garageId))} ${(() => { const r = garageRating(d.garageId); return r.count ? starsHtml(r.avg) : ""; })()}</strong>
               <span class="pill ${d.status === "Quoted" ? "ok" : d.status === "Declined" ? "danger" : "warn"}">${esc(d.status)}</span>
             </div>
             ${d.quote ? `<p style="margin-bottom:4px"><strong>${aed(d.quote.price)}</strong> - ${esc(d.quote.days)} - warranty: ${esc(d.quote.warranty)}</p><p class="small">${esc(d.quote.note || "")}</p>` : `<p class="small">Waiting for quote since ${fmtTime(d.at)}</p>`}
@@ -975,17 +1232,22 @@ function partsPanel(job, mode) {
 function adminInvoicePanel(job) {
   if (job.invoice) return "";
   const selected = job.options.find((o) => o.id === job.selectedOptionId);
-  if (!selected) return "";
+  const readyInspection = isInspection(job) && job.inspection && job.status !== "Closed";
+  if (!selected && !readyInspection) return "";
+  const baseLabel = selected ? `${selected.label} - ${job.category}` : `${job.category} - inspection report`;
+  const baseCost = selected ? selected.cost : 250;
+  const garageTxt = selected ? (selected.garageId ? profileName(selected.garageId) : "MTS network") : (job.assignedGarageId ? profileName(job.assignedGarageId) : "MTS Inspector");
   return `
     <div class="panel">
       <h3>Generate Invoice</h3>
-      <p class="small">Approved: ${esc(selected.label)} - ${aed(selected.cost)} (${esc(selected.garageId ? profileName(selected.garageId) : "MTS network")})</p>
+      <p class="small">${esc(baseLabel)} - ${aed(baseCost)} (${esc(garageTxt)})</p>
       <form data-form="generate-invoice" data-job="${esc(job.id)}" autocomplete="off">
         <div class="form-grid-3">
+          <label>Base amount (AED)<input name="base" type="number" min="0" step="1" value="${baseCost}"></label>
           <label>MTS Concierge fee (AED)<input name="fee" type="number" min="0" step="1" value="50"></label>
-          <label>Extra line (optional)<input name="extraLabel" placeholder="Towing, consumables..."></label>
           <label>Extra amount (AED)<input name="extraAmount" type="number" min="0" step="1" placeholder="0"></label>
         </div>
+        <label>Extra line label (optional)<input name="extraLabel" placeholder="Towing, consumables..."></label>
         <div class="actions"><button type="submit" class="primary">Create Invoice</button></div>
       </form>
     </div>`;
@@ -1038,14 +1300,9 @@ function recoveryAdminPanel(job) {
       ${!r.companyId ? `
       <form data-form="assign-recovery" data-job="${esc(job.id)}">
         <div class="form-grid">
-          <label>Recovery company
-            <select name="companyId">${companies.map((c) => `<option value="${esc(c.id)}">${esc(c.name)} (${esc(c.area || "")})</option>`).join("")}</select>
-          </label>
+          <label>Recovery company<select name="companyId">${companies.map((c) => `<option value="${esc(c.id)}">${esc(c.name)} (${esc(c.area || "")})</option>`).join("")}</select></label>
           <label>Deliver vehicle to
-            <select name="garageId">
-              <option value="">Decide later</option>
-              ${profilesByRole("Garage").map((g) => `<option value="${esc(g.id)}">${esc(g.name)}</option>`).join("")}
-            </select>
+            <select name="garageId"><option value="">Decide later</option>${profilesByRole("Garage").map((g) => `<option value="${esc(g.id)}">${esc(g.name)}</option>`).join("")}</select>
           </label>
         </div>
         <div class="actions"><button type="submit" class="primary">Dispatch Recovery</button></div>
@@ -1062,6 +1319,7 @@ function renderAdminDashboard() {
     const rank = (j) => (j.urgent && j.status === "New Request") ? 0 : j.status === "New Request" ? 1 : j.status === "Sourcing Quotes" ? 2 : 3;
     return rank(a) - rank(b) || b.createdAt.localeCompare(a.createdAt);
   });
+  const paidRevenue = state.jobs.filter((j) => j.invoice && j.invoice.status === "Paid").reduce((s, j) => s + j.invoice.total, 0);
   return `
     <div class="section-head">
       <div><h2>Concierge Dashboard</h2><p>Understand the problem. Find the best solution. Negotiate the best price. Coordinate everything.</p></div>
@@ -1073,7 +1331,7 @@ function renderAdminDashboard() {
       <div class="stat"><strong>${count((j) => j.status === "Options Ready")}</strong><span>Waiting customer</span></div>
       <div class="stat"><strong>${count((j) => WORKSHOP_STATUSES.includes(j.status))}</strong><span>In workshop</span></div>
       <div class="stat"><strong>${count((j) => j.status === "Ready For Delivery")}</strong><span>Ready for delivery</span></div>
-      <div class="stat"><strong>${count((j) => j.invoice && j.invoice.status === "Unpaid")}</strong><span>Unpaid invoices</span></div>
+      <div class="stat"><strong>${aed(paidRevenue)}</strong><span>Collected revenue</span></div>
     </div>
     <h3>Inbox - needs MTS action first</h3>
     <div class="job-list">
@@ -1084,31 +1342,35 @@ function renderAdminDashboard() {
 function renderAdminJobs() {
   const filters = ["All", "New Request", "Sourcing Quotes", "Options Ready", "In Workshop", "Ready For Delivery", "Invoiced", "Closed", "Cancelled"];
   const f = state.adminFilter;
+  const q = (state.adminSearch || "").toLowerCase();
   const match = (j) => {
-    if (f === "All") return true;
-    if (f === "In Workshop") return WORKSHOP_STATUSES.includes(j.status);
-    if (f === "Sourcing Quotes") return j.status === "Sourcing Quotes" || j.status === "MTS Review";
-    return j.status === f;
+    const statusOk = f === "All" ? true
+      : f === "In Workshop" ? WORKSHOP_STATUSES.includes(j.status)
+      : f === "Sourcing Quotes" ? (j.status === "Sourcing Quotes" || j.status === "MTS Review")
+      : j.status === f;
+    if (!statusOk) return false;
+    if (!q) return true;
+    const hay = `${j.id} ${vehicleLabel(jobVehicle(j))} ${profileName(j.customerId)} ${j.category} ${j.description}`.toLowerCase();
+    return hay.includes(q);
   };
   const jobs = state.jobs.filter(match).slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   return `
     <div class="section-head">
       <div><h2>All Jobs</h2><p>Every customer, garage, supplier and recovery interaction in one pipeline.</p></div>
     </div>
+    <div class="panel" style="padding:12px">
+      <input data-input="admin-search" placeholder="Search job ID, customer, vehicle, problem..." value="${esc(state.adminSearch || "")}">
+    </div>
     <div class="filters">
       ${filters.map((x) => `<button class="${x === f ? "active" : ""}" data-action="set-admin-filter" data-value="${esc(x)}">${esc(x)}</button>`).join("")}
     </div>
     <div class="job-list">
-      ${jobs.length ? jobs.map((j) => jobCard(j, "admin")).join("") : emptyState("Nothing here", "No jobs match this filter.")}
+      ${jobs.length ? jobs.map((j) => jobCard(j, "admin")).join("") : emptyState("Nothing here", "No jobs match this filter or search.")}
     </div>`;
 }
 
 function renderAdminPartners() {
-  const sections = [
-    ["Garages", "Garage"],
-    ["Parts Suppliers", "Parts Supplier"],
-    ["Recovery Companies", "Recovery"]
-  ];
+  const sections = [["Garages", "Garage"], ["Parts Suppliers", "Parts Supplier"], ["Recovery Companies", "Recovery"]];
   return `
     <div class="section-head">
       <div><h2>Partner Network</h2><p>The real value of MTS: trusted garages, parts suppliers, used parts dealers and recovery companies.</p></div>
@@ -1117,13 +1379,7 @@ function renderAdminPartners() {
       <h3>Add Partner</h3>
       <div class="form-grid-3">
         <label>Name<input name="name" required placeholder="Garage / supplier name"></label>
-        <label>Type
-          <select name="role">
-            <option>Garage</option>
-            <option>Parts Supplier</option>
-            <option>Recovery</option>
-          </select>
-        </label>
+        <label>Type<select name="role"><option>Garage</option><option>Parts Supplier</option><option>Recovery</option></select></label>
         <label>Phone<input name="phone" required placeholder="+9715xxxxxxxx"></label>
         <label>Area<input name="area" placeholder="Al Quoz, Deira..."></label>
         <label>Specialties<input name="specialties" placeholder="AC, engines, German cars, used OEM..."></label>
@@ -1135,15 +1391,23 @@ function renderAdminPartners() {
       return `
         <h3>${esc(title)} (${people.length})</h3>
         <div class="team-grid" style="margin-bottom:16px">
-          ${people.length ? people.map((p) => `
+          ${people.length ? people.map((p) => {
+            const st = partnerStats(p);
+            const statLine = role === "Garage"
+              ? `<dt>Rating</dt><dd>${st.rating.count ? `${starsHtml(st.rating.avg)} ${st.rating.avg.toFixed(1)} (${st.rating.count})` : "No ratings yet"}</dd><dt>Jobs done</dt><dd>${st.jobs}</dd><dt>Quotes</dt><dd>${st.quotes}</dd>`
+              : role === "Parts Supplier" ? `<dt>Offers</dt><dd>${st.offers}</dd>`
+              : `<dt>Tow jobs</dt><dd>${st.tows}</dd>`;
+            return `
             <div class="person-card">
               <h3>${esc(p.name)}</h3>
               <dl>
                 <dt>Phone</dt><dd>${esc(p.phone)}</dd>
                 ${p.area ? `<dt>Area</dt><dd>${esc(p.area)}</dd>` : ""}
                 ${p.specialties ? `<dt>Focus</dt><dd>${esc(p.specialties)}</dd>` : ""}
+                ${statLine}
               </dl>
-            </div>`).join("") : emptyState("None yet", "Add partners to grow the network.")}
+            </div>`;
+          }).join("") : emptyState("None yet", "Add partners to grow the network.")}
         </div>`;
     }).join("")}`;
 }
@@ -1186,7 +1450,7 @@ function renderAdminChats() {
 function renderAdminActivity() {
   return `
     <div class="section-head">
-      <div><h2>Activity Feed</h2><p>Everything that moves in the marketplace, newest first. Ready to relay to Slack/Zoho in the next phase.</p></div>
+      <div><h2>Activity Feed</h2><p>Everything that moves in the marketplace, newest first.</p></div>
     </div>
     <div class="sync-list">
       ${state.activity.length ? state.activity.map((a) => `
@@ -1311,9 +1575,7 @@ function renderSupplierRequests() {
           ${myOffers.length ? `<p class="small">Your offers: ${myOffers.map((o) => `${esc(o.partType)} ${aed(o.price)}`).join(" | ")}</p>` : ""}
           <form data-form="supplier-offer" data-job="${esc(job.id)}" data-part="${esc(pr.id)}" autocomplete="off" style="margin-top:10px">
             <div class="form-grid-3">
-              <label>Part type
-                <select name="partType">${OFFER_TYPES.map((t) => `<option>${esc(t)}</option>`).join("")}</select>
-              </label>
+              <label>Part type<select name="partType">${OFFER_TYPES.map((t) => `<option>${esc(t)}</option>`).join("")}</select></label>
               <label>Price (AED)<input name="price" type="number" min="0" step="1" required placeholder="650"></label>
               <label>Availability<input name="availability" required placeholder="In stock - same day"></label>
             </div>
@@ -1368,6 +1630,99 @@ function renderRecoveryJobs() {
     </div>`;
 }
 
+/* ---------- printable documents ---------- */
+
+function docHeader(kind) {
+  return `
+    <div class="doc-header">
+      <div class="brand-block">
+        <strong>MTS Auto Concierge</strong>
+        <span>Mendonca Technical Services</span>
+        <span>Dubai, UAE - +971 50 111 2223</span>
+      </div>
+      <div class="doc-title"><h2>${esc(kind)}</h2></div>
+    </div>`;
+}
+
+function docMeta(job) {
+  const v = jobVehicle(job);
+  const cust = profileById(job.customerId);
+  return `
+    <div class="doc-meta">
+      <div><span>Job Ref</span><strong>${esc(job.id)}</strong></div>
+      <div><span>Date</span><strong>${fmtDate(nowIso())}</strong></div>
+      <div><span>Customer</span><strong>${esc(cust ? cust.name : "")}</strong></div>
+      <div><span>Phone</span><strong>${esc(cust ? cust.phone : "")}</strong></div>
+      <div><span>Vehicle</span><strong>${esc(vehicleLabel(v))}</strong></div>
+      <div><span>Plate</span><strong>${esc(v ? v.plate : "")}</strong></div>
+    </div>`;
+}
+
+function buildQuotationDoc(job) {
+  const rows = job.options.map((o) => `
+    <tr>
+      <td>${esc(o.label)}${o.recommended ? ` <span class="recommend-tag">⭐ Recommended</span>` : ""}${o.note ? `<br><span style="color:#5e6d76;font-size:12px">${esc(o.note)}</span>` : ""}</td>
+      <td>${esc(o.timeText)}</td>
+      <td>${esc(o.warranty)}</td>
+      <td>${aed(o.cost)}</td>
+    </tr>`).join("");
+  return docHeader("QUOTATION") + docMeta(job) + `
+    <h4 class="doc-section">Reported problem</h4>
+    <p>${esc(job.description)}</p>
+    <h4 class="doc-section">Options prepared for you</h4>
+    <table class="invoice-table">
+      <tr><th>Option</th><th>Time</th><th>Warranty</th><th>Price</th></tr>
+      ${rows}
+    </table>
+    <div class="doc-note">All prices are final MTS-negotiated prices including parts, labour and full coordination. MTS manages the garage, the parts and the whole job for you - one point of contact.</div>
+    <div class="doc-footer">Thank you for choosing MTS Auto Concierge. This quotation is valid for 7 days.</div>`;
+}
+
+function buildInvoiceDoc(job) {
+  const inv = job.invoice;
+  return docHeader("INVOICE") + docMeta(job) + `
+    <h4 class="doc-section">Invoice ${esc(inv.id)} - ${esc(inv.status)}</h4>
+    <table class="invoice-table">
+      <tr><th>Description</th><th>Amount</th></tr>
+      ${inv.lines.map((l) => `<tr><td>${esc(l.label)}</td><td>${aed(l.amount)}</td></tr>`).join("")}
+      <tr class="total"><td>Total</td><td>${aed(inv.total)}</td></tr>
+    </table>
+    <div class="doc-note">Payment: cash / card / bank transfer to Mendonca Technical Services. Issued ${fmtDate(inv.at)}.</div>
+    <div class="doc-footer">Thank you for your business. MTS Auto Concierge - your car problem solved.</div>`;
+}
+
+function buildInspectionDoc(job) {
+  const insp = job.inspection;
+  const rows = insp.items.map((it) => `
+    <tr>
+      <td>${esc(it.area)}</td>
+      <td class="result-${it.result.toLowerCase()}">${esc(it.result)}</td>
+      <td>${esc(it.note || "-")}</td>
+    </tr>`).join("");
+  return docHeader("INSPECTION REPORT") + docMeta(job) + `
+    <h4 class="doc-section">${esc(job.category)} - inspected by ${esc(insp.by)}</h4>
+    <table class="invoice-table">
+      <tr><th>Area</th><th>Result</th><th>Notes</th></tr>
+      ${rows}
+    </table>
+    <h4 class="doc-section">Summary</h4>
+    <p>${esc(insp.summary)}</p>
+    ${insp.recommendation ? `<h4 class="doc-section">Recommendation</h4><p>${esc(insp.recommendation)}</p>` : ""}
+    <div class="doc-footer">MTS Auto Concierge inspection - completed ${fmtDate(insp.at)}.</div>`;
+}
+
+function openDoc(title, html) {
+  lastDoc = { title, html };
+  modalTitle.textContent = title;
+  printDoc.innerHTML = html;
+  modalRoot.classList.remove("hidden");
+}
+
+function closeModal() {
+  modalRoot.classList.add("hidden");
+  printDoc.innerHTML = "";
+}
+
 /* ---------- actions ---------- */
 
 document.addEventListener("click", (e) => {
@@ -1376,7 +1731,25 @@ document.addEventListener("click", (e) => {
   const action = el.dataset.action;
   const me = currentProfile();
 
-  if (action === "switch-view") {
+  if (["open-job", "print-quote", "print-invoice", "print-inspection"].includes(action)) e.preventDefault();
+
+  if (action === "pick-portal") {
+    const group = el.dataset.group;
+    let target = null;
+    if (group === "Customer") target = profilesByRole("Customer")[0];
+    else if (group === "MTS Admin") target = profilesByRole("MTS Admin")[0];
+    else if (group === "Vendor") target = profilesByRole("Garage")[0];
+    if (!target) return;
+    state.activeProfileId = target.id;
+    state.showWelcome = false;
+    state.activeView = ROLE_TABS[target.role][0][0];
+    draft = null;
+    render();
+  } else if (action === "show-welcome") {
+    state.showWelcome = true;
+    draft = null;
+    render();
+  } else if (action === "switch-view") {
     draft = null;
     state.activeView = el.dataset.view;
     render();
@@ -1390,26 +1763,20 @@ document.addEventListener("click", (e) => {
     state.activeView = "jobs";
     render();
   } else if (action === "wizard-pick-type") {
-    draft.type = el.dataset.value;
-    draft.step = 1;
-    render();
+    draft.type = el.dataset.value; draft.step = 1; render();
   } else if (action === "wizard-pick-vehicle") {
     draft.vehicleId = el.dataset.id;
     draft.step = (draft.type === "Emergency Breakdown" || draft.type === "Towing") ? 3 : 2;
     render();
   } else if (action === "wizard-pick-category") {
-    draft.category = el.dataset.value;
-    draft.step = 3;
-    render();
+    draft.category = el.dataset.value; draft.step = 3; render();
   } else if (action === "wizard-back") {
     const quick = draft.type === "Emergency Breakdown" || draft.type === "Towing";
     if (draft.step === 3 && quick) draft.step = 1;
     else draft.step = Math.max(0, draft.step - 1);
     render();
   } else if (action === "wizard-cancel") {
-    draft = null;
-    state.activeView = "home";
-    render();
+    draft = null; state.activeView = "home"; render();
   } else if (action === "wizard-gps") {
     const input = document.querySelector('form[data-form="wizard-details"] input[name="location"]');
     if (!navigator.geolocation || !input) return;
@@ -1419,17 +1786,16 @@ document.addEventListener("click", (e) => {
     );
   } else if (action === "open-job") {
     state.selectedJobId = el.dataset.id;
+    ratingDraft = 0;
     state.activeView = "jobdetail";
+    if (state.showWelcome) state.showWelcome = false;
     render();
   } else if (action === "back-to-jobs") {
-    state.activeView = me.role === "MTS Admin" ? "jobs" : "jobs";
-    render();
+    state.activeView = "jobs"; render();
   } else if (action === "set-admin-filter") {
-    state.adminFilter = el.dataset.value;
-    render();
+    state.adminFilter = el.dataset.value; render();
   } else if (action === "set-customer-filter") {
-    state.customerFilter = el.dataset.value;
-    render();
+    state.customerFilter = el.dataset.value; render();
   } else if (action === "choose-option") {
     const job = jobById(el.dataset.job);
     const opt = job && job.options.find((o) => o.id === el.dataset.option);
@@ -1454,8 +1820,7 @@ document.addEventListener("click", (e) => {
     render();
   } else if (action === "cancel-job") {
     const job = jobById(el.dataset.job);
-    if (!job) return;
-    if (!confirm(`Cancel job ${job.id}?`)) return;
+    if (!job || !confirm(`Cancel job ${job.id}?`)) return;
     job.status = "Cancelled";
     addTimeline(job, "Job cancelled", me.name);
     render();
@@ -1486,8 +1851,7 @@ document.addEventListener("click", (e) => {
     addTimeline(job, `${profileName(d.garageId)} declined the quote request`, profileName(d.garageId));
     render();
   } else if (action === "open-thread") {
-    state.activeThreadId = el.dataset.customer;
-    render();
+    state.activeThreadId = el.dataset.customer; render();
   } else if (action === "mark-paid") {
     const job = jobById(el.dataset.job);
     if (!job || !job.invoice) return;
@@ -1495,6 +1859,25 @@ document.addEventListener("click", (e) => {
     job.status = "Closed";
     addTimeline(job, "Invoice paid. Job closed.", me.name);
     render();
+  } else if (action === "set-rating") {
+    ratingDraft = Number(el.dataset.value);
+    const row = el.closest(".rate-row");
+    if (row) row.querySelectorAll(".rstar").forEach((s, i) => s.classList.toggle("on", i < ratingDraft));
+  } else if (action === "print-quote") {
+    const job = jobById(el.dataset.job);
+    if (job) openDoc(`Quotation - ${job.id}`, buildQuotationDoc(job));
+  } else if (action === "print-invoice") {
+    const job = jobById(el.dataset.job);
+    if (job && job.invoice) openDoc(`Invoice ${job.invoice.id}`, buildInvoiceDoc(job));
+  } else if (action === "print-inspection") {
+    const job = jobById(el.dataset.job);
+    if (job && job.inspection) openDoc(`Inspection Report - ${job.id}`, buildInspectionDoc(job));
+  } else if (action === "print-doc") {
+    window.print();
+  } else if (action === "close-modal") {
+    closeModal();
+  } else if (action === "modal-backdrop") {
+    if (e.target === modalRoot) closeModal();
   } else if (action === "reset-demo") {
     if (!confirm("Reset all demo data back to the seed state?")) return;
     localStorage.removeItem(STORAGE_KEY);
@@ -1513,32 +1896,19 @@ document.addEventListener("submit", (e) => {
 
   if (kind === "add-vehicle") {
     state.vehicles.push({
-      id: `veh-${Date.now().toString(36)}`,
-      customerId: me.id,
-      make: form.make.value.trim(),
-      model: form.model.value.trim(),
-      year: form.year.value.trim(),
-      engine: form.engine.value.trim(),
-      vin: form.vin.value.trim(),
-      plate: form.plate.value.trim(),
-      mileage: form.mileage.value.trim()
+      id: `veh-${Date.now().toString(36)}`, customerId: me.id,
+      make: form.make.value.trim(), model: form.model.value.trim(), year: form.year.value.trim(),
+      engine: form.engine.value.trim(), vin: form.vin.value.trim(), plate: form.plate.value.trim(), mileage: form.mileage.value.trim()
     });
     addActivity(`${me.name} registered vehicle ${form.make.value.trim()} ${form.model.value.trim()}`);
     render();
   } else if (kind === "wizard-details") {
-    createJobFromDraft(form);
-    render();
+    createJobFromDraft(form); render();
   } else if (kind === "garage-quote") {
     const job = jobById(form.dataset.job);
     const d = job && job.dispatches[Number(form.dataset.dispatch)];
     if (!job || !d) return;
-    d.quote = {
-      price: Number(form.price.value),
-      days: form.days.value.trim(),
-      warranty: form.warranty.value.trim(),
-      note: form.note.value.trim(),
-      at: nowIso()
-    };
+    d.quote = { price: Number(form.price.value), days: form.days.value.trim(), warranty: form.warranty.value.trim(), note: form.note.value.trim(), at: nowIso() };
     d.status = "Quoted";
     addTimeline(job, `${profileName(d.garageId)} quoted ${aed(d.quote.price)} (${d.quote.days}, ${d.quote.warranty})`, profileName(d.garageId));
     render();
@@ -1547,13 +1917,8 @@ document.addEventListener("submit", (e) => {
     const pr = job && job.partsRequests.find((p) => p.id === form.dataset.part);
     if (!job || !pr) return;
     pr.offers.push({
-      supplierId: me.id,
-      partType: form.partType.value,
-      price: Number(form.price.value),
-      availability: form.availability.value.trim(),
-      warranty: form.warranty.value.trim(),
-      note: form.note.value.trim(),
-      at: nowIso()
+      supplierId: me.id, partType: form.partType.value, price: Number(form.price.value),
+      availability: form.availability.value.trim(), warranty: form.warranty.value.trim(), note: form.note.value.trim(), at: nowIso()
     });
     addTimeline(job, `${me.name} offered ${form.partType.value} at ${aed(form.price.value)} for "${pr.partName}"`, me.name);
     render();
@@ -1570,12 +1935,7 @@ document.addEventListener("submit", (e) => {
   } else if (kind === "add-part-request") {
     const job = jobById(form.dataset.job);
     if (!job) return;
-    job.partsRequests.push({
-      id: `PRT-${Date.now().toString(36)}`,
-      partName: form.partName.value.trim(),
-      note: form.note.value.trim(),
-      offers: []
-    });
+    job.partsRequests.push({ id: `PRT-${Date.now().toString(36)}`, partName: form.partName.value.trim(), note: form.note.value.trim(), offers: [] });
     if (["New Request", "MTS Review"].includes(job.status)) job.status = "Sourcing Quotes";
     addTimeline(job, `Part request broadcast to suppliers: ${form.partName.value.trim()}`, me.name);
     render();
@@ -1583,22 +1943,31 @@ document.addEventListener("submit", (e) => {
     const job = jobById(form.dataset.job);
     if (!job) return;
     job.options.push({
-      id: `OPT-${Date.now().toString(36)}`,
-      label: form.label.value,
-      cost: Number(form.cost.value),
-      timeText: form.timeText.value.trim(),
-      warranty: form.warranty.value.trim(),
-      note: form.note.value.trim(),
-      recommended: form.recommended.checked,
-      garageId: form.garageId.value || null
+      id: `OPT-${Date.now().toString(36)}`, label: form.label.value, cost: Number(form.cost.value),
+      timeText: form.timeText.value.trim(), warranty: form.warranty.value.trim(), note: form.note.value.trim(),
+      recommended: form.recommended.checked, garageId: form.garageId.value || null
     });
     addActivity(`${job.id}: option built - ${form.label.value} at ${aed(form.cost.value)}`);
     render();
+  } else if (kind === "save-inspection") {
+    const job = jobById(form.dataset.job);
+    if (!job) return;
+    const gid = form.garageId.value;
+    if (gid) job.assignedGarageId = gid;
+    const items = INSPECTION_AREAS.map((area, i) => ({ area, result: form[`result-${i}`].value, note: form[`note-${i}`].value.trim() }));
+    job.inspection = { by: gid ? profileName(gid) : "MTS Inspector", items, summary: form.summary.value.trim(), recommendation: form.recommendation.value.trim(), at: nowIso() };
+    if (jobIsOpen(job) && ["New Request", "MTS Review", "Sourcing Quotes"].includes(job.status)) job.status = "Ready For Delivery";
+    addTimeline(job, `${INSPECTION_AREAS.length}-point inspection report completed`, me.name);
+    pushChat(job, "owner", `Your inspection report is ready - open the job to view it and download the PDF.`);
+    render();
   } else if (kind === "generate-invoice") {
     const job = jobById(form.dataset.job);
-    const opt = job && job.options.find((o) => o.id === job.selectedOptionId);
-    if (!job || !opt || job.invoice) return;
-    const lines = [{ label: `${opt.label} - ${job.category} (${opt.garageId ? profileName(opt.garageId) : "MTS network"})`, amount: opt.cost }];
+    if (!job || job.invoice) return;
+    const opt = job.options.find((o) => o.id === job.selectedOptionId);
+    const base = Number(form.base.value || 0);
+    const baseLabel = opt ? `${opt.label} - ${job.category} (${opt.garageId ? profileName(opt.garageId) : "MTS network"})`
+      : `${job.category} - inspection report (${job.assignedGarageId ? profileName(job.assignedGarageId) : "MTS Inspector"})`;
+    const lines = [{ label: baseLabel, amount: base }];
     const fee = Number(form.fee.value || 0);
     if (fee > 0) lines.push({ label: "MTS Concierge fee", amount: fee });
     const extraLabel = form.extraLabel.value.trim();
@@ -1611,6 +1980,13 @@ document.addEventListener("submit", (e) => {
     job.status = "Invoiced";
     addTimeline(job, `Invoice ${invId} issued - ${aed(total)}`, me.name);
     pushChat(job, "owner", `Your invoice ${invId} for ${aed(total)} is ready. Your car is ready for delivery.`);
+    render();
+  } else if (kind === "submit-review") {
+    const job = jobById(form.dataset.job);
+    if (!job || !ratingDraft) { alert("Please tap the stars to choose a rating first."); return; }
+    job.review = { rating: ratingDraft, comment: form.comment.value.trim(), by: me.name, at: nowIso() };
+    addTimeline(job, `Customer rated the job ${ratingDraft} stars`, me.name);
+    ratingDraft = 0;
     render();
   } else if (kind === "assign-recovery") {
     const job = jobById(form.dataset.job);
@@ -1634,12 +2010,8 @@ document.addEventListener("submit", (e) => {
     render();
   } else if (kind === "add-partner") {
     state.profiles.push({
-      id: `ptn-${Date.now().toString(36)}`,
-      name: form.name.value.trim(),
-      role: form.role.value,
-      phone: form.phone.value.trim(),
-      area: form.area.value.trim(),
-      specialties: form.specialties.value.trim()
+      id: `ptn-${Date.now().toString(36)}`, name: form.name.value.trim(), role: form.role.value,
+      phone: form.phone.value.trim(), area: form.area.value.trim(), specialties: form.specialties.value.trim()
     });
     addActivity(`New partner added: ${form.name.value.trim()} (${form.role.value})`);
     render();
@@ -1650,6 +2022,22 @@ document.addEventListener("change", (e) => {
   if (e.target.matches("input[data-media]") && draft) {
     draft.media = Array.from(e.target.files || []).map((f) => f.name);
     render();
+  }
+});
+
+document.addEventListener("input", (e) => {
+  if (e.target.matches("input[data-input='admin-search']")) {
+    state.adminSearch = e.target.value;
+    // update list without full re-render to keep focus
+    const jobsWrap = document.querySelector(".job-list");
+    if (jobsWrap) {
+      const html = renderAdminJobs();
+      const tmp = document.createElement("div");
+      tmp.innerHTML = html;
+      const fresh = tmp.querySelector(".job-list");
+      if (fresh) jobsWrap.innerHTML = fresh.innerHTML;
+    }
+    saveState();
   }
 });
 

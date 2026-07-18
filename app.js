@@ -223,8 +223,14 @@ function normalizeState(nextState) {
     transport: [],
     photos: [],
     locations: [],
+    customerPhone: "",
+    customerEmail: "",
     ...job
   }));
+  nextState.settings = {
+    reviewLink: "",
+    ...(nextState.settings || {})
+  };
   expireOutsourceAccess(nextState);
   nextState.syncQueue = nextState.syncQueue || [];
   nextState.zoho = {
@@ -690,6 +696,14 @@ function renderJobDetail() {
               </select>
             </label>
           </div>
+          <div class="field-row">
+            <label>Customer Phone
+              <input id="jobCustomerPhone" type="tel" value="${job.customerPhone || ""}" placeholder="+971..." ${canManage ? "" : "disabled"}>
+            </label>
+            <label>Customer Email
+              <input id="jobCustomerEmail" type="email" value="${job.customerEmail || ""}" placeholder="customer@email.com" ${canManage ? "" : "disabled"}>
+            </label>
+          </div>
           <label>Work Brief
             <textarea id="jobBrief" rows="4">${job.brief || ""}</textarea>
           </label>
@@ -701,6 +715,8 @@ function renderJobDetail() {
           </label>
           <div class="meta">${job.workerIds.map((id) => `<span class="pill">${personName(id)}</span>`).join("") || "<span class=\"pill\">No workers assigned</span>"}</div>
         </section>
+
+        ${job.status === "Completed" ? reviewRequestHtml(job) : ""}
 
         <section class="panel">
           <h3>Sub-Jobs And Acceptance</h3>
@@ -1085,6 +1101,8 @@ function personCardHtml(person) {
 function renderSync() {
   const zohoUrl = byId("zohoRelayUrl");
   if (zohoUrl) zohoUrl.value = state.zoho.relayUrl || "";
+  const reviewLink = byId("reviewLinkInput");
+  if (reviewLink) reviewLink.value = (state.settings && state.settings.reviewLink) || "";
   byId("syncQueue").innerHTML = state.syncQueue.length
     ? state.syncQueue.map((item) => `
       <article class="sync-item">
@@ -1118,6 +1136,48 @@ function whatsappUrl(job) {
     latestUpdate ? `Latest: ${latestUpdate.text}` : "Latest: No update yet"
   ].join("\n");
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
+}
+
+/* ────────────────────────────────────────────
+   CUSTOMER REVIEW REQUEST (on job completion)
+   One tap sends the thank-you + Google review
+   link by WhatsApp or email — Johnson sends,
+   the app writes it perfectly every time.
+   ──────────────────────────────────────────── */
+function reviewMessage(job) {
+  const link = (state.settings && state.settings.reviewLink) || "";
+  return [
+    `Hi ${job.customer}! ✅`,
+    ``,
+    `Your ${job.service} at ${job.location} is complete. Thank you for choosing Mendonca Technical Services!`,
+    ``,
+    `If you're happy with our work, a quick Google review would mean the world to our small team — it takes 30 seconds:`,
+    link || "[ADD YOUR GOOGLE REVIEW LINK IN THE ZOHO TAB]",
+    ``,
+    `Need anything else? Just reply here. 🙏`
+  ].join("\n");
+}
+
+function reviewRequestHtml(job) {
+  const link = (state.settings && state.settings.reviewLink) || "";
+  const msg = reviewMessage(job);
+  const waHref = job.customerPhone
+    ? `https://wa.me/${phoneForWhatsApp(job.customerPhone)}?text=${encodeURIComponent(msg)}`
+    : "";
+  const mailHref = job.customerEmail
+    ? `mailto:${job.customerEmail}?subject=${encodeURIComponent("Thank you from Mendonca Technical Services ⭐")}&body=${encodeURIComponent(msg)}`
+    : "";
+  return `
+    <section class="panel review-panel">
+      <h3>⭐ Job Complete — Request The Review</h3>
+      <p class="small">The message is pre-written with your Google review link. One tap, send, done.</p>
+      ${!link ? `<p class="small error-text">Set your Google Review Link in the Zoho tab first — the message needs it.</p>` : ""}
+      <div class="actions">
+        ${waHref ? `<a href="${waHref}" target="_blank" rel="noreferrer"><button class="primary">WhatsApp Review Request</button></a>` : `<button disabled title="Add customer phone above">WhatsApp (add phone above)</button>`}
+        ${mailHref ? `<a href="${mailHref}"><button class="primary">Email Review Request</button></a>` : `<button disabled title="Add customer email above">Email (add email above)</button>`}
+        <button data-copy-review="${job.id}">Copy Message</button>
+      </div>
+    </section>`;
 }
 
 function whatsappPersonUrl(phone, message) {
@@ -1168,6 +1228,13 @@ document.addEventListener("change", (event) => {
       job.status = event.target.value;
       job.updates.unshift({ by: currentProfile().name, type: "status", text: `Status changed to ${job.status}`, at: new Date().toISOString() });
     }, "Job Status Update");
+    if (event.target.value === "Completed") toast("✅ Job complete — review request is ready below");
+  }
+  if (event.target.id === "jobCustomerPhone") {
+    updateSelectedJob((job) => { job.customerPhone = event.target.value.trim(); }, "Customer Contact Update");
+  }
+  if (event.target.id === "jobCustomerEmail") {
+    updateSelectedJob((job) => { job.customerEmail = event.target.value.trim(); }, "Customer Contact Update");
   }
   if (event.target.id === "jobPriority") {
     updateSelectedJob((job) => { job.priority = event.target.value; }, "Job Priority Update");
@@ -1207,6 +1274,15 @@ document.addEventListener("click", (event) => {
   if (event.target.dataset.quoteInspection) { generateQuotation(event.target.dataset.quoteInspection); return; }
   if (event.target.id === "addServiceButton") { addPendingService(); return; }
   if (event.target.dataset.removeService != null) { removePendingService(event.target.dataset.removeService); return; }
+  if (event.target.dataset.copyReview) {
+    const job = state.jobs.find((j) => j.id === event.target.dataset.copyReview);
+    if (job) {
+      navigator.clipboard.writeText(reviewMessage(job))
+        .then(() => toast("✓ Review message copied"))
+        .catch(() => toast("Could not copy — long-press the text instead"));
+    }
+    return;
+  }
   const tab = event.target.closest(".tab");
   if (tab) {
     state.activeView = tab.dataset.view;
@@ -1383,6 +1459,8 @@ function createJob(form) {
     customer: data.get("customer"),
     service: data.get("service"),
     location: data.get("location"),
+    customerPhone: (data.get("customerPhone") || "").trim(),
+    customerEmail: (data.get("customerEmail") || "").trim(),
     priority: data.get("priority"),
     status: "Scheduled",
     supervisorId: data.get("supervisor"),
@@ -1676,9 +1754,10 @@ function sendPendingSlackAlerts() {
 function saveZohoSettings(form) {
   const data = new FormData(form);
   state.zoho.relayUrl = data.get("zohoRelayUrl") || "";
+  state.settings.reviewLink = (data.get("reviewLink") || "").trim();
   saveState();
   render();
-  toast(state.zoho.relayUrl ? "✓ Zoho sync URL saved" : "Sync URL cleared");
+  toast("✓ Settings saved");
 }
 
 async function sendSyncItem(itemId) {
