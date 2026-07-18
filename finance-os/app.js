@@ -120,7 +120,7 @@ function learnCategory(desc, cat) {
 /* ------------------------------------------------------------
    2. State
 ------------------------------------------------------------ */
-const LS_KEY = "mts-finance-os-v1";
+const LS_KEY = "mts-finance-os-v2";   // v2 = clean start (v1 demo data ignored)
 let state = null;
 
 function blankState() {
@@ -145,118 +145,6 @@ function blankState() {
   };
 }
 
-function seedState() {
-  const s = blankState();
-  s.meta.demo = true;
-  const rnd = (i, base, spread) => Math.round(base + (((i * 9301 + 49297) % 233280) / 233280 - 0.5) * spread);
-
-  s.accounts = [
-    { id: uid(), name: "Emirates NBD — Personal", type: "bank", balance: 18500 },
-    { id: uid(), name: "Cash wallet", type: "cash", balance: 1200 },
-    { id: uid(), name: "ENBD Credit Card", type: "credit", balance: 3400 },
-    { id: uid(), name: "Car Loan", type: "loan", balance: 28000 },
-  ];
-  s.assets = [
-    { id: uid(), name: "Family car", type: "vehicle", value: 62000 },
-  ];
-  s.investments = [
-    { id: uid(), name: "Crypto portfolio", platform: "Binance", invested: 15000, value: 18250 },
-    { id: uid(), name: "Indian mutual funds", platform: "Mutual Funds", invested: 22000, value: 25400 },
-    { id: uid(), name: "US stocks", platform: "Amana", invested: 8000, value: 7620 },
-  ];
-  s.goals = [
-    { id: uid(), name: "Emergency fund", target: 30000, saved: 12000 },
-    { id: uid(), name: "Property down payment", target: 150000, saved: 23000 },
-    { id: uid(), name: "Investment portfolio", target: 100000, saved: 51270 },
-  ];
-
-  // Personal transactions — 3 months of realistic UAE life
-  const tm = thisMonth();
-  const months = [addMonthsKey(tm, -2), addMonthsKey(tm, -1), tm];
-  let i = 0;
-  const T = (mo, day, desc, amount) => {
-    const date = `${mo}-${String(day).padStart(2, "0")}`;
-    if (date > todayISO()) return;
-    const t = { id: uid() + i++, date, desc, amount, category: "", src: "seed" };
-    t.category = categorize(desc, amount);
-    t.hash = txHash(t);
-    s.transactions.push(t);
-  };
-  months.forEach((mo, mi) => {
-    T(mo, 1, "SALARY TRANSFER", 12000);
-    T(mo, 2, "RENT EJARI PAYMENT", -4500);
-    T(mo, 3, "DEWA BILL", -rnd(mi + 1, 420, 90));
-    T(mo, 4, "ETISALAT MOBILE", -rnd(mi + 2, 300, 40));
-    T(mo, 5, "CARREFOUR MALL OF EMIRATES", -rnd(mi + 3, 520, 160));
-    T(mo, 7, "TALABAT ORDER", -rnd(mi + 4, 95, 40));
-    T(mo, 8, "ADNOC STATION 118", -rnd(mi + 5, 210, 60));
-    T(mo, 9, "NETFLIX.COM", -39);
-    T(mo, 10, "SPOTIFY AB", -21);
-    T(mo, 11, "LULU HYPERMARKET", -rnd(mi + 6, 340, 120));
-    T(mo, 12, "SALIK RECHARGE", -50);
-    T(mo, 13, "TALABAT ORDER", -rnd(mi + 7, 85, 30));
-    T(mo, 14, "STARBUCKS JBR", -rnd(mi + 8, 48, 20));
-    T(mo, 15, "AMAZON.AE", -rnd(mi + 9, 260, 180));
-    T(mo, 16, "CAR INSURANCE TAKAFUL", mi === 0 ? -2800 : 0);
-    T(mo, 17, "LIFE PHARMACY", -rnd(mi + 10, 120, 70));
-    T(mo, 18, "ADNOC STATION 204", -rnd(mi + 11, 190, 50));
-    T(mo, 19, "VOX CINEMAS", -rnd(mi + 12, 110, 50));
-    T(mo, 20, "TALABAT ORDER", -rnd(mi + 13, 105, 45));
-    T(mo, 21, "CARREFOUR CITY CENTRE", -rnd(mi + 14, 410, 140));
-    T(mo, 23, "SHAWARMA STATION", -rnd(mi + 15, 55, 20));
-    T(mo, 24, "MENDTECH OWNER DRAW", mi === 1 ? 5000 : 0);
-    T(mo, 26, "DIVIDEND CREDIT — MF", mi === 2 ? 380 : 0);
-    T(mo, 27, "NOON.COM ORDER", -rnd(mi + 16, 180, 120));
-  });
-  s.transactions = s.transactions.filter((t) => t.amount !== 0);
-
-  // Mendtech (business) — simple cash flow
-  s.biz.cashBalance = 42500;
-  s.biz.receivables = [
-    { id: uid(), client: "Al Barsha villa — AMC renewal", amount: 8500, due: addDaysISO(-6) },
-    { id: uid(), client: "Marina apartment renovation", amount: 12000, due: addDaysISO(10) },
-    { id: uid(), client: "JVC building — plumbing contract", amount: 6400, due: addDaysISO(24) },
-  ];
-  s.biz.upcoming = [
-    { id: uid(), name: "Team salaries", amount: 15000, due: monthEndISO() },
-    { id: uid(), name: "Van insurance renewal", amount: 2800, due: addDaysISO(18) },
-    { id: uid(), name: "Trade license renewal", amount: 6200, due: addDaysISO(41) },
-  ];
-  months.forEach((mo, mi) => {
-    const B = (day, desc, amount) => {
-      const date = `${mo}-${String(day).padStart(2, "0")}`;
-      if (date > todayISO()) return;
-      s.biz.txns.push({ id: uid() + i++, date, desc, amount });
-    };
-    B(3, "AMC invoice collected", rnd(mi + 20, 14000, 6000));
-    B(9, "Handyman jobs — cash", rnd(mi + 21, 4200, 1800));
-    B(12, "AC service contract", rnd(mi + 22, 6800, 2500));
-    B(6, "Team salaries", -15000);
-    B(10, "Spare parts & materials", -rnd(mi + 23, 5200, 2200));
-    B(15, "Fuel & Salik (vans)", -rnd(mi + 24, 1400, 500));
-    B(20, "Marketing & misc", -rnd(mi + 25, 900, 500));
-  });
-
-  // Snapshot history (10 weekly points ending near current position)
-  const m = computeMetricsFor(s);
-  for (let w = 9; w >= 0; w--) {
-    const d = new Date(); d.setDate(d.getDate() - w * 7);
-    const factor = 1 - w * 0.012 - (((w * 7919) % 97) / 97) * 0.008;
-    s.snapshots.push({
-      date: toLocalISO(d),
-      netWorth: Math.round(m.netWorth * factor),
-      cash: Math.round(m.cash * (1 - w * 0.01)),
-      invest: Math.round(m.investValue * (1 - w * 0.018)),
-      assets: m.assetsTotal,
-      liab: Math.round(m.liabilities * (1 + w * 0.004)),
-      bizCash: Math.round(s.biz.cashBalance * (1 - w * 0.009)),
-      monthSpend: 0
-    });
-  }
-  return s;
-}
-function addDaysISO(days) { const d = new Date(); d.setDate(d.getDate() + days); return toLocalISO(d); }
-function monthEndISO() { const d = new Date(); return toLocalISO(new Date(d.getFullYear(), d.getMonth() + 1, 0)); }
 function txHash(t) { return [t.date, Math.round(t.amount * 100), merchantKey(t.desc)].join("|"); }
 
 function loadState() {
@@ -264,7 +152,7 @@ function loadState() {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) { state = JSON.parse(raw); return; }
   } catch (e) { console.warn("state load failed", e); }
-  state = seedState();
+  state = blankState();            // start empty — no demo amounts
   saveState();
 }
 let saveTimer = null;
@@ -361,6 +249,69 @@ function detectSubscriptions() {
 }
 
 /* ------------------------------------------------------------
+   3b. Live investment pricing — called ONLY from doRefresh()
+       Crypto → CoinGecko (AED) · Indian MF → mfapi.in NAV + INR→AED
+------------------------------------------------------------ */
+const COINGECKO_IDS = {
+  btc: "bitcoin", eth: "ethereum", bnb: "binancecoin", sol: "solana", xrp: "ripple",
+  ada: "cardano", doge: "dogecoin", dot: "polkadot", matic: "matic-network",
+  pol: "polygon-ecosystem-token", ltc: "litecoin", avax: "avalanche-2", link: "chainlink",
+  trx: "tron", ton: "the-open-network", shib: "shiba-inu", usdt: "tether",
+  usdc: "usd-coin", near: "near", atom: "cosmos", op: "optimism", arb: "arbitrum",
+  sui: "sui", apt: "aptos", inj: "injective-protocol", pepe: "pepe"
+};
+function coinId(sym) { const k = String(sym || "").trim().toLowerCase(); return COINGECKO_IDS[k] || k; }
+
+async function fetchJSON(url, ms = 9000) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  try {
+    const r = await fetch(url, { signal: ctl.signal });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return await r.json();
+  } finally { clearTimeout(t); }
+}
+
+async function updateAutoPrices() {
+  const notes = [];
+  let updated = 0;
+  const cryptos = state.investments.filter((i) => i.auto && i.auto.type === "crypto" && i.auto.qty > 0 && i.auto.coin);
+  if (cryptos.length) {
+    try {
+      const ids = [...new Set(cryptos.map((i) => coinId(i.auto.coin)))];
+      const data = await fetchJSON("https://api.coingecko.com/api/v3/simple/price?ids=" + encodeURIComponent(ids.join(",")) + "&vs_currencies=aed");
+      cryptos.forEach((i) => {
+        const p = data[coinId(i.auto.coin)] && data[coinId(i.auto.coin)].aed;
+        if (p) { i.value = Math.round(i.auto.qty * p); i.priceAt = new Date().toISOString(); updated++; }
+        else notes.push(i.auto.coin.toUpperCase() + ": coin not found on CoinGecko");
+      });
+    } catch (e) { notes.push("Crypto prices unavailable right now — kept last values"); }
+  }
+  const mfs = state.investments.filter((i) => i.auto && i.auto.type === "mf" && i.auto.units > 0 && i.auto.scheme);
+  if (mfs.length) {
+    try {
+      const fx = await fetchJSON("https://open.er-api.com/v6/latest/INR");
+      const inrToAed = fx && fx.rates && fx.rates.AED;
+      if (!inrToAed) throw new Error("no FX rate");
+      for (const i of mfs) {
+        try {
+          const d = await fetchJSON("https://api.mfapi.in/mf/" + encodeURIComponent(i.auto.scheme) + "/latest");
+          const nav = d && d.data && d.data[0] && parseFloat(d.data[0].nav);
+          if (nav > 0) {
+            i.value = Math.round(i.auto.units * nav * inrToAed);
+            i.priceAt = new Date().toISOString();
+            i.navDate = d.data[0].date;
+            if ((!i.name || i.name === i.auto.scheme) && d.meta && d.meta.scheme_name) i.name = d.meta.scheme_name.slice(0, 48);
+            updated++;
+          } else notes.push("MF " + i.auto.scheme + ": NAV not found — check the scheme code");
+        } catch (e) { notes.push("MF " + i.auto.scheme + ": NAV not found — check the scheme code"); }
+      }
+    } catch (e) { notes.push("Mutual-fund NAVs unavailable right now — kept last values"); }
+  }
+  return { notes, updated };
+}
+
+/* ------------------------------------------------------------
    4. Refresh pipeline (ONLY place data is re-evaluated)
 ------------------------------------------------------------ */
 function healthScore(m) {
@@ -419,33 +370,39 @@ function generateInsights(m, prev) {
   return out.slice(0, 7);
 }
 
-function doRefresh() {
+async function doRefresh() {
   const btn = $("#refreshBtn");
+  if (btn.disabled) return;
   btn.classList.add("spinning"); btn.disabled = true;
 
-  setTimeout(() => {
-    const m = M();
-    const prev = state.snapshots.length ? state.snapshots[state.snapshots.length - 1] : null;
-    const prevForDiff = prev && prev.date !== todayISO() ? prev : (state.snapshots[state.snapshots.length - 2] || prev);
+  // 1. Fetch live prices for auto-tracked holdings (the ONLY network calls, on demand)
+  let priceResult = { notes: [], updated: 0 };
+  try { priceResult = await updateAutoPrices(); }
+  catch (e) { priceResult.notes.push("Live prices unavailable — kept last values"); }
 
-    const snap = {
-      date: todayISO(), netWorth: m.netWorth, cash: m.cash, invest: m.investValue,
-      assets: m.assetsTotal, liab: m.liabilities, bizCash: m.bizCash, monthSpend: m.monthSpend
-    };
-    if (prev && prev.date === todayISO()) state.snapshots[state.snapshots.length - 1] = snap;
-    else state.snapshots.push(snap);
-    if (state.snapshots.length > 400) state.snapshots = state.snapshots.slice(-400);
+  // 2. Recalculate everything, snapshot, compare, generate insights + brief
+  const m = M();
+  const prev = state.snapshots.length ? state.snapshots[state.snapshots.length - 1] : null;
+  const prevForDiff = prev && prev.date !== todayISO() ? prev : (state.snapshots[state.snapshots.length - 2] || prev);
 
-    state.insights = generateInsights(m, prevForDiff);
-    state.brief = buildBrief(m, prevForDiff);
-    state.meta.lastRefresh = new Date().toISOString();
-    saveState();
+  const snap = {
+    date: todayISO(), netWorth: m.netWorth, cash: m.cash, invest: m.investValue,
+    assets: m.assetsTotal, liab: m.liabilities, bizCash: m.bizCash, monthSpend: m.monthSpend
+  };
+  if (prev && prev.date === todayISO()) state.snapshots[state.snapshots.length - 1] = snap;
+  else state.snapshots.push(snap);
+  if (state.snapshots.length > 400) state.snapshots = state.snapshots.slice(-400);
 
-    btn.classList.remove("spinning"); btn.disabled = false;
-    renderAll();
-    openBriefModal();
-    toast("Refreshed — dashboards updated", "ok");
-  }, 650);
+  state.insights = generateInsights(m, prevForDiff);
+  state.brief = buildBrief(m, prevForDiff);
+  state.meta.lastRefresh = new Date().toISOString();
+  saveState();
+
+  btn.classList.remove("spinning"); btn.disabled = false;
+  renderAll();
+  openBriefModal();
+  toast(priceResult.updated ? `Refreshed — ${priceResult.updated} live price${priceResult.updated > 1 ? "s" : ""} updated` : "Refreshed — dashboards updated", "ok");
+  if (priceResult.notes.length) toast(priceResult.notes[0] + (priceResult.notes.length > 1 ? ` (+${priceResult.notes.length - 1} more)` : ""), "err");
 }
 
 function buildBrief(m, prev) {
@@ -711,8 +668,41 @@ function renderHome() {
   if (!series.length || series[series.length - 1].date !== todayISO()) series.push({ date: todayISO(), value: m.netWorth });
 
   const score = state.brief ? state.brief.score : healthScore(m);
+  const isEmpty = !state.accounts.length && !state.investments.length && !state.transactions.length
+    && !(Number(state.biz.cashBalance) > 0) && !state.biz.receivables.length;
 
   v.innerHTML = `
+    ${isEmpty ? `
+    <div class="card" style="border-color:color-mix(in srgb, var(--accent) 45%, transparent)">
+      <h3>👋 Welcome, Johnson — set up in 4 quick steps</h3>
+      <div class="row-list">
+        <div class="rowi clickable" data-act="import-csv">
+          <div class="r-ic">⇪</div>
+          <div class="r-main"><div class="r-title">Upload / paste your bank statement</div>
+          <div class="r-sub">CSV file, or copy-paste rows from Excel / your bank portal — I categorise everything</div></div>
+          <div class="r-amt muted">›</div>
+        </div>
+        <div class="rowi clickable" data-act="add-account">
+          <div class="r-ic">🏦</div>
+          <div class="r-main"><div class="r-title">Add account balances</div>
+          <div class="r-sub">Bank, cash, credit cards, loans</div></div>
+          <div class="r-amt muted">›</div>
+        </div>
+        <div class="rowi clickable" data-act="add-inv">
+          <div class="r-ic">◮</div>
+          <div class="r-main"><div class="r-title">Add investments</div>
+          <div class="r-sub">Crypto & Indian mutual funds auto-price on Refresh · Amana/stocks manual</div></div>
+          <div class="r-amt muted">›</div>
+        </div>
+        <div class="rowi clickable" data-act="edit-bizcash">
+          <div class="r-ic">▦</div>
+          <div class="r-main"><div class="r-title">Set Mendtech cash balance</div>
+          <div class="r-sub">Then add outstanding invoices & upcoming expenses in Biz</div></div>
+          <div class="r-amt muted">›</div>
+        </div>
+      </div>
+      <p class="small muted mt8">When done, press the gold <b>⟳ Refresh</b> — your dashboard, insights and health score are generated on the spot.</p>
+    </div>` : ""}
     <div class="card hero chart-card">
       <div class="hero-label">Total net worth</div>
       <div class="hero-value"><span class="ccy">${CCY}</span>${fmt(m.netWorth)}</div>
@@ -768,7 +758,6 @@ function renderHome() {
           </div>`).join("") || `<div class="empty">Track property, vehicles and other assets here.</div>`}
       </div>
     </div>
-    ${state.meta.demo ? `<p class="small muted" style="margin:6px 4px 20px">Demo data loaded so you can explore — replace with your real numbers, or reset in <b>More → Data</b>.</p>` : ""}
   `;
   attachAreaHover(v);
 }
@@ -823,6 +812,7 @@ function renderMoney() {
   const list = moneyFilter ? tx.filter((t) => t.category === moneyFilter) : tx;
 
   v.innerHTML = `
+    <button class="btn primary block" data-act="import-csv" style="margin-bottom:12px">⇪ Upload / paste bank statement</button>
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <button class="btn small" data-act="mo-prev">‹</button>
@@ -904,13 +894,13 @@ function renderInvest() {
           const p = perf(i), g = i.value - i.invested;
           return `<div class="rowi clickable" data-act="edit-inv" data-id="${i.id}">
             <div class="r-ic">${{ Binance: "₿", "Mutual Funds": "◫", Amana: "◮", Stocks: "◮" }[i.platform] || "◆"}</div>
-            <div class="r-main"><div class="r-title">${esc(i.name)}</div><div class="r-sub">${esc(i.platform)} · invested ${money(i.invested)}</div></div>
+            <div class="r-main"><div class="r-title">${esc(i.name)}</div><div class="r-sub">${esc(i.platform)} · invested ${money(i.invested)}${i.auto ? ` · <span style="color:var(--accent)">⟳ live${i.priceAt ? " " + shortDate(i.priceAt.slice(0, 10)) : ""}</span>` : ""}</div></div>
             <div class="r-amt">${money(i.value)}<small style="color:${g >= 0 ? "var(--good-text)" : "var(--bad-text)"}">${signMoney(g)} (${pct(p)})</small></div>
           </div>`;
         }).join("") || `<div class="empty"><span class="e-ic">◮</span>Add Binance, mutual funds, stocks or Amana holdings.<br>Update values whenever you refresh.</div>`}
       </div>
     </div>
-    <p class="small muted" style="margin:4px 4px 16px">Values are updated manually or via statement import — Finance OS never auto-syncs in the background. Update a holding, then press <b>Refresh</b> to re-run analysis.</p>
+    <p class="small muted" style="margin:4px 4px 16px">Holdings marked <b style="color:var(--accent)">⟳ live</b> (crypto & Indian mutual funds) re-price automatically each time you press <b>Refresh</b> — never in the background. Amana / stocks / gold have no public price feed, so update those values manually, then Refresh.</p>
   `;
   attachDonutHover(v);
 }
@@ -1067,15 +1057,19 @@ function renderSettings() {
       </div>
       <hr class="sep"/>
       <div class="btn-row">
-        <button class="btn" data-act="reload-demo">Load demo data</button>
         <button class="btn danger" data-act="wipe">Erase everything</button>
       </div>
       <p class="small muted mt8">All data lives in this browser (localStorage). Nothing is uploaded. Export a backup before clearing your browser.</p>
     </div>
 
+    <div class="section-title">Help</div>
+    <div class="card">
+      <a class="btn block" href="guide.pdf" target="_blank" style="text-decoration:none">📖 Open the user guide (PDF)</a>
+    </div>
+
     <div class="section-title">About</div>
     <div class="card">
-      <p class="small"><b>Finance OS v1</b> — single-owner financial command centre.<br>
+      <p class="small"><b>Finance OS v2</b> — single-owner financial command centre.<br>
       <span class="muted">No background sync. No tracking. Data refreshes only when you press Refresh. Built for Johnson · Mendonca Technical Services.</span></p>
     </div>
   `;
@@ -1149,22 +1143,62 @@ function assetModal(id) {
     });
   });
 }
+const TRACK_MANUAL = "Manual value";
+const TRACK_CRYPTO = "Crypto — live price on Refresh";
+const TRACK_MF = "Indian mutual fund — live NAV on Refresh";
 function investModal(id) {
-  const a = state.investments.find((x) => x.id === id) || { name: "", platform: "Binance", invested: "", value: "" };
+  const a = state.investments.find((x) => x.id === id) || { name: "", platform: "Binance", invested: "", value: "", auto: null };
+  const curMode = a.auto ? (a.auto.type === "crypto" ? TRACK_CRYPTO : TRACK_MF) : TRACK_MANUAL;
   openModal(id ? "Edit holding" : "Add holding", `
-    ${fieldHTML("mName", "Name", "text", a.name, 'placeholder="e.g. BTC + ETH"')}
+    ${selectHTML("mMode", "Value tracking", [TRACK_MANUAL, TRACK_CRYPTO, TRACK_MF], curMode)}
     ${selectHTML("mPlat", "Platform", ["Binance", "Mutual Funds", "Amana", "Stocks", "Gold", "Other"], a.platform)}
-    <div class="form-grid2">
-      ${fieldHTML("mInv", "Amount invested (AED)", "number", a.invested)}
-      ${fieldHTML("mVal", "Current value (AED)", "number", a.value)}
-    </div>
+    ${fieldHTML("mName", "Name (optional for live tracking)", "text", a.name, 'placeholder="e.g. BTC / Nippon Small Cap / US stocks"')}
+    <div id="modeFields"></div>
+    ${fieldHTML("mInv", "Amount invested (AED)", "number", a.invested)}
     ${delSaveButtons(!!id)}
   `, (root) => {
+    const renderModeFields = () => {
+      const sel = $("#mMode").value, mf = $("#modeFields");
+      if (sel === TRACK_CRYPTO) {
+        mf.innerHTML = `<div class="form-grid2">
+            ${fieldHTML("mCoin", "Coin", "text", a.auto && a.auto.type === "crypto" ? a.auto.coin : "", 'placeholder="BTC, ETH, SOL…"')}
+            ${fieldHTML("mQty", "Quantity held", "number", a.auto && a.auto.type === "crypto" ? a.auto.qty : "", 'step="any" placeholder="e.g. 0.25"')}
+          </div>
+          <p class="hint" style="margin:-4px 0 10px">AED value fetched from CoinGecko every time you press Refresh — never in the background.</p>`;
+      } else if (sel === TRACK_MF) {
+        mf.innerHTML = `<div class="form-grid2">
+            ${fieldHTML("mScheme", "AMFI scheme code", "text", a.auto && a.auto.type === "mf" ? a.auto.scheme : "", 'inputmode="numeric" placeholder="e.g. 120503"')}
+            ${fieldHTML("mUnits", "Units held", "number", a.auto && a.auto.type === "mf" ? a.auto.units : "", 'step="any" placeholder="e.g. 831.204"')}
+          </div>
+          <p class="hint" style="margin:-4px 0 10px">Latest NAV from mfapi.in, converted INR→AED on each Refresh. The scheme code is on your CAS statement, or search your fund on mfapi.in.</p>`;
+      } else {
+        mf.innerHTML = fieldHTML("mVal", "Current value (AED)", "number", a.value);
+      }
+    };
+    renderModeFields();
+    $("#mMode", root).addEventListener("change", renderModeFields);
     $("#mSave", root).addEventListener("click", () => {
-      const rec = { id: id || uid(), name: $("#mName").value.trim() || "Holding", platform: $("#mPlat").value, invested: Math.abs(Number($("#mInv").value) || 0), value: Math.abs(Number($("#mVal").value) || 0) };
+      const sel = $("#mMode").value;
+      let auto = null, value = Number(a.value) || 0, name = $("#mName").value.trim();
+      if (sel === TRACK_CRYPTO) {
+        const coin = $("#mCoin").value.trim();
+        auto = { type: "crypto", coin, qty: Math.abs(Number($("#mQty").value) || 0) };
+        if (!coin || !auto.qty) { toast("Enter the coin and quantity", "err"); return; }
+        if (!name) name = coin.toUpperCase();
+      } else if (sel === TRACK_MF) {
+        const scheme = $("#mScheme").value.trim();
+        auto = { type: "mf", scheme, units: Math.abs(Number($("#mUnits").value) || 0) };
+        if (!scheme || !auto.units) { toast("Enter the scheme code and units", "err"); return; }
+        if (!name) name = scheme;
+      } else {
+        value = Math.abs(Number($("#mVal").value) || 0);
+        if (!name) name = "Holding";
+      }
+      const rec = { id: id || uid(), name, platform: $("#mPlat").value, invested: Math.abs(Number($("#mInv").value) || 0), value, auto, priceAt: a.priceAt, navDate: a.navDate };
       if (id) Object.assign(state.investments.find((x) => x.id === id), rec);
       else state.investments.push(rec);
-      saveState(); closeModal(); renderAll(); toast("Holding saved", "ok");
+      saveState(); closeModal(); renderAll();
+      toast(auto ? "Saved — press Refresh to fetch the live value" : "Holding saved", "ok");
     });
     if (id) $("#mDelete", root).addEventListener("click", () => {
       state.investments = state.investments.filter((x) => x.id !== id);
@@ -1328,12 +1362,14 @@ function bizTxnModal() {
 
 /* ---------- CSV import ---------- */
 function csvModal() {
-  openModal("Import bank / card statement (CSV)", `
-    <div class="field"><label>Paste CSV or choose a file</label>
-      <textarea id="csvText" placeholder="Date,Description,Amount\n01/07/2026,CARREFOUR,−230.50\n…"></textarea>
+  openModal("Upload / paste bank statement", `
+    <div class="field"><label>1 — Choose the statement file (CSV)</label>
+      <input type="file" id="csvFile" accept=".csv,.txt,.tsv,text/csv,text/plain" />
     </div>
-    <div class="field"><input type="file" id="csvFile" accept=".csv,text/csv" /></div>
-    <p class="hint">Finance OS auto-detects the date, description and amount columns (or debit / credit columns), auto-categorises every line, and skips duplicates.</p>
+    <div class="field"><label>…or paste rows here (from Excel or the bank portal — copy-paste works)</label>
+      <textarea id="csvText" placeholder="Date,Description,Amount\n01/07/2026,CARREFOUR,-230.50\n…"></textarea>
+    </div>
+    <p class="hint">I auto-detect the date, description and amount columns (or debit / credit), auto-categorise every line, and skip duplicates — so you can re-import the same statement safely. PDF-only statement? Ask Claude to convert it to CSV first.</p>
     <div class="btn-row"><button class="btn primary" id="mImport">Analyse & import</button></div>
     <div id="csvResult" class="mt8"></div>
   `, (root) => {
@@ -1354,6 +1390,9 @@ function csvModal() {
   });
 }
 function parseCSVText(text) {
+  // Delimiter auto-detect: tabs (Excel copy-paste) > semicolons > commas
+  const firstLine = (String(text || "").match(/^[^\r\n]*/) || [""])[0];
+  const delim = firstLine.includes("\t") ? "\t" : (firstLine.includes(";") && !firstLine.includes(",")) ? ";" : ",";
   const rows = [];
   let row = [], cell = "", inQ = false;
   for (let i = 0; i < text.length; i++) {
@@ -1362,7 +1401,7 @@ function parseCSVText(text) {
       if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else inQ = false; }
       else cell += ch;
     } else if (ch === '"') inQ = true;
-    else if (ch === ",") { row.push(cell); cell = ""; }
+    else if (ch === delim) { row.push(cell); cell = ""; }
     else if (ch === "\n" || ch === "\r") {
       if (cell !== "" || row.length) { row.push(cell); rows.push(row); row = []; cell = ""; }
     } else cell += ch;
@@ -1726,10 +1765,6 @@ document.addEventListener("click", (e) => {
     "del-rule": () => { delete state.settings.catOverrides[actEl.dataset.key]; saveState(); renderSettings(); toast("Rule removed", "ok"); },
     "export-data": exportData,
     "import-data": importDataFile,
-    "reload-demo": () => {
-      if (!confirm("Replace current data with demo data?")) return;
-      state = seedState(); saveState(); applyTheme(); renderAll(); toast("Demo data loaded", "ok");
-    },
     "wipe": () => {
       if (!confirm("Erase ALL Finance OS data on this device? Export a backup first if unsure.")) return;
       state = blankState(); saveState(); applyTheme(); renderAll(); toast("All data erased", "ok");

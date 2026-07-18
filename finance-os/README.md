@@ -1,4 +1,11 @@
-# Finance OS — Private CFO (v1)
+# Finance OS — Private CFO (v2)
+
+> **v2 changes:** starts completely empty (no demo data — localStorage key bumped to
+> `mts-finance-os-v2`), first-run onboarding card on Home, prominent
+> "Upload / paste bank statement" button in Money, Excel tab-paste support in the
+> importer, **live investment pricing on Refresh** (CoinGecko for crypto, mfapi.in NAV
+> + INR→AED for Indian mutual funds), and a bundled PDF user guide (`guide.pdf`,
+> linked from More → Help).
 
 An AI-powered **Financial Operating System** for one owner: Johnson. Personal wealth +
 Mendtech cash flow in a single command centre. Not a budgeting app, not accounting, not ERP.
@@ -24,7 +31,7 @@ Data is re-evaluated only when you press **Refresh** (or ask the CFO). Refresh:
 |---|---|
 | **Home** | Net worth hero + history chart, cash / investments / spending / business tiles, health score, AI insights & risks, goals, accounts & assets |
 | **Money** | Monthly income/spend/net, 6-month cash-flow chart, spend-by-category, transaction list, **CSV statement import** with AI auto-categorisation |
-| **Invest** | Portfolio value, P/L and return %, allocation donut, best/worst performer, holdings (Binance, Mutual Funds, Amana, Stocks…) |
+| **Invest** | Portfolio value, P/L and return %, allocation donut, best/worst performer, holdings. **Crypto (coin + qty) and Indian mutual funds (AMFI scheme code + units) re-price live on every Refresh**; Amana/stocks/gold are manual value |
 | **Biz** | Mendtech cash position + runway, received/paid this month, outstanding client payments (overdue flags), upcoming expenses, 30/60/90-day forecast, safe-withdrawal number |
 | **CFO** | Conversational AI CFO. Works fully offline with a built-in engine; add a Claude API key (More → Assistant) for open-ended analysis via `claude-opus-4-8` |
 | **More** | Theme, API key, learned merchant rules, backup/restore, demo data, erase |

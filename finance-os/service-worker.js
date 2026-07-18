@@ -1,10 +1,10 @@
 /* Finance OS service worker — network-first for HTML, cache-first for versioned assets */
-const CACHE_NAME = "finance-os-v1";
+const CACHE_NAME = "finance-os-v2";
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=1",
-  "./app.js?v=1",
+  "./styles.css?v=2",
+  "./app.js?v=2",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png"
