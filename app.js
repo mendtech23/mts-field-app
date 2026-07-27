@@ -1,7 +1,7 @@
 const STORAGE_KEY = "mts-field-ops-v3";
 
 const seedState = {
-  activeView: "board",
+  activeView: "dashboard",
   activeFilter: "All",
   selectedJobId: "JOB-1001",
   activeProfileId: "owner",
@@ -176,7 +176,8 @@ const seedState = {
     masterCodeHash: null,
     lockEnabled: true
   },
-  inspections: []
+  inspections: [],
+  quotes: []
 };
 
 let state = loadState();
@@ -191,8 +192,10 @@ function hashCode(str) {
 }
 
 function canEditInspections() {
-  // Owner mode = the master code has been entered this session.
-  return unlocked;
+  // Owner mode = the Owner profile is selected AND the master code was entered
+  // this session. Both are required, so switching to a worker profile after an
+  // owner unlock never leaks owner tools.
+  return unlocked && currentProfile().role === "Owner";
 }
 
 function loadState() {
@@ -264,6 +267,7 @@ function normalizeState(nextState) {
     ...(nextState.security || {})
   };
   nextState.inspections = nextState.inspections || [];
+  nextState.quotes = nextState.quotes || [];
   return nextState;
 }
 
@@ -515,14 +519,22 @@ function visibleJobs() {
 function render() {
   renderProfiles();
   renderTabs();
+  renderHeader();
+  renderDashboard();
   renderBoard();
   renderJobDetail();
+  renderQuotes();
   renderTeam();
   renderSlack();
   renderSync();
+  renderConnection();
   renderInspections();
   hydrateNewJobOptions();
   saveState();
+}
+
+function isFieldRole(profile) {
+  return ["Worker", "Driver"].includes(profile.role) || profile.workerType === "Outsource";
 }
 
 function renderProfiles() {
@@ -538,23 +550,96 @@ function renderProfiles() {
 }
 
 function renderTabs() {
+  const profile = currentProfile();
   const managementOnly = ["slack", "sync"];
+  const commercialOnly = ["quotes"]; // Supervisors and HR never see the money side.
   const ownerOnly = ["inspect"];
-  const canManage = Boolean(currentProfile().canManage);
+  const canManage = Boolean(profile.canManage);
+  const isCommercial = ["Owner", "Admin"].includes(profile.role);
   const isOwner = canEditInspections(); // owner role AND master-code unlocked
   const hidden = (view) =>
     (managementOnly.includes(view) && !canManage) ||
+    (commercialOnly.includes(view) && !isCommercial) ||
     (ownerOnly.includes(view) && !isOwner);
   if (hidden(state.activeView)) {
-    state.activeView = "board";
+    state.activeView = "dashboard";
   }
+  const fieldLabels = { dashboard: "My Field Day", board: "My Jobs" };
   document.querySelectorAll(".tab").forEach((tab) => {
-    tab.classList.toggle("hidden", hidden(tab.dataset.view));
-    tab.classList.toggle("active", tab.dataset.view === state.activeView);
+    const view = tab.dataset.view;
+    tab.classList.toggle("hidden", hidden(view));
+    tab.classList.toggle("active", view === state.activeView);
+    if (isFieldRole(profile) && fieldLabels[view]) {
+      tab.textContent = fieldLabels[view];
+    } else if (fieldLabels[view]) {
+      tab.textContent = view === "dashboard" ? "Dashboard" : "Jobs";
+    }
   });
   document.querySelectorAll(".view").forEach((view) => {
     view.classList.toggle("active", view.id === `${state.activeView}View`);
   });
+}
+
+function greeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function renderHeader() {
+  const profile = currentProfile();
+  const title = byId("pageTitle");
+  const subtitle = byId("pageSubtitle");
+  if (!title || !subtitle) return;
+  const viewNames = {
+    dashboard: "Command Centre",
+    board: "Jobs",
+    job: "Job Detail",
+    inspect: "Inspections",
+    quotes: "Quotes & Scope Release",
+    team: "Team",
+    slack: "Slack Alerts",
+    sync: "Zoho One Sync"
+  };
+  if (isFieldRole(profile)) {
+    title.textContent = state.activeView === "dashboard" ? "My Field Day" : viewNames[state.activeView] || "MendTech OS";
+    subtitle.textContent = `${greeting()}, ${profile.name}. Approved scope only — your supervisor has the rest.`;
+  } else if (profile.role === "Owner") {
+    title.textContent = state.activeView === "dashboard" ? "Owner Command Centre" : viewNames[state.activeView] || "MendTech OS";
+    subtitle.textContent = `${greeting()}, Johnny. Complete control stays with you.`;
+  } else {
+    title.textContent = `${profile.role} — ${viewNames[state.activeView] || "MendTech OS"}`;
+    subtitle.textContent = `${greeting()}, ${profile.name}. Restricted ${profile.role} interface.`;
+  }
+  const count = notificationCount();
+  const badge = byId("notifyCount");
+  if (badge) {
+    badge.textContent = count;
+    badge.classList.toggle("hidden", !count);
+  }
+}
+
+function notificationCount() {
+  const profile = currentProfile();
+  if (isFieldRole(profile)) return pendingAcceptancesFor(profile.id).length;
+  let count = pendingAcceptanceCount() + openIssueCount();
+  if (profile.role === "Owner") {
+    count += pendingApprovalProfiles().length;
+    count += state.quotes.filter((quote) => quote.status === "Sent").length;
+  }
+  return count;
+}
+
+function renderConnection() {
+  const box = byId("connectionBox");
+  if (!box) return;
+  const online = Boolean(state.zoho.relayUrl);
+  box.classList.toggle("online", online);
+  const label = byId("connectionLabel");
+  const hint = byId("connectionHint");
+  if (label) label.textContent = online ? "Relay connected" : "Local mode";
+  if (hint) hint.textContent = online ? state.zoho.relayUrl : "Zoho relay not configured";
 }
 
 function renderBoard() {
@@ -1099,6 +1184,24 @@ function personCardHtml(person) {
 }
 
 function renderSync() {
+  const serviceGrid = byId("zohoServiceGrid");
+  if (serviceGrid) {
+    const online = Boolean(state.zoho.relayUrl);
+    const services = [
+      ["Zoho CRM", "Leads, customers, properties"],
+      ["Zoho Books", "Quotes, invoices, VAT, payments"],
+      ["Zoho Projects", "Tasks, milestones, timesheets"],
+      ["Zoho People", "Employees, attendance, HR"],
+      ["Zoho WorkDrive", "Photos, reports, signed docs"],
+      ["Zoho Inventory", "Products, services, stock"]
+    ];
+    serviceGrid.innerHTML = services.map(([name, role]) => `
+      <div class="zoho-card">
+        <h3>${name}</h3>
+        <span class="pill ${online ? "ok" : "warn"}">${online ? "Relay configured" : "Authorization required"}</span>
+        <p class="small">${role}</p>
+      </div>`).join("");
+  }
   const zohoUrl = byId("zohoRelayUrl");
   if (zohoUrl) zohoUrl.value = state.zoho.relayUrl || "";
   const reviewLink = byId("reviewLinkInput");
@@ -1218,9 +1321,423 @@ function findSubJob(job, subJobId) {
   return job.subJobs.find((subJob) => subJob.id === subJobId);
 }
 
+/* ────────────────────────────────────────────
+   COMMAND CENTRE DASHBOARD + MY FIELD DAY
+   Management sees live KPIs and an action feed.
+   Field roles see a phone-style approved-scope
+   day view. All numbers come from real state.
+   ──────────────────────────────────────────── */
+function jobProgress(job) {
+  if (job.status === "Completed") return 100;
+  if (job.subJobs.length) {
+    const done = job.subJobs.filter((subJob) => subJob.status === "Completed").length;
+    return Math.max(5, Math.round((done / job.subJobs.length) * 100));
+  }
+  return { Scheduled: 10, "On Route": 25, "In Progress": 55, Blocked: 40 }[job.status] || 5;
+}
+
+function renderDashboard() {
+  const box = byId("dashboardContent");
+  if (!box) return;
+  const profile = currentProfile();
+  box.innerHTML = isFieldRole(profile) ? fieldDayHtml(profile) : commandCentreHtml(profile);
+}
+
+function commandCentreHtml(profile) {
+  const isOwner = profile.role === "Owner";
+  const activeJobs = state.jobs.filter((job) => job.status !== "Completed");
+  const pendingQuotes = state.quotes.filter((quote) => ["Draft", "Sent"].includes(quote.status));
+  const fieldTeam = activeProfiles().filter((item) => ["Worker", "Driver"].includes(item.role));
+  const allFieldTeam = state.profiles.filter((item) => ["Worker", "Driver"].includes(item.role));
+  const pendingSync = state.syncQueue.filter((item) => item.status === "Pending").length;
+  const reviewReady = state.jobs.filter((job) => job.status === "Completed" && (job.customerPhone || job.customerEmail));
+
+  const kpis = [
+    ["Active jobs", activeJobs.length, `${state.jobs.length} total`, "board"],
+    ["Pending accept", pendingAcceptanceCount(), "worker confirmations", "board"],
+    ["Pending quotes", pendingQuotes.length, isOwner ? "Owner action" : "awaiting owner", "quotes"],
+    ["Team available", `${fieldTeam.length}/${allFieldTeam.length}`, "workers & drivers", "team"]
+  ];
+
+  const feed = [];
+  if (isOwner && pendingApprovalProfiles().length) {
+    feed.push({
+      title: "Owner approval needed",
+      text: `${pendingApprovalProfiles().length} team member(s) waiting: ${pendingApprovalProfiles().map((item) => item.name).join(", ")}.`,
+      view: "team"
+    });
+  }
+  const sentQuotes = state.quotes.filter((quote) => quote.status === "Sent");
+  if (isOwner && sentQuotes.length) {
+    feed.push({
+      title: "Quote approval",
+      text: `${sentQuotes.length} quote(s) awaiting your decision. Approval releases the scope to the field.`,
+      view: "quotes"
+    });
+  }
+  const approvedUnreleased = state.quotes.filter((quote) => quote.status === "Approved" && !quote.jobId);
+  if (approvedUnreleased.length) {
+    feed.push({
+      title: "Scope ready to release",
+      text: `${approvedUnreleased.length} approved quote(s) can release work to the team now.`,
+      view: "quotes"
+    });
+  }
+  if (openIssueCount()) {
+    feed.push({
+      title: "Open site issues",
+      text: `${openIssueCount()} worker issue(s) need a supervisor response.`,
+      view: "board"
+    });
+  }
+  if (reviewReady.length) {
+    feed.push({
+      title: "Review opportunity",
+      text: `${reviewReady.length} completed job(s) are ready for Google review requests.`,
+      view: "board"
+    });
+  }
+  if (pendingSync) {
+    feed.push({
+      title: "Zoho sync pending",
+      text: `${pendingSync} event(s) waiting to sync to Zoho.`,
+      view: "sync"
+    });
+  }
+  if (!feed.length) {
+    feed.push({ title: "All clear", text: "No approvals, issues, or pending actions right now.", view: "board" });
+  }
+
+  return `
+    <div class="notice"><b>Zoho-first design:</b> CRM, Books, Projects, People and WorkDrive stay the master records. This command centre runs the field layer.</div>
+    <div class="kpi-grid">
+      ${kpis.map(([label, value, hint, view]) => `
+        <div class="kpi">
+          <small>${label}</small>
+          <strong>${value}</strong>
+          <button class="pill" data-goto-view="${view}">${hint} →</button>
+        </div>`).join("")}
+    </div>
+    <div class="dash-split">
+      <div class="panel">
+        <div class="section-head">
+          <h2>Live operations</h2>
+          <button class="primary" data-goto-view="board">Open jobs</button>
+        </div>
+        ${activeJobs.length ? activeJobs.slice(0, 5).map((job) => {
+          const progress = jobProgress(job);
+          return `
+            <div class="live-job">
+              <div class="live-job-top">
+                <div><b>${job.id}</b><br><span class="small">${escapeHtml(job.customer)} · ${escapeHtml(job.location)}</span></div>
+                <span class="pill ${statusClass(job.status)}">${progress}% · ${job.status}</span>
+              </div>
+              <p class="small">${escapeHtml(job.service)}</p>
+              <div class="progress"><i style="width:${progress}%"></i></div>
+              <div class="actions"><button data-open-job="${job.id}">Open</button></div>
+            </div>`;
+        }).join("") : `<div class="empty-state"><h3>No active jobs</h3><p>Create a job or release an approved quote.</p></div>`}
+      </div>
+      <div class="panel">
+        <div class="section-head"><h2>Action feed</h2></div>
+        <div class="feed">
+          ${feed.map((item) => `<div><b>${item.title}</b><span class="small">${item.text}</span><div class="actions"><button data-goto-view="${item.view}">Open</button></div></div>`).join("")}
+        </div>
+      </div>
+    </div>`;
+}
+
+function fieldDayHtml(profile) {
+  const mine = allSubJobs().filter(({ subJob }) => subJob.workerIds.includes(profile.id));
+  const pendingMine = mine.filter(({ subJob }) => subJob.acceptances?.[profile.id]?.status === "Pending");
+  const activeMine = mine.filter(({ subJob }) => subJob.status === "In Progress");
+  const current = pendingMine[0] || activeMine[0] || mine.find(({ subJob }) => subJob.status !== "Completed");
+  const driverJobs = profile.role === "Driver" ? state.jobs.filter((job) => job.driverId === profile.id && job.status !== "Completed") : [];
+
+  if (!current && !driverJobs.length) {
+    return `
+      <div class="phone">
+        <div class="hero">
+          <small>My Field Day</small>
+          <h2>No assignment yet</h2>
+          <p>${escapeHtml(profile.name)}</p>
+          <b>Your supervisor will assign your next job here.</b>
+        </div>
+        <div class="panel"><p class="small">When a job is assigned you will see the approved scope, checklist, and support contacts here.</p></div>
+      </div>`;
+  }
+
+  if (!current && driverJobs.length) {
+    const job = driverJobs[0];
+    return `
+      <div class="phone">
+        <div class="hero">
+          <small>Transport assignment</small>
+          <h2>${job.id}</h2>
+          <p>${escapeHtml(job.customer)} · ${escapeHtml(job.location)}</p>
+          <b>${job.transport.length ? escapeHtml(`${job.transport[0].pickup} → ${job.transport[0].drop} at ${job.transport[0].time}`) : "Trip details in the job"}</b>
+        </div>
+        <div class="panel">
+          <div class="actions">
+            <button class="primary" data-open-job="${job.id}">Open job</button>
+            ${personWhatsappLink(job.supervisorId, `MTS ${job.id}: transport question for ${job.customer}.`, "WhatsApp supervisor")}
+          </div>
+        </div>
+      </div>`;
+  }
+
+  const { job, subJob } = current;
+  const myAcceptance = subJob.acceptances?.[profile.id]?.status || "Pending";
+  const others = mine.filter((item) => item.subJob.id !== subJob.id && item.subJob.status !== "Completed");
+  return `
+    <div class="phone">
+      <div class="hero">
+        <small>Current assignment</small>
+        <h2>${job.id}</h2>
+        <p>${escapeHtml(job.customer)} · ${escapeHtml(job.location)}</p>
+        <b>Approved scope only</b>
+      </div>
+      <div class="panel">
+        <h3>${escapeHtml(subJob.title)}</h3>
+        <div class="scope">${escapeHtml(subJob.notes || job.brief || "Scope details in the job.")}</div>
+        <p class="small" style="margin-top:10px"><b>Trade:</b> ${escapeHtml(subJob.trade)} · <b>Due:</b> ${escapeHtml(subJob.due || "Today")} · <b>Supervisor:</b> ${escapeHtml(personName(subJob.supervisorId))}</p>
+        <div class="actions">
+          ${myAcceptance === "Pending" ? `
+            <button class="primary" data-fd-accept="${job.id}::${subJob.id}">Accept job</button>
+            <button class="danger" data-fd-reject="${job.id}::${subJob.id}">Reject</button>` : `
+            <span class="pill ${statusClass(myAcceptance)}">${myAcceptance}</span>`}
+          <button data-open-job="${job.id}">Open full job</button>
+        </div>
+        <div class="actions">
+          ${personWhatsappLink(subJob.supervisorId, `MTS ${job.id}: I need support at ${job.customer}.`, "WhatsApp supervisor")}
+          ${supervisorPhone(job) ? `<button data-call-supervisor="${supervisorPhone(job)}">📞 Call supervisor</button>` : ""}
+        </div>
+      </div>
+      <div class="panel checklist">
+        <h3>Job checklist</h3>
+        <label><input type="checkbox" disabled ${job.locations.some((l) => l.profileId === profile.id) ? "checked" : ""}> GPS check-in <span class="small">(in the job)</span></label>
+        <label><input type="checkbox" disabled ${job.photos.some((p) => p.type === "Before") ? "checked" : ""}> Before photos</label>
+        <label><input type="checkbox" disabled ${subJob.status === "In Progress" || subJob.status === "Completed" ? "checked" : ""}> Main work</label>
+        <label><input type="checkbox" disabled> Optional AC readings</label>
+        <label><input type="checkbox" disabled ${job.photos.some((p) => p.type === "After") ? "checked" : ""}> After photos</label>
+        <label><input type="checkbox" disabled ${job.status === "Completed" ? "checked" : ""}> Customer sign-off</label>
+        <p class="small" style="margin-top:10px">Open the full job to check in, add photos, log time, and raise issues.</p>
+      </div>
+      ${others.length ? `
+      <div class="panel">
+        <h3>Next up</h3>
+        ${others.map((item) => `
+          <div class="live-job">
+            <div class="live-job-top">
+              <div><b>${escapeHtml(item.subJob.title)}</b><br><span class="small">${escapeHtml(item.job.customer)}</span></div>
+              <span class="pill ${statusClass(item.subJob.status)}">${item.subJob.status}</span>
+            </div>
+            <div class="actions"><button data-open-job="${item.job.id}">Open</button></div>
+          </div>`).join("")}
+      </div>` : ""}
+    </div>`;
+}
+
+/* ────────────────────────────────────────────
+   QUOTES & APPROVED-SCOPE RELEASE
+   Draft/Sent quotes stay private. Only the
+   Owner (master-code unlocked) approves, and
+   only approved quotes release work — the job
+   carries scope only, never prices.
+   ──────────────────────────────────────────── */
+let pendingQuoteServices = [];
+
+function canSeePrices() {
+  const role = currentProfile().role;
+  return role === "Admin" || (role === "Owner" && canEditInspections());
+}
+
+function canDecideQuotes() {
+  return currentProfile().role === "Owner" && canEditInspections();
+}
+
+function quoteStatusClass(status) {
+  if (status === "Approved" || status === "Released") return "ok";
+  if (status === "Rejected") return "danger";
+  return "warn";
+}
+
+function renderPendingQuoteServices() {
+  const box = byId("pendingQuoteServices");
+  if (!box) return;
+  box.innerHTML = pendingQuoteServices.length
+    ? pendingQuoteServices.map((s, i) => `<span class="service-chip">${escapeHtml(s.name)}${s.rate ? ` · AED ${s.rate}` : ""}<button type="button" data-remove-quote-service="${i}" aria-label="Remove">×</button></span>`).join("")
+    : `<span class="small">No scope lines yet.</span>`;
+}
+
+function renderQuotes() {
+  const view = byId("quotesView");
+  if (!view) return;
+  const showPrices = canSeePrices();
+  const decide = canDecideQuotes();
+  const sel = byId("quoteService");
+  if (sel && !sel.options.length) sel.innerHTML = serviceOptionsHtml();
+
+  const note = byId("quotePrivacyNote");
+  if (note) {
+    note.innerHTML = `
+      <div class="notice warning"><b>Release rule:</b> workers receive only approved scope. Draft and sent quotes stay private.
+      ${showPrices ? "" : " Prices are hidden for your role."}
+      ${decide ? "" : " Approval and release need the Owner master code (🔑 Owner)."}</div>`;
+  }
+
+  const list = byId("quoteList");
+  if (!list) return;
+  if (!state.quotes.length) {
+    list.innerHTML = `<div class="empty-state"><h3>No quotes yet</h3><p>Create one here or generate one from an inspection report.</p></div>`;
+    return;
+  }
+  list.innerHTML = state.quotes.map((quote) => {
+    const total = quote.lines.reduce((sum, line) => sum + (line.price || 0), 0);
+    const anyBlank = quote.lines.some((line) => line.price == null);
+    const linkedJob = quote.jobId ? state.jobs.find((job) => job.id === quote.jobId) : null;
+    const actions = [];
+    if (quote.status === "Draft") {
+      actions.push(`<button class="primary" data-quote-sent="${quote.id}">Mark Sent to Customer</button>`);
+      actions.push(`<button data-quote-delete="${quote.id}">Delete</button>`);
+    }
+    if (quote.status === "Sent" && decide) {
+      actions.push(`<button class="primary" data-quote-approve="${quote.id}">Approve</button>`);
+      actions.push(`<button class="danger" data-quote-reject="${quote.id}">Reject</button>`);
+    }
+    if (quote.status === "Approved" && !quote.jobId && decide) {
+      actions.push(`<button class="primary" data-quote-release="${quote.id}">Release Work</button>`);
+    }
+    if (linkedJob) {
+      actions.push(`<button data-open-job="${linkedJob.id}">Open job ${linkedJob.id}</button>`);
+    }
+    return `
+      <article class="quote-card">
+        <div class="quote-head">
+          <div>
+            <h3>${escapeHtml(quote.site)}</h3>
+            <p class="small">${escapeHtml(quote.location || "")}${quote.inspectionId ? " · from inspection" : ""} · ${formatDate(quote.at)}</p>
+          </div>
+          <span class="pill ${quoteStatusClass(quote.status)}">${quote.jobId ? "Released" : quote.status}</span>
+        </div>
+        <ul class="quote-lines">
+          ${quote.lines.map((line) => `<li><span>${escapeHtml(line.description)}</span><span class="qt-price ${showPrices ? "" : "hidden-price"}">${line.price != null ? "AED " + line.price : "[PRICE]"}</span></li>`).join("")}
+        </ul>
+        <p class="qt-total ${showPrices ? "" : "hidden-price"}">Subtotal: AED ${total}${anyBlank ? " (some prices pending)" : ""}</p>
+        ${actions.length ? `<div class="actions">${actions.join("")}</div>` : ""}
+      </article>`;
+  }).join("");
+}
+
+function upsertQuote(quote) {
+  const index = state.quotes.findIndex((item) => item.id === quote.id || (quote.inspectionId && item.inspectionId === quote.inspectionId));
+  if (index >= 0) {
+    state.quotes[index] = { ...state.quotes[index], ...quote };
+  } else {
+    state.quotes.unshift(quote);
+  }
+}
+
+function createQuickQuote(form) {
+  const data = new FormData(form);
+  const extraLines = String(data.get("extraScope") || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => ({ description: line, qty: 1, price: null }));
+  const serviceLines = pendingQuoteServices.map((s) => ({ description: s.name, qty: 1, price: s.rate || null }));
+  const lines = [...serviceLines, ...extraLines];
+  if (!lines.length) {
+    toast("⚠ Add at least one scope line");
+    return;
+  }
+  const quote = {
+    id: `QT-${Date.now()}`,
+    inspectionId: null,
+    site: String(data.get("site") || "").trim(),
+    location: String(data.get("location") || "").trim(),
+    customerPhone: String(data.get("customerPhone") || "").trim(),
+    customerEmail: String(data.get("customerEmail") || "").trim(),
+    lines,
+    status: "Draft",
+    jobId: null,
+    at: new Date().toISOString()
+  };
+  state.quotes.unshift(quote);
+  queueSync("Quote Draft Created", "QUOTATION", quote);
+  pendingQuoteServices = [];
+  form.reset();
+  form.classList.add("hidden");
+  render();
+  toast("✓ Draft quote saved");
+}
+
+function setQuoteStatus(quoteId, status) {
+  const quote = state.quotes.find((item) => item.id === quoteId);
+  if (!quote) return;
+  if (["Approved", "Rejected"].includes(status) && !canDecideQuotes()) {
+    toast("⚠ Only the unlocked Owner can decide quotes");
+    return;
+  }
+  quote.status = status;
+  quote[`${status.toLowerCase()}At`] = new Date().toISOString();
+  quote[`${status.toLowerCase()}By`] = currentProfile().name;
+  queueSync(`Quote ${status}`, "QUOTATION", quote);
+  render();
+  toast(`✓ Quote ${status.toLowerCase()}`);
+}
+
+function releaseQuote(quoteId) {
+  if (!canDecideQuotes()) {
+    toast("⚠ Only the unlocked Owner can release work");
+    return;
+  }
+  const quote = state.quotes.find((item) => item.id === quoteId);
+  if (!quote || quote.status !== "Approved" || quote.jobId) return;
+  const supervisors = activeProfiles().filter((item) => item.role === "Supervisor");
+  const drivers = activeProfiles().filter((item) => item.role === "Driver");
+  const id = `JOB-${Math.floor(1000 + Math.random() * 9000)}`;
+  // The released job carries scope descriptions only — never prices.
+  const scopeBrief = quote.lines.map((line) => `• ${line.description}`).join("\n");
+  const job = {
+    id,
+    customer: quote.site,
+    service: "Approved quote scope",
+    location: quote.location || quote.site,
+    customerPhone: quote.customerPhone || "",
+    customerEmail: quote.customerEmail || "",
+    priority: "Normal",
+    status: "Scheduled",
+    supervisorId: supervisors[0]?.id || "",
+    driverId: drivers[0]?.id || "",
+    workerIds: [],
+    brief: `APPROVED SCOPE (${quote.id}):\n${scopeBrief}`,
+    quoteId: quote.id,
+    createdAt: new Date().toISOString(),
+    updates: [{ by: currentProfile().name, type: "release", text: `Approved scope released from ${quote.id}.`, at: new Date().toISOString() }],
+    subJobs: [],
+    issues: [],
+    timeLogs: [],
+    materials: [],
+    transport: [],
+    photos: [],
+    locations: []
+  };
+  state.jobs.unshift(job);
+  quote.jobId = id;
+  quote.releasedAt = new Date().toISOString();
+  state.selectedJobId = id;
+  state.activeView = "job";
+  queueSync("Approved Scope Released", id, { quoteId: quote.id, customer: job.customer, status: job.status, priority: job.priority });
+  render();
+  toast(`✓ Work released as ${id} — assign the team`);
+}
+
 document.addEventListener("change", (event) => {
   if (event.target.id === "profileSelect") {
     state.activeProfileId = event.target.value;
+    // Land every profile on its own home screen instead of the previous user's view.
+    state.activeView = "dashboard";
     render();
   }
   if (event.target.id === "jobStatus") {
@@ -1274,6 +1791,51 @@ document.addEventListener("click", (event) => {
   if (event.target.dataset.quoteInspection) { generateQuotation(event.target.dataset.quoteInspection); return; }
   if (event.target.id === "addServiceButton") { addPendingService(); return; }
   if (event.target.dataset.removeService != null) { removePendingService(event.target.dataset.removeService); return; }
+  if (event.target.id === "notifyButton" || event.target.closest("#notifyButton")) {
+    state.activeView = "dashboard";
+    render();
+    return;
+  }
+  if (event.target.dataset.gotoView) {
+    state.activeView = event.target.dataset.gotoView;
+    render();
+    return;
+  }
+  if (event.target.dataset.fdAccept || event.target.dataset.fdReject) {
+    const accept = Boolean(event.target.dataset.fdAccept);
+    const [jobId, subJobId] = String(event.target.dataset.fdAccept || event.target.dataset.fdReject).split("::");
+    state.selectedJobId = jobId;
+    setSubJobAcceptance(subJobId, accept ? "Accepted" : "Rejected");
+    state.activeView = "dashboard";
+    render();
+    return;
+  }
+  if (event.target.id === "newQuoteButton") { byId("quickQuoteForm").classList.remove("hidden"); pendingQuoteServices = []; renderPendingQuoteServices(); return; }
+  if (event.target.id === "cancelQuickQuote") { byId("quickQuoteForm").classList.add("hidden"); return; }
+  if (event.target.id === "addQuoteServiceButton") {
+    const sel = byId("quoteService");
+    if (sel && sel.value && !pendingQuoteServices.some((s) => s.name === sel.value)) {
+      pendingQuoteServices.push({ name: sel.value, rate: serviceRate(sel.value) });
+      sel.value = "";
+      renderPendingQuoteServices();
+    }
+    return;
+  }
+  if (event.target.dataset.removeQuoteService != null) {
+    pendingQuoteServices.splice(Number(event.target.dataset.removeQuoteService), 1);
+    renderPendingQuoteServices();
+    return;
+  }
+  if (event.target.dataset.quoteSent) { setQuoteStatus(event.target.dataset.quoteSent, "Sent"); return; }
+  if (event.target.dataset.quoteApprove) { setQuoteStatus(event.target.dataset.quoteApprove, "Approved"); return; }
+  if (event.target.dataset.quoteReject) { setQuoteStatus(event.target.dataset.quoteReject, "Rejected"); return; }
+  if (event.target.dataset.quoteRelease) { releaseQuote(event.target.dataset.quoteRelease); return; }
+  if (event.target.dataset.quoteDelete) {
+    state.quotes = state.quotes.filter((quote) => quote.id !== event.target.dataset.quoteDelete);
+    render();
+    toast("Quote deleted");
+    return;
+  }
   if (event.target.dataset.copyReview) {
     const job = state.jobs.find((j) => j.id === event.target.dataset.copyReview);
     if (job) {
@@ -1436,6 +1998,7 @@ document.addEventListener("submit", (event) => {
   if (event.target.id === "slackSettingsForm") saveSlackSettings(event.target);
   if (event.target.id === "zohoSettingsForm") saveZohoSettings(event.target);
   if (event.target.id === "inspectionForm") createInspection(event.target);
+  if (event.target.id === "quickQuoteForm") createQuickQuote(event.target);
   if (event.target.id === "lockSetupForm") setupMasterCode(event.target);
   if (event.target.id === "lockEnterForm") submitMasterCode(event.target);
 });
@@ -2130,9 +2693,23 @@ function generateQuotation(id) {
     createdAt: new Date().toISOString(),
     status: anyBlank ? "Draft — some prices pending" : "Draft — priced from Zoho rates"
   };
+  // Promote the draft into the Quotes register so it can be sent → approved → released.
+  const linkedJob = state.jobs.find((j) => j.id === rep.jobId);
+  upsertQuote({
+    id: rep.quotation.id,
+    inspectionId: rep.id,
+    site: rep.site,
+    location: rep.location,
+    customerPhone: linkedJob?.customerPhone || "",
+    customerEmail: linkedJob?.customerEmail || "",
+    lines: rep.quotation.lines,
+    status: "Draft",
+    jobId: null,
+    at: rep.quotation.createdAt
+  });
   queueSync("Quotation Draft", rep.jobId || "QUOTATION", { inspectionId: rep.id, ...rep.quotation });
   render();
-  toast(rep.quotation.total ? `✓ Quotation drafted — AED ${rep.quotation.total}` : "✓ Quotation drafted");
+  toast(rep.quotation.total ? `✓ Quotation drafted — AED ${rep.quotation.total}` : "✓ Quotation drafted — see Quotes tab");
 }
 
 function addPendingService() {

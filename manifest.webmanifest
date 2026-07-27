@@ -1,11 +1,11 @@
 {
-  "name": "MTS Field Ops",
-  "short_name": "MTS Ops",
-  "description": "Field operations app for Mendonca Technical Services.",
+  "name": "MendTech OS — Field Operations",
+  "short_name": "MendTech OS",
+  "description": "Field operations system for Mendonca Technical Services. Zoho One stays the system of record.",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#24384f",
-  "theme_color": "#24384f",
+  "background_color": "#10243b",
+  "theme_color": "#10243b",
   "icons": [
     {
       "src": "./icon-192.png",

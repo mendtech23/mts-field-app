@@ -1,18 +1,33 @@
-MTS Field Ops v4
-Built for starting structure:
-- Owner
-- 1 Admin
-- 1 HR
-- 2 Supervisors
-- Workers
-- Driver
+MendTech OS v13 (Field Ops)
 
-New in v4:
-- Owner-only approval for every new team member (any role, permanent or temp)
-- Slack and Zoho tabs visible to supervisory level and above only
-- Zoho backend sync endpoint on the relay (/api/zoho/sync)
-- Photo compression, storage protection, temp access auto-expiry
-- Real PNG app icons for PC and phone install
+Zoho One stays the system of record. MendTech OS is the field layer.
+
+Roles:
+- Owner (master code unlocks inspections + quote approval)
+- Admin
+- HR
+- Supervisors
+- Workers
+- Drivers
+- Outsourced (temporary, expiring access)
+
+New in v13:
+- MendTech OS design: navy/teal sidebar shell, KPI cards, live progress bars
+- Owner Command Centre dashboard with real KPIs and an action feed
+- My Field Day: phone-style approved-scope-only day view for workers/drivers
+- Quotes register: Draft -> Sent -> Approved -> Release Work
+- Price privacy: prices visible to Admin and unlocked Owner only
+- Approved-scope release creates a job carrying scope text only, never prices
+- Inspection quotations now flow into the Quotes register automatically
+- Zoho One service status grid (CRM, Books, Projects, People, WorkDrive, Inventory)
+- Owner unlock no longer leaks owner tools when switching to another profile
+- Quotes tab hidden from Supervisor and HR entirely
+
+Tab access by role:
+- Owner (unlocked): Dashboard, Jobs, Job Detail, Inspections, Quotes, Team, Slack, Zoho
+- Admin: Dashboard, Jobs, Job Detail, Quotes, Team, Slack, Zoho
+- HR / Supervisor: Dashboard, Jobs, Job Detail, Team, Slack, Zoho
+- Worker / Driver: My Field Day, My Jobs, Job Detail, Team
 
 Slack:
 - Channel: #mts-field-updates
@@ -24,3 +39,11 @@ Local app:
 Local relay:
 - http://localhost:8787/api/slack/alerts
 - http://localhost:8787/api/zoho/sync
+
+Company:
+- info@mendtechservices.com (CC mendtech23@gmail.com)
+- +971 52 233 8499
+- Review: https://g.page/r/CZRn9Hg4q5SQEBM/review
+
+Documentation: see docs/ for the product spec, security and role model,
+Zoho integration map, data model, and production checklist.

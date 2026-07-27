@@ -3,23 +3,23 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>MTS Field Ops</title>
-    <meta name="theme-color" content="#24384f">
+    <title>MendTech OS — Field Operations</title>
+    <meta name="theme-color" content="#10243b">
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" type="image/png" href="./icon-192.png">
     <link rel="apple-touch-icon" href="./icon-192.png">
-    <link rel="stylesheet" href="./styles.css?v=12">
+    <link rel="stylesheet" href="./styles.css?v=13.3">
   </head>
   <body>
     <div id="lockOverlay" class="lock-overlay hidden">
       <div class="lock-card">
         <div class="brand-logo brand-logo-lock" aria-hidden="true">
-          <span class="brand-mark"><i></i><i></i><i></i></span>
-          <span class="brand-text"><b>MENDONCA</b><small>FIELD OPS</small></span>
+          <img class="brand-img" src="./mendtech-logo.jpeg" alt="MendTech logo">
+          <span class="brand-text"><b>MENDTECH OS</b><small>FIELD OPERATIONS</small></span>
         </div>
         <div id="lockEnter" class="hidden">
           <h2>Owner Login</h2>
-          <p class="small">Enter your master code to open owner tools (inspections, quotations).</p>
+          <p class="small">Enter your master code to open owner tools (inspections, quote approval).</p>
           <form id="lockEnterForm" autocomplete="off">
             <input name="code" type="password" inputmode="numeric" placeholder="Master code">
             <button type="submit" class="primary">Unlock Owner Mode</button>
@@ -32,7 +32,7 @@
           <form id="lockSetupForm" autocomplete="off">
             <input name="code" type="password" inputmode="numeric" placeholder="New master code (min 4)">
             <input name="confirm" type="password" inputmode="numeric" placeholder="Confirm master code">
-            <button type="submit" class="primary">Set Code & Unlock</button>
+            <button type="submit" class="primary">Set Code &amp; Unlock</button>
             <button type="button" id="cancelOwnerLogin2">Cancel</button>
           </form>
         </div>
@@ -41,32 +41,47 @@
     </div>
 
     <div class="app-shell">
-      <header class="topbar">
+      <aside class="sidebar">
         <div class="brand-logo">
-          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
-          <span class="brand-text"><b>MENDONCA</b><small>FIELD OPS</small></span>
+          <img class="brand-img" src="./mendtech-logo.jpeg" alt="MendTech logo">
+          <span class="brand-text"><b>MendTech OS</b><small>Field Operations</small></span>
         </div>
-        <div class="topbar-right">
-          <button id="ownerLoginButton" class="lock-button" title="Owner login">🔑 Owner</button>
-          <button id="lockButton" class="lock-button hidden" title="Exit owner mode">🔒 Lock</button>
-          <label class="profile-switch">
-            <span>Access</span>
-            <select id="profileSelect" aria-label="Select profile"></select>
-          </label>
-        </div>
-      </header>
+        <nav class="tabs" aria-label="Primary">
+          <button class="tab active" data-view="dashboard">Dashboard</button>
+          <button class="tab" data-view="board">Jobs</button>
+          <button class="tab" data-view="job">Job Detail</button>
+          <button class="tab" data-view="inspect">Inspections</button>
+          <button class="tab" data-view="quotes">Quotes</button>
+          <button class="tab" data-view="team">Team</button>
+          <button class="tab" data-view="slack">Slack</button>
+          <button class="tab" data-view="sync">Zoho</button>
+        </nav>
+        <div class="connection" id="connectionBox"><span class="dot"></span> <span id="connectionLabel">Local mode</span><br><small id="connectionHint">Zoho relay not configured</small></div>
+      </aside>
 
-      <nav class="tabs" aria-label="Primary">
-        <button class="tab active" data-view="board">Board</button>
-        <button class="tab" data-view="job">Job</button>
-        <button class="tab" data-view="inspect">Inspect</button>
-        <button class="tab" data-view="team">Team</button>
-        <button class="tab" data-view="slack">Slack</button>
-        <button class="tab" data-view="sync">Zoho</button>
-      </nav>
+      <div class="main-col">
+        <header class="main-head">
+          <div class="head-titles">
+            <h1 id="pageTitle">Owner Command Centre</h1>
+            <p id="pageSubtitle" class="small">Complete control stays with the Owner</p>
+          </div>
+          <div class="topbar-right">
+            <button id="notifyButton" class="lock-button" title="Open command centre">🔔 <span id="notifyCount" class="badge hidden">0</span></button>
+            <button id="ownerLoginButton" class="lock-button" title="Owner login">🔑 Owner</button>
+            <button id="lockButton" class="lock-button hidden" title="Exit owner mode">🔒 Lock</button>
+            <label class="profile-switch">
+              <span>Access</span>
+              <select id="profileSelect" aria-label="Select profile"></select>
+            </label>
+          </div>
+        </header>
 
-      <main>
-        <section id="boardView" class="view active" aria-labelledby="boardTitle">
+        <main>
+        <section id="dashboardView" class="view active" aria-labelledby="pageTitle">
+          <div id="dashboardContent"></div>
+        </section>
+
+        <section id="boardView" class="view" aria-labelledby="boardTitle">
           <div class="section-head">
             <div>
               <h2 id="boardTitle">Today Jobs</h2>
@@ -166,12 +181,54 @@
               <textarea name="recommendation" rows="2" placeholder="Recommended works, quote, or follow-up"></textarea>
             </label>
             <div class="actions">
-              <button type="submit" class="primary">Save & Sync Report</button>
+              <button type="submit" class="primary">Save &amp; Sync Report</button>
               <button type="button" id="cancelInspection">Cancel</button>
             </div>
           </form>
 
           <div id="inspectionList" class="job-list"></div>
+        </section>
+
+        <section id="quotesView" class="view" aria-labelledby="quotesTitle">
+          <div class="section-head">
+            <div>
+              <h2 id="quotesTitle">Quotes &amp; Scope Release</h2>
+              <p>Draft and sent quotes stay private. Workers only ever receive the approved scope — released as a job by the Owner.</p>
+            </div>
+            <button id="newQuoteButton" class="primary">New Quote</button>
+          </div>
+          <div id="quotePrivacyNote"></div>
+          <form id="quickQuoteForm" class="panel hidden" autocomplete="off">
+            <h3>Create Quote</h3>
+            <div class="form-grid">
+              <label>Customer / Site
+                <input name="site" required placeholder="Customer or site name">
+              </label>
+              <label>Location
+                <input name="location" placeholder="Villa, tower, area">
+              </label>
+              <label>Customer Phone
+                <input name="customerPhone" type="tel" placeholder="+971...">
+              </label>
+              <label>Customer Email
+                <input name="customerEmail" type="email" placeholder="customer@email.com">
+              </label>
+            </div>
+            <h4>Scope lines (from Zoho Products)</h4>
+            <div class="service-picker">
+              <select id="quoteService" aria-label="Select service"></select>
+              <button type="button" id="addQuoteServiceButton" class="primary">Add</button>
+            </div>
+            <div id="pendingQuoteServices" class="service-chips"></div>
+            <label>Extra scope notes (one line per item)
+              <textarea name="extraScope" rows="3" placeholder="Protect furniture&#10;Repair hairline cracks before priming"></textarea>
+            </label>
+            <div class="actions">
+              <button type="submit" class="primary">Save Draft Quote</button>
+              <button type="button" id="cancelQuickQuote">Cancel</button>
+            </div>
+          </form>
+          <div id="quoteList" class="job-list"></div>
         </section>
 
         <section id="teamView" class="view" aria-labelledby="teamTitle">
@@ -223,11 +280,12 @@
         <section id="syncView" class="view" aria-labelledby="syncTitle">
           <div class="section-head">
             <div>
-              <h2 id="syncTitle">Zoho Sync Queue</h2>
-              <p>Every field update is stored locally and prepared for Zoho CRM, Zoho Books, or Zoho Creator.</p>
+              <h2 id="syncTitle">Zoho One Sync</h2>
+              <p>Zoho stays the system of record. Every field update is stored locally and prepared for CRM, Books, Projects, People, and WorkDrive.</p>
             </div>
             <button id="exportButton" class="primary">Export JSON</button>
           </div>
+          <div id="zohoServiceGrid" class="zoho-grid"></div>
           <form id="zohoSettingsForm" class="panel">
             <h3>Backend Sync</h3>
             <div class="form-grid">
@@ -249,6 +307,7 @@
             <ul class="mapping-list">
               <li><strong>Jobs:</strong> custom module or Deals/Projects record.</li>
               <li><strong>Sub-jobs:</strong> child tasks linked to Jobs with assigned workers and acceptance status.</li>
+              <li><strong>Quotes:</strong> Zoho Books estimates; only approved quotes release work.</li>
               <li><strong>Assignment alerts:</strong> pending, accepted, or rejected confirmation records.</li>
               <li><strong>Issues:</strong> worker-to-supervisor help requests with open/resolved status.</li>
               <li><strong>Photos:</strong> Zoho attachments linked to each job.</li>
@@ -260,7 +319,8 @@
           </div>
           <div id="syncQueue" class="sync-list"></div>
         </section>
-      </main>
+        </main>
+      </div>
     </div>
 
     <template id="emptyStateTemplate">
@@ -270,6 +330,6 @@
       </div>
     </template>
 
-    <script src="./app.js?v=12"></script>
+    <script src="./app.js?v=13.3"></script>
   </body>
 </html>

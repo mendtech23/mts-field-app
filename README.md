@@ -1,11 +1,43 @@
-# MTS Field Ops Prototype
+# MendTech OS — Field Operations
 
-This is a mobile-first prototype for Mendonca Technical Services field operations.
+MendTech OS is the mobile-first field operations layer for Mendonca Technical Services. **Zoho One stays the system of record** (CRM, Books, Projects, People, WorkDrive); MendTech OS runs the dispatch, evidence, and worker layer that Zoho leaves open without Zoho FSM.
 
 Open `index.html` in a browser to try it. It stores data in the browser using `localStorage`, so it works as a realistic clickable MVP without a backend.
 
+## Job Lifecycle
+
+Enquiry → Inspection → Quote (Draft) → Sent → **Owner approval** → Release Work → Job + sub-jobs → Worker acceptance → GPS/photos/time → Completion → Invoice in Zoho Books → Google review request.
+
+Only an **approved** quote can release work, and a released job carries the approved scope text only — never prices.
+
+## Role Access
+
+| Role | Tabs |
+|---|---|
+| Owner (master code unlocked) | Dashboard, Jobs, Job Detail, Inspections, Quotes, Team, Slack, Zoho |
+| Admin | Dashboard, Jobs, Job Detail, Quotes, Team, Slack, Zoho |
+| HR / Supervisor | Dashboard, Jobs, Job Detail, Team, Slack, Zoho |
+| Worker / Driver | My Field Day, My Jobs, Job Detail, Team |
+
+Prices are visible only to Admin and to the Owner after entering the master code. Supervisors, HR, workers, drivers, and outsourced staff never see a price anywhere in the app.
+
+## Screens
+
+- **Command Centre** — live KPIs (active jobs, pending acceptances, pending quotes, team availability), live job progress, and an action feed for approvals, issues, review opportunities, and pending Zoho syncs.
+- **My Field Day** — phone-style worker view: current assignment, approved scope, accept/reject, job checklist, and one-tap supervisor contact.
+- **Quotes** — quote register with the Draft → Sent → Approved → Released lifecycle and price privacy.
+- **Inspections** — owner-only checklist inspections with photos and Zoho service catalog pricing; generates quotation drafts straight into the Quotes register.
+- **Zoho** — per-service status grid, sync queue, relay settings, and JSON export.
+
+## Documentation
+
+`docs/` contains the full specification: product spec, security and role model, Zoho One integration map, core data model, production checklist, and a backend `env.example`. Read `docs/PRODUCTION_CHECKLIST.md` before going live with real customer data.
+
 ## What It Covers
 
+- Owner Command Centre dashboard with real KPIs and an action feed.
+- Quote register with owner-only approval and approved-scope-only release.
+- My Field Day worker view: approved scope, checklist, accept/reject, no prices.
 - Owner, 1 admin, 1 HR, and 2 supervisor access profiles.
 - Worker and driver profiles.
 - Scalable workforce model for employees and outsourced temporary workers.
