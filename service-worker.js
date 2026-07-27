@@ -1,9 +1,9 @@
-const CACHE_NAME = "mts-field-ops-v13";
+const CACHE_NAME = "mts-field-ops-v14";
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=13.3",
-  "./app.js?v=13.3",
+  "./styles.css?v=14",
+  "./app.js?v=14",
   "./manifest.webmanifest",
   "./mendtech-logo.jpeg",
   "./icon-192.png",

@@ -1,6 +1,26 @@
-MendTech OS v13 (Field Ops)
+MendTech OS v14 (Field Ops)
 
 Zoho One stays the system of record. MendTech OS is the field layer.
+
+NEW IN v14 - OWNER-ONLY MODE
+The whole app is gated behind the owner master code while real staff logins
+(phone OTP + server-side authorization) are being built on a backend.
+Staff who open the app see a locked screen with a button to remove company
+data from their device. Flip OWNER_ONLY_MODE to false in app.js once real
+authentication is live.
+
+WHY: the role system in v13 is user-interface only. All data sits in
+localStorage on every device, so any staff member could read every price,
+job, and phone number using browser developer tools. That is not fixable
+without a backend - see docs/SECURITY_AND_ROLES.md.
+
+NEW IN v14 - REAL AC READINGS
+Per-unit capture: supply/return air temp with auto Delta-T and a cooling
+verdict (healthy 8-14C, weak 5-8C, poor under 5C), suction and discharge
+pressure, gas type, compressor amps, filter condition, notes.
+Owner can mark readings mandatory per job; the job cannot be completed
+until at least one unit is recorded. Workers record, only the Owner sets
+the requirement. Every reading queues to Zoho.
 
 Roles:
 - Owner (master code unlocks inspections + quote approval)

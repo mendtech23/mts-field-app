@@ -1,5 +1,12 @@
 const STORAGE_KEY = "mts-field-ops-v3";
 
+// Owner-only mode: the whole app is gated behind the master code while real
+// phone-OTP staff logins are being built on a backend. Flip to false once
+// server-side authentication is live and staff can sign in as themselves.
+// NOTE: this is a device-level gate, not real security — data already saved on
+// a device stays readable until it is wiped. See docs/SECURITY_AND_ROLES.md.
+const OWNER_ONLY_MODE = true;
+
 const seedState = {
   activeView: "dashboard",
   activeFilter: "All",
@@ -228,6 +235,8 @@ function normalizeState(nextState) {
     locations: [],
     customerPhone: "",
     customerEmail: "",
+    acReadings: [],
+    acRequired: false,
     ...job
   }));
   nextState.settings = {
@@ -811,6 +820,8 @@ function renderJobDetail() {
           </div>
         </section>
 
+        ${acReadingsPanelHtml(job, canManage)}
+
         <section class="panel">
           <h3>Worker To Supervisor</h3>
           <form id="issueForm">
@@ -968,6 +979,128 @@ function renderJobDetail() {
       </aside>
     </div>
   `;
+}
+
+/* ────────────────────────────────────────────
+   AC READINGS
+   Optional by default. The Owner can mark a job
+   as requiring readings (diagnostics, gas charge,
+   compressor, AMC, cooling performance) and the
+   job cannot be completed until they are filed.
+   Delta T (return air minus supply air) is the
+   real cooling-health number, so it is computed
+   and graded automatically.
+   ──────────────────────────────────────────── */
+const GAS_TYPES = ["R22", "R410A", "R32", "R134a", "Other"];
+const FILTER_STATES = ["Clean", "Dirty", "Cleaned on site", "Replaced"];
+
+function deltaT(reading) {
+  const supply = Number(reading.supplyTemp);
+  const ret = Number(reading.returnTemp);
+  if (!Number.isFinite(supply) || !Number.isFinite(ret)) return null;
+  return Math.round((ret - supply) * 10) / 10;
+}
+
+// UAE split units in good order typically drop 8-12C across the coil.
+function coolingVerdict(delta) {
+  if (delta == null) return { label: "No temps", cls: "" };
+  if (delta >= 8 && delta <= 14) return { label: `Delta T ${delta}°C · Healthy`, cls: "ok" };
+  if (delta >= 5) return { label: `Delta T ${delta}°C · Weak cooling`, cls: "warn" };
+  if (delta < 5) return { label: `Delta T ${delta}°C · Poor — check gas/airflow`, cls: "danger" };
+  return { label: `Delta T ${delta}°C`, cls: "" };
+}
+
+function acReadingsPanelHtml(job, canManage) {
+  const isOwner = currentProfile().role === "Owner";
+  const rows = job.acReadings.map((r) => {
+    const v = coolingVerdict(deltaT(r));
+    return `
+      <li>
+        <strong>${escapeHtml(r.unit || "Unit")}</strong>
+        <span class="pill ${v.cls}">${v.label}</span>
+        <span class="small">Supply ${escapeHtml(r.supplyTemp || "-")}°C · Return ${escapeHtml(r.returnTemp || "-")}°C · ${escapeHtml(r.gasType || "-")}
+        ${r.suction ? ` · Suction ${escapeHtml(r.suction)} psi` : ""}${r.discharge ? ` · Discharge ${escapeHtml(r.discharge)} psi` : ""}${r.amps ? ` · ${escapeHtml(r.amps)} A` : ""}
+        · Filter: ${escapeHtml(r.filter || "-")}</span>
+        ${r.notes ? `<span class="small">${escapeHtml(r.notes)}</span>` : ""}
+        <span class="small">${escapeHtml(r.by)} · ${formatDate(r.at)}</span>
+      </li>`;
+  }).join("");
+
+  return `
+    <section class="panel">
+      <h3>AC Readings ${job.acRequired ? '<span class="pill warn">Required</span>' : '<span class="pill">Optional</span>'}</h3>
+      ${isOwner ? `
+        <label class="toggle-line">
+          <input type="checkbox" id="acRequiredToggle" ${job.acRequired ? "checked" : ""}>
+          Require AC readings before this job can be completed
+        </label>` : ""}
+      ${job.acRequired && !job.acReadings.length ? `<p class="small error-text">Readings are required on this job. It cannot be marked Completed until at least one unit is recorded.</p>` : ""}
+      <form id="acReadingForm">
+        <div class="field-row">
+          <label>Unit / Location
+            <input name="unit" required placeholder="Master bedroom FCU">
+          </label>
+          <label>Gas Type
+            <select name="gasType">${GAS_TYPES.map((g) => `<option>${g}</option>`).join("")}</select>
+          </label>
+        </div>
+        <div class="field-row">
+          <label>Supply Air °C
+            <input name="supplyTemp" type="number" step="0.1" inputmode="decimal" placeholder="12.5">
+          </label>
+          <label>Return Air °C
+            <input name="returnTemp" type="number" step="0.1" inputmode="decimal" placeholder="24.0">
+          </label>
+        </div>
+        <div class="field-row">
+          <label>Suction psi
+            <input name="suction" type="number" step="1" inputmode="numeric" placeholder="68">
+          </label>
+          <label>Discharge psi
+            <input name="discharge" type="number" step="1" inputmode="numeric" placeholder="250">
+          </label>
+        </div>
+        <div class="field-row">
+          <label>Compressor Amps
+            <input name="amps" type="number" step="0.1" inputmode="decimal" placeholder="6.2">
+          </label>
+          <label>Filter Condition
+            <select name="filter">${FILTER_STATES.map((f) => `<option>${f}</option>`).join("")}</select>
+          </label>
+        </div>
+        <label>Notes
+          <input name="notes" placeholder="Noise, drain, coil condition, recommendation">
+        </label>
+        <button class="primary" type="submit">Save Reading</button>
+      </form>
+      <ul class="timeline ac-readings">
+        ${rows || "<li>No readings recorded yet.</li>"}
+      </ul>
+    </section>`;
+}
+
+function addAcReading(form) {
+  const data = new FormData(form);
+  updateSelectedJob((job) => {
+    job.acReadings.unshift({
+      unit: String(data.get("unit") || "").trim(),
+      gasType: data.get("gasType"),
+      supplyTemp: data.get("supplyTemp"),
+      returnTemp: data.get("returnTemp"),
+      suction: data.get("suction"),
+      discharge: data.get("discharge"),
+      amps: data.get("amps"),
+      filter: data.get("filter"),
+      notes: String(data.get("notes") || "").trim(),
+      by: currentProfile().name,
+      profileId: currentProfile().id,
+      at: new Date().toISOString()
+    });
+  }, "AC Reading Recorded");
+  form.reset();
+  const latest = selectedJob().acReadings[0];
+  const v = coolingVerdict(deltaT(latest));
+  toast(v.cls === "ok" ? `✓ Reading saved — ${v.label}` : `✓ Reading saved — ${v.label}`);
 }
 
 function subJobFormHtml(workers, supervisors) {
@@ -1518,7 +1651,7 @@ function fieldDayHtml(profile) {
         <label><input type="checkbox" disabled ${job.locations.some((l) => l.profileId === profile.id) ? "checked" : ""}> GPS check-in <span class="small">(in the job)</span></label>
         <label><input type="checkbox" disabled ${job.photos.some((p) => p.type === "Before") ? "checked" : ""}> Before photos</label>
         <label><input type="checkbox" disabled ${subJob.status === "In Progress" || subJob.status === "Completed" ? "checked" : ""}> Main work</label>
-        <label><input type="checkbox" disabled> Optional AC readings</label>
+        <label><input type="checkbox" disabled ${job.acReadings.length ? "checked" : ""}> AC readings${job.acRequired ? " (required)" : " (optional)"}</label>
         <label><input type="checkbox" disabled ${job.photos.some((p) => p.type === "After") ? "checked" : ""}> After photos</label>
         <label><input type="checkbox" disabled ${job.status === "Completed" ? "checked" : ""}> Customer sign-off</label>
         <p class="small" style="margin-top:10px">Open the full job to check in, add photos, log time, and raise issues.</p>
@@ -1713,6 +1846,8 @@ function releaseQuote(quoteId) {
     workerIds: [],
     brief: `APPROVED SCOPE (${quote.id}):\n${scopeBrief}`,
     quoteId: quote.id,
+    acReadings: [],
+    acRequired: false,
     createdAt: new Date().toISOString(),
     updates: [{ by: currentProfile().name, type: "release", text: `Approved scope released from ${quote.id}.`, at: new Date().toISOString() }],
     subJobs: [],
@@ -1741,11 +1876,23 @@ document.addEventListener("change", (event) => {
     render();
   }
   if (event.target.id === "jobStatus") {
-    updateSelectedJob((job) => {
-      job.status = event.target.value;
-      job.updates.unshift({ by: currentProfile().name, type: "status", text: `Status changed to ${job.status}`, at: new Date().toISOString() });
+    const job = selectedJob();
+    // Owner-mandated AC readings gate completion.
+    if (event.target.value === "Completed" && job.acRequired && !job.acReadings.length) {
+      event.target.value = job.status;
+      toast("⚠ AC readings are required before completing this job");
+      return;
+    }
+    updateSelectedJob((target) => {
+      target.status = event.target.value;
+      target.updates.unshift({ by: currentProfile().name, type: "status", text: `Status changed to ${target.status}`, at: new Date().toISOString() });
     }, "Job Status Update");
     if (event.target.value === "Completed") toast("✅ Job complete — review request is ready below");
+  }
+  if (event.target.id === "acRequiredToggle") {
+    if (currentProfile().role !== "Owner") return;
+    updateSelectedJob((job) => { job.acRequired = event.target.checked; }, "AC Readings Requirement Changed");
+    toast(event.target.checked ? "AC readings now required on this job" : "AC readings set to optional");
   }
   if (event.target.id === "jobCustomerPhone") {
     updateSelectedJob((job) => { job.customerPhone = event.target.value.trim(); }, "Customer Contact Update");
@@ -1784,6 +1931,7 @@ document.addEventListener("click", (event) => {
   if (event.target.id === "ownerLoginButton") { openOwnerLogin(); return; }
   if (event.target.id === "cancelOwnerLogin" || event.target.id === "cancelOwnerLogin2") { closeOwnerLogin(); return; }
   if (event.target.id === "lockButton") { lockApp(); return; }
+  if (event.target.id === "wipeDeviceButton") { wipeDevice(); return; }
   if (event.target.dataset.callSupervisor) { window.location.href = `tel:${event.target.dataset.callSupervisor}`; return; }
   if (event.target.id === "newInspectionButton") { toggleNewInspection(true); return; }
   if (event.target.id === "cancelInspection") { toggleNewInspection(false); return; }
@@ -1994,6 +2142,7 @@ document.addEventListener("submit", (event) => {
   if (event.target.id === "materialForm") addMaterial(event.target);
   if (event.target.id === "transportForm") addTransport(event.target);
   if (event.target.id === "photoForm") addPhoto(event.target);
+  if (event.target.id === "acReadingForm") addAcReading(event.target);
   if (event.target.id === "teamMemberForm") addTeamMember(event.target);
   if (event.target.id === "slackSettingsForm") saveSlackSettings(event.target);
   if (event.target.id === "zohoSettingsForm") saveZohoSettings(event.target);
@@ -2030,6 +2179,8 @@ function createJob(form) {
     driverId: data.get("driver"),
     workerIds: [],
     brief: data.get("brief"),
+    acReadings: [],
+    acRequired: false,
     createdAt: new Date().toISOString(),
     updates: [],
     subJobs: [],
@@ -2432,16 +2583,41 @@ function renderLock() {
   const overlay = byId("lockOverlay");
   if (!overlay) return;
   const needsSetup = !state.security.masterCodeHash;
-  overlay.classList.toggle("hidden", !ownerLoginOpen);
+  // In owner-only mode the gate is always up until the code is entered, and it
+  // cannot be dismissed — there is no "browse without unlocking".
+  const gateUp = OWNER_ONLY_MODE && !unlocked;
+  overlay.classList.toggle("hidden", !(ownerLoginOpen || gateUp));
   byId("lockSetup").classList.toggle("hidden", !needsSetup);
   byId("lockEnter").classList.toggle("hidden", needsSetup);
   const err = byId("lockError");
-  if (err && !ownerLoginOpen) err.textContent = "";
+  if (err && !ownerLoginOpen && !gateUp) err.textContent = "";
+
+  const staffNote = byId("lockStaffNote");
+  if (staffNote) staffNote.classList.toggle("hidden", !gateUp);
+
+  // Hide the app itself while locked so no company data renders behind the gate.
+  const shell = document.querySelector(".app-shell");
+  if (shell) shell.classList.toggle("gated", gateUp);
 
   const ownerBtn = byId("ownerLoginButton");
   const lockBtn = byId("lockButton");
   if (ownerBtn) ownerBtn.classList.toggle("hidden", unlocked);
   if (lockBtn) lockBtn.classList.toggle("hidden", !unlocked);
+}
+
+function wipeDevice() {
+  if (!window.confirm("Remove all Mendonca company data from this device? This cannot be undone on this phone.")) return;
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.clear();
+  } catch {
+    // Storage may be unavailable in private mode; the reload below still resets memory.
+  }
+  if ("caches" in window) {
+    caches.keys().then((keys) => keys.forEach((key) => caches.delete(key))).catch(() => {});
+  }
+  window.alert("Company data removed from this device.");
+  location.reload();
 }
 
 function openOwnerLogin() {
@@ -2450,6 +2626,7 @@ function openOwnerLogin() {
 }
 
 function closeOwnerLogin() {
+  if (OWNER_ONLY_MODE && !unlocked) return; // the gate is not dismissible
   ownerLoginOpen = false;
   const err = byId("lockError");
   if (err) err.textContent = "";
@@ -2738,6 +2915,8 @@ function escapeHtml(str) {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
+
+renderLock();
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("./service-worker.js").catch(() => {});

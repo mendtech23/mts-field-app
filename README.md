@@ -10,6 +10,16 @@ Enquiry → Inspection → Quote (Draft) → Sent → **Owner approval** → Rel
 
 Only an **approved** quote can release work, and a released job carries the approved scope text only — never prices.
 
+## Security status — read this first
+
+**The app is currently locked to the Owner only.** Staff logins are disabled while real authentication is built on a backend.
+
+This is deliberate. The role system below is **user-interface only, not security**. Every device that installs this app stores the whole company dataset in browser `localStorage` — so a staff member with basic browser developer tools can read every quote price, every job, and every staff phone number regardless of their role. Price "hiding" is a CSS blur over a value that is still present in the page.
+
+This cannot be fixed in a static app. Real access control requires a server that decides what each user is allowed to receive. The target design is in [docs/SECURITY_AND_ROLES.md](docs/SECURITY_AND_ROLES.md): owner invitation → phone OTP → pending owner approval → role assignment → device registration → PIN/biometric, with authorization enforced server-side on every request.
+
+Until then, `OWNER_ONLY_MODE = true` in [app.js](app.js) gates the whole app. Staff opening it get a locked screen and a button to wipe company data from their device.
+
 ## Role Access
 
 | Role | Tabs |

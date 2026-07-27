@@ -8,7 +8,7 @@
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" type="image/png" href="./icon-192.png">
     <link rel="apple-touch-icon" href="./icon-192.png">
-    <link rel="stylesheet" href="./styles.css?v=13.3">
+    <link rel="stylesheet" href="./styles.css?v=14">
   </head>
   <body>
     <div id="lockOverlay" class="lock-overlay hidden">
@@ -18,25 +18,29 @@
           <span class="brand-text"><b>MENDTECH OS</b><small>FIELD OPERATIONS</small></span>
         </div>
         <div id="lockEnter" class="hidden">
-          <h2>Owner Login</h2>
-          <p class="small">Enter your master code to open owner tools (inspections, quote approval).</p>
+          <h2>Owner Access Only</h2>
+          <p class="small">This app is temporarily restricted to the owner while secure staff logins are being built. Enter your master code.</p>
           <form id="lockEnterForm" autocomplete="off">
             <input name="code" type="password" inputmode="numeric" placeholder="Master code">
-            <button type="submit" class="primary">Unlock Owner Mode</button>
-            <button type="button" id="cancelOwnerLogin">Cancel</button>
+            <button type="submit" class="primary">Unlock</button>
+            <button type="button" id="cancelOwnerLogin" class="hidden">Cancel</button>
           </form>
         </div>
         <div id="lockSetup" class="hidden">
           <h2>Set Your Master Code</h2>
-          <p class="small">First time. Choose a code only you know — it unlocks your owner tools. Workers never need it.</p>
+          <p class="small">First time. Choose a code only you know. The app stays locked to you until secure staff logins are live.</p>
           <form id="lockSetupForm" autocomplete="off">
             <input name="code" type="password" inputmode="numeric" placeholder="New master code (min 4)">
             <input name="confirm" type="password" inputmode="numeric" placeholder="Confirm master code">
             <button type="submit" class="primary">Set Code &amp; Unlock</button>
-            <button type="button" id="cancelOwnerLogin2">Cancel</button>
+            <button type="button" id="cancelOwnerLogin2" class="hidden">Cancel</button>
           </form>
         </div>
         <p id="lockError" class="lock-error"></p>
+        <div id="lockStaffNote">
+          <p class="small">Staff: access has moved. Your supervisor will contact you — keep using WhatsApp for job updates until the new secure login is ready.</p>
+          <button type="button" id="wipeDeviceButton" class="danger">Remove company data from this device</button>
+        </div>
       </div>
     </div>
 
@@ -330,6 +334,6 @@
       </div>
     </template>
 
-    <script src="./app.js?v=13.3"></script>
+    <script src="./app.js?v=14"></script>
   </body>
 </html>

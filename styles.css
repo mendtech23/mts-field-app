@@ -883,6 +883,11 @@ label {
 
 /* ── Lock overlay ── */
 .app-shell.blurred { filter: blur(6px); pointer-events: none; user-select: none; }
+/* Owner-only gate: hide the app entirely so no company data renders behind it. */
+.app-shell.gated { display: none; }
+#lockStaffNote { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+#lockStaffNote.hidden { display: none; }
+#lockStaffNote button { width: 100%; margin-top: 6px; }
 .lock-overlay { position: fixed; inset: 0; z-index: 999; background: rgba(11, 26, 42, 0.93); display: flex; align-items: center; justify-content: center; padding: 24px; }
 .lock-overlay.hidden { display: none; }
 .lock-card { background: var(--surface); border-radius: 18px; padding: 28px 24px; width: 100%; max-width: 380px; box-shadow: var(--shadow); text-align: center; }
@@ -930,6 +935,12 @@ label {
 .service-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .service-chip { display: inline-flex; align-items: center; gap: 6px; background: #eef2f6; border: 1px solid var(--line); border-radius: 999px; padding: 4px 6px 4px 12px; font-size: 13px; color: var(--navy); }
 .service-chip button { min-height: 22px; width: 22px; padding: 0; border-radius: 50%; border: none; background: #d6dee7; color: var(--navy); font-weight: 700; line-height: 1; }
+
+/* ── AC readings ── */
+.toggle-line { display: flex; align-items: center; gap: 9px; border: 1px solid var(--line); border-radius: 9px; background: #fbfcfc; color: var(--ink); padding: 11px; margin-bottom: 12px; font-size: 14px; }
+.toggle-line input { width: auto; }
+.ac-readings li { display: flex; flex-direction: column; gap: 3px; }
+.ac-readings .pill { align-self: flex-start; }
 
 /* ── Review request panel ── */
 .review-panel { border-color: #e3c065; background: #fffdf4; }
