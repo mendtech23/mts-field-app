@@ -5,7 +5,9 @@
   "description": "MendTech OS — MTS Field Ops app and sync relay",
   "scripts": {
     "relay": "node relay-server.js",
-    "test": "node --test tests/relay.test.js",
+    "test": "npm run test:relay && npm run test:db",
+    "test:relay": "node --test tests/relay.test.js",
+    "test:db": "./scripts/db-test.sh",
     "new-token": "node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
   }
 }

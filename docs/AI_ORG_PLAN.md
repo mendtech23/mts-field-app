@@ -169,12 +169,28 @@ Four defects that made every downstream claim unreliable:
 
 Also added: `tests/relay.test.js` — 8 contract tests, the first in the repo.
 
-### Phase 1 — Backend and real authentication (weeks 2–4)
+### Phase 1 — Backend and real authentication (weeks 2–4) — **schema complete**
 
-Real staff auth (owner-issued invite code + PIN, no SMS cost), event bus tables,
-append-only audit log, policy table, row-level authorization tests. Exit
-criterion: `OWNER_ONLY_MODE = false` with genuine server-side authorization
-behind it, so staff can use the app at all.
+Delivered:
+
+- `supabase/migrations/` — profiles, invite codes, policies, append-only audit
+  log, event bus, customers, jobs, assignments, quotes.
+- Row-level security on every table, with `force row level security` so the
+  schema owner is subject to it too.
+- Append-only enforcement on the audit and event logs by both privilege
+  (no UPDATE/DELETE granted) and trigger.
+- `enforce_quote_authority`: nothing reaches `APPROVED` or `EXECUTED` without an
+  approver or a named policy — the agent self-approval gate, in the database.
+- `guard_privilege_fields`: only the Owner may change a role, approval status or
+  access window. **This closed a real escalation hole found by the tests — RLS
+  alone let HR promote any account, including their own, to Owner.**
+- 38 authorization assertions, run from scratch by `npm run test:db`.
+
+Remaining before `OWNER_ONLY_MODE = false`:
+
+- Invite-code redemption and PIN unlock flow.
+- Client data layer swapped from `localStorage` to the backend.
+- Supabase project provisioned (needs the owner's account).
 
 ### Phase 2 — HR Agent (weeks 5–7)
 
