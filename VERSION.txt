@@ -1,6 +1,35 @@
-MendTech OS v14 (Field Ops)
+MendTech OS v15 (Field Ops)
 
 Zoho One stays the system of record. MendTech OS is the field layer.
+
+NEW IN v15 - TRUST REPAIRS (Phase 0)
+The sync queue used mode:"no-cors", which returns an opaque response that
+resolves even on HTTP 500 or a dead endpoint. Events were marked "Synced"
+whether or not anything arrived. Sync now reads a real response and only
+records Synced on a confirmed 2xx from the relay. The sync URL must point
+at the MTS relay, not a raw Zoho webhook, or the confirmation cannot be read.
+
+The relay now refuses to start without RELAY_TOKEN, requires a bearer token
+on every endpoint including /health, allows only listed browser origins, and
+de-duplicates events by idempotency key across restarts. A failed forward
+returns 502 and stays retryable instead of being silently swallowed.
+
+"Remove company data" called localStorage.clear(), which wiped the entire
+origin and destroyed Finance OS and Auto Concierge data. It now removes only
+this app's key and its own caches.
+
+The Zoho tab showed six services as connected whenever the settings field was
+non-empty. Status now requires a verified relay handshake (Test Connection)
+and goes stale after 15 minutes. Zoho People was removed from the grid - HR
+runs as records in a Books custom module, not a paid seat.
+
+First tests in the repo: npm test (8 relay contract tests).
+Build plan: docs/AI_ORG_PLAN.md
+
+RELAY SETUP
+  npm run new-token          # generate RELAY_TOKEN
+  RELAY_TOKEN=... npm run relay
+Paste the same value into the app: Zoho tab > Sync Key.
 
 NEW IN v14 - OWNER-ONLY MODE
 The whole app is gated behind the owner master code while real staff logins

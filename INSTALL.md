@@ -102,6 +102,22 @@ http://localhost:8787/api/slack/alerts
 
 For real Slack posting, start the relay with `SLACK_WEBHOOK_URL` set on the server. The webhook stays server-side, never in the worker app.
 
+## Relay authentication (required)
+
+The relay will not start without a bearer token. Generate one, then start it:
+
+```bash
+npm run new-token          # prints a 32-byte hex value
+RELAY_TOKEN=<that value> npm run relay
+```
+
+Paste the same value into the app under **Zoho tab > Sync Key**. Requests
+without it are rejected with 401. Set `ALLOWED_ORIGINS` to the exact origins
+allowed to call the relay (comma-separated, no wildcards); it defaults to
+`http://localhost:5178`.
+
+Run the relay's contract tests any time with `npm test`.
+
 ## Zoho
 
 The Zoho tab (supervisory level and above) queues every field event. Set the backend sync URL to:
@@ -110,7 +126,19 @@ The Zoho tab (supervisory level and above) queues every field event. Set the bac
 http://localhost:8787/api/zoho/sync
 ```
 
-The relay stores every event in `relay-data/zoho-sync.jsonl`. To push events into Zoho automatically, create a Zoho Flow webhook trigger and start the relay with `ZOHO_FLOW_WEBHOOK_URL` set to that webhook.
+Press **Test Connection** to verify. Until that handshake succeeds every service
+shows *Not connected* — a filled-in URL alone proves nothing.
+
+The sync URL must point at this relay, **not** directly at a Zoho Flow webhook.
+Zoho webhooks return no CORS headers, so the browser cannot read the response,
+and an event that never arrived would otherwise be recorded as delivered. Events
+are only marked **Synced** when the relay confirms receipt.
+
+The relay stores every event in `relay-data/zoho-sync.jsonl`, de-duplicated by
+idempotency key so a retry cannot create a second Zoho record. To push events
+into Zoho automatically, create a Zoho Flow webhook trigger and start the relay
+with `ZOHO_FLOW_WEBHOOK_URL` set to that webhook. If that forward fails the
+relay returns 502 and the event stays pending for retry.
 
 ## Production Checklist
 

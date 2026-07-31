@@ -153,7 +153,9 @@ const seedState = {
   ],
   syncQueue: [],
   zoho: {
-    relayUrl: ""
+    relayUrl: "",
+    relayToken: "",
+    health: null
   },
   slack: {
     channel: "#mts-field-updates",
@@ -247,6 +249,8 @@ function normalizeState(nextState) {
   nextState.syncQueue = nextState.syncQueue || [];
   nextState.zoho = {
     relayUrl: "",
+    relayToken: "",
+    health: null,
     ...(nextState.zoho || {})
   };
   nextState.slack = {
@@ -1319,24 +1323,35 @@ function personCardHtml(person) {
 function renderSync() {
   const serviceGrid = byId("zohoServiceGrid");
   if (serviceGrid) {
-    const online = Boolean(state.zoho.relayUrl);
+    // Status must reflect a verified relay handshake, never just a non-empty
+    // settings field. Until "Test Connection" succeeds, every service reads as
+    // not connected — a configured URL proves nothing about reachability.
+    const health = state.zoho.health || null;
+    const verified = Boolean(health && health.ok);
+    const stale = verified && (Date.now() - new Date(health.checkedAt).getTime() > 15 * 60 * 1000);
     const services = [
       ["Zoho CRM", "Leads, customers, properties"],
       ["Zoho Books", "Quotes, invoices, VAT, payments"],
       ["Zoho Projects", "Tasks, milestones, timesheets"],
-      ["Zoho People", "Employees, attendance, HR"],
       ["Zoho WorkDrive", "Photos, reports, signed docs"],
       ["Zoho Inventory", "Products, services, stock"]
     ];
+    let label = "Not connected";
+    let tone = "warn";
+    if (verified && stale) { label = "Last verified over 15 min ago"; tone = "warn"; }
+    else if (verified) { label = "Relay verified"; tone = "ok"; }
+
     serviceGrid.innerHTML = services.map(([name, role]) => `
       <div class="zoho-card">
         <h3>${name}</h3>
-        <span class="pill ${online ? "ok" : "warn"}">${online ? "Relay configured" : "Authorization required"}</span>
+        <span class="pill ${tone}">${label}</span>
         <p class="small">${role}</p>
       </div>`).join("");
   }
   const zohoUrl = byId("zohoRelayUrl");
   if (zohoUrl) zohoUrl.value = state.zoho.relayUrl || "";
+  const zohoToken = byId("zohoRelayToken");
+  if (zohoToken) zohoToken.value = state.zoho.relayToken || "";
   const reviewLink = byId("reviewLinkInput");
   if (reviewLink) reviewLink.value = (state.settings && state.settings.reviewLink) || "";
   byId("syncQueue").innerHTML = state.syncQueue.length
@@ -1542,7 +1557,7 @@ function commandCentreHtml(profile) {
   }
 
   return `
-    <div class="notice"><b>Zoho-first design:</b> CRM, Books, Projects, People and WorkDrive stay the master records. This command centre runs the field layer.</div>
+    <div class="notice"><b>Zoho-first design:</b> CRM, Books, Projects and WorkDrive stay the master records. This command centre runs the field layer.</div>
     <div class="kpi-grid">
       ${kpis.map(([label, value, hint, view]) => `
         <div class="kpi">
@@ -1932,6 +1947,7 @@ document.addEventListener("click", (event) => {
   if (event.target.id === "cancelOwnerLogin" || event.target.id === "cancelOwnerLogin2") { closeOwnerLogin(); return; }
   if (event.target.id === "lockButton") { lockApp(); return; }
   if (event.target.id === "wipeDeviceButton") { wipeDevice(); return; }
+  if (event.target.id === "testRelayButton") { testRelayConnection(); return; }
   if (event.target.dataset.callSupervisor) { window.location.href = `tel:${event.target.dataset.callSupervisor}`; return; }
   if (event.target.id === "newInspectionButton") { toggleNewInspection(true); return; }
   if (event.target.id === "cancelInspection") { toggleNewInspection(false); return; }
@@ -2468,10 +2484,55 @@ function sendPendingSlackAlerts() {
 function saveZohoSettings(form) {
   const data = new FormData(form);
   state.zoho.relayUrl = data.get("zohoRelayUrl") || "";
+  state.zoho.relayToken = (data.get("zohoRelayToken") || "").trim();
   state.settings.reviewLink = (data.get("reviewLink") || "").trim();
   saveState();
   render();
   toast("✓ Settings saved");
+}
+
+async function testRelayConnection() {
+  if (!state.zoho.relayUrl) {
+    toast("⚠ Add the Backend Sync URL first");
+    return;
+  }
+  // /health lives alongside the sync path on the same relay origin.
+  let healthUrl;
+  try {
+    healthUrl = new URL("/health", state.zoho.relayUrl).toString();
+  } catch {
+    state.zoho.health = { ok: false, error: "That sync URL is not a valid address.", checkedAt: new Date().toISOString() };
+    saveState();
+    render();
+    toast("⚠ Invalid sync URL");
+    return;
+  }
+
+  toast("Testing relay…");
+  try {
+    const response = await fetch(healthUrl, {
+      headers: state.zoho.relayToken ? { Authorization: `Bearer ${state.zoho.relayToken}` } : {}
+    });
+    if (!response.ok) throw new Error(`relay returned ${response.status}`);
+    const detail = await response.json();
+    state.zoho.health = {
+      ok: true,
+      checkedAt: new Date().toISOString(),
+      zohoConfigured: Boolean(detail.zohoConfigured),
+      slackConfigured: Boolean(detail.slackConfigured)
+    };
+    toast(detail.zohoConfigured ? "✓ Relay verified, Zoho forwarding on" : "✓ Relay verified — Zoho forwarding not configured");
+  } catch (error) {
+    const isNetworkBlock = /failed to fetch|networkerror|load failed/i.test(error.message);
+    state.zoho.health = {
+      ok: false,
+      checkedAt: new Date().toISOString(),
+      error: isNetworkBlock ? "Could not reach the relay from this device." : error.message
+    };
+    toast(`⚠ Relay unreachable: ${state.zoho.health.error}`);
+  }
+  saveState();
+  render();
 }
 
 async function sendSyncItem(itemId) {
@@ -2493,24 +2554,43 @@ async function sendSyncItem(itemId) {
     sentAt: new Date().toISOString()
   });
   try {
-    // Zoho Flow (and most webhooks) don't return CORS headers, so a normal
-    // cross-origin fetch is blocked ("Failed to fetch"). no-cors mode lets the
-    // POST through (Zoho receives it) but returns an opaque response we can't
-    // read — so we treat a resolved request as delivered. text/plain keeps it a
-    // CORS-safe "simple" request (no preflight); Zoho Flow still parses the JSON body.
-    await fetch(state.zoho.relayUrl, {
+    // The queue must only ever say "Synced" when a server confirmed receipt.
+    // A normal (CORS) request is used deliberately so the response is readable:
+    // "no-cors" returns an opaque response that resolves even on HTTP 500 or a
+    // dead endpoint, which would mark undelivered events as Synced.
+    // The sync URL must therefore point at the MTS relay (which returns CORS
+    // headers), never at a raw Zoho Flow webhook.
+    const response = await fetch(state.zoho.relayUrl, {
       method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "text/plain;charset=UTF-8" },
+      headers: {
+        "Content-Type": "application/json",
+        // Lets the relay discard duplicates if a retry lands twice.
+        "Idempotency-Key": item.id,
+        ...(state.zoho.relayToken ? { Authorization: `Bearer ${state.zoho.relayToken}` } : {})
+      },
       body
     });
+
+    if (!response.ok) {
+      const detail = response.status === 401 || response.status === 403
+        ? "relay rejected the token — check the sync key in Settings"
+        : `relay returned ${response.status}`;
+      throw new Error(detail);
+    }
+
     item.status = "Synced";
     item.syncedAt = new Date().toISOString();
-    toast("✓ Sent to Zoho");
+    item.error = "";
+    toast("✓ Confirmed by relay");
   } catch (error) {
+    // A blocked cross-origin request surfaces as a bare "Failed to fetch".
+    const isNetworkBlock = /failed to fetch|networkerror|load failed/i.test(error.message);
     item.status = "Pending";
-    item.error = error.message;
-    toast(`⚠ Sync failed: ${error.message}`);
+    item.attempts = (item.attempts || 0) + 1;
+    item.error = isNetworkBlock
+      ? "Could not reach the relay. Point the sync URL at the MTS relay (not a raw Zoho webhook) and check you are online."
+      : error.message;
+    toast(`⚠ Not synced: ${item.error}`);
   }
   render();
 }
@@ -2608,15 +2688,21 @@ function renderLock() {
 function wipeDevice() {
   if (!window.confirm("Remove all Mendonca company data from this device? This cannot be undone on this phone.")) return;
   try {
+    // Only this app's key. localStorage.clear() would wipe the whole origin,
+    // destroying Finance OS and Auto Concierge data stored alongside it.
     localStorage.removeItem(STORAGE_KEY);
-    localStorage.clear();
   } catch {
     // Storage may be unavailable in private mode; the reload below still resets memory.
   }
   if ("caches" in window) {
-    caches.keys().then((keys) => keys.forEach((key) => caches.delete(key))).catch(() => {});
+    // Likewise scoped: only this app's caches, not every cache on the origin.
+    caches.keys()
+      .then((keys) => Promise.all(
+        keys.filter((key) => key.startsWith("mts-field-ops")).map((key) => caches.delete(key))
+      ))
+      .catch(() => {});
   }
-  window.alert("Company data removed from this device.");
+  window.alert("Field Ops data removed from this device.");
   location.reload();
 }
 

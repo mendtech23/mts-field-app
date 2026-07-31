@@ -1027,7 +1027,7 @@ function renderSettings() {
       <div class="field">
         <label>Claude API key (optional)</label>
         <input id="apiKeyInput" type="password" placeholder="sk-ant-…" value="${esc(state.settings.apiKey)}" autocomplete="off" />
-        <div class="hint">Stored only on this device. With a key, the AI CFO uses Claude (claude-opus-4-8) for free-form analysis; without it, the built-in engine answers from your data. Never synced anywhere.</div>
+        <div class="hint"><b>Owner device only.</b> The key is kept in this browser's local storage and sent straight to the Claude API from this page, so anyone who unlocks this device — or any script that runs on this domain — can read it. Do not enter it on a shared or staff phone. Without a key the built-in engine still answers from your data. A server-side proxy replaces this in the backend build; rotate the key at console.anthropic.com if the device is ever lost.</div>
       </div>
       <button class="btn small" data-act="save-key">Save key</button>
       ${state.settings.apiKey ? `<button class="btn small danger" data-act="clear-key">Remove</button>` : ""}

@@ -8,7 +8,7 @@
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" type="image/png" href="./icon-192.png">
     <link rel="apple-touch-icon" href="./icon-192.png">
-    <link rel="stylesheet" href="./styles.css?v=14">
+    <link rel="stylesheet" href="./styles.css?v=15">
   </head>
   <body>
     <div id="lockOverlay" class="lock-overlay hidden">
@@ -285,7 +285,7 @@
           <div class="section-head">
             <div>
               <h2 id="syncTitle">Zoho One Sync</h2>
-              <p>Zoho stays the system of record. Every field update is stored locally and prepared for CRM, Books, Projects, People, and WorkDrive.</p>
+              <p>Zoho stays the system of record. Every field update is stored locally and prepared for CRM, Books, Projects, and WorkDrive. HR runs as records inside Books — no Zoho People seats.</p>
             </div>
             <button id="exportButton" class="primary">Export JSON</button>
           </div>
@@ -296,15 +296,19 @@
               <label>Backend Sync URL
                 <input name="zohoRelayUrl" id="zohoRelayUrl" placeholder="http://localhost:8787/api/zoho/sync">
               </label>
+              <label>Sync Key
+                <input name="zohoRelayToken" id="zohoRelayToken" type="password" autocomplete="off" placeholder="Relay bearer key">
+              </label>
               <label>Google Review Link
                 <input name="reviewLink" id="reviewLinkInput" placeholder="https://g.page/r/.../review">
               </label>
             </div>
             <div class="actions">
               <button type="submit" class="primary">Save Sync Settings</button>
+              <button type="button" id="testRelayButton">Test Connection</button>
               <button type="button" id="syncAllPendingButton">Sync All Pending</button>
             </div>
-            <p class="small">Events post to your backend relay. The relay stores them and forwards to Zoho automatically once a Zoho Flow webhook or API credential is configured on the server.</p>
+            <p class="small">Events post to your backend relay, which stores them and forwards to Zoho. An event is only marked <b>Synced</b> when the relay confirms it — the sync URL must point at the MTS relay, not a raw Zoho webhook, or the confirmation cannot be read.</p>
           </form>
           <div class="panel">
             <h3>Recommended Zoho Mapping</h3>
@@ -334,6 +338,6 @@
       </div>
     </template>
 
-    <script src="./app.js?v=14"></script>
+    <script src="./app.js?v=15"></script>
   </body>
 </html>
