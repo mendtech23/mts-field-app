@@ -138,12 +138,46 @@ function parseCSV(text) {
   return rows.filter((r) => r.some((x) => x.trim() !== ""));
 }
 
-function download(name, text, mime = "text/plain") {
+/* Offers a generated file to the user. Two hosts, one function:
+   - Standalone (the repo build, a local file, any non-Claude page): a plain
+     browser download via a blob link.
+   - Inside a published Claude Artifact: the sandboxed frame blocks blob/data
+     download links outright, so the platform's `downloads` capability is
+     used instead — the viewer sees a confirmation and may decline.
+   `window.claude` only exists in the second case, so its presence is the switch. */
+async function download(name, text, mime = "text/plain") {
+  if (typeof window !== "undefined" && window.claude && typeof window.claude.use === "function") {
+    const downloads = await window.claude.use("downloads").catch(() => null);
+    if (!downloads) {
+      toast("File export isn't available in this preview. Open the app from its own link to export.");
+      return false;
+    }
+    try {
+      await downloads.save({ filename: name, data: text });
+      return true;
+    } catch (e) {
+      const code = e && e.code;
+      if (code === "extension_not_enabled" || code === "rejected_extension") {
+        // Retry once under an extension the base allowlist always accepts.
+        try {
+          await downloads.save({ filename: name.replace(/\.[^.]+$/, ".txt"), data: text });
+          return true;
+        } catch (_) {
+          toast("That file type can't be saved from here.");
+          return false;
+        }
+      }
+      if (code === "declined") return false;   // the viewer said no — do not retry
+      toast("Could not save the file — try again.");
+      return false;
+    }
+  }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([text], { type: mime }));
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  return true;
 }
 
 /* Stable key for "is this the same merchant?" across statement spellings. */

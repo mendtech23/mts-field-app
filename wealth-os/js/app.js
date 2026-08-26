@@ -207,15 +207,20 @@ document.addEventListener("click", (e) => {
   if (t.id === "impCancel") { state._import = null; render(); return toast("Discarded"); }
 
   if (t.id === "expCsv") {
-    download(`wealth-os-transactions-${todayISO()}.csv`, exportTransactionsCSV(), "text/csv");
-    return toast("Transactions exported");
+    download(`wealth-os-transactions-${todayISO()}.csv`, exportTransactionsCSV(), "text/csv")
+      .then((ok) => { if (ok) toast("Transactions exported"); });
+    return;
   }
   if (t.id === "expJson" || t.id === "exportBtn") {
-    download(`wealth-os-${todayISO()}.json`, JSON.stringify(state, null, 2), "application/json");
-    state.settings.lastBackup = new Date().toISOString();
-    saveState();
-    render();
-    return toast("Backup exported");
+    download(`wealth-os-${todayISO()}.json`, JSON.stringify(state, null, 2), "application/json")
+      .then((ok) => {
+        if (!ok) return;
+        state.settings.lastBackup = new Date().toISOString();
+        saveState();
+        render();
+        toast("Backup exported");
+      });
+    return;
   }
   if (t.id === "importBtn") return $("#importFile").click();
   if (t.id === "resetBtn") {
