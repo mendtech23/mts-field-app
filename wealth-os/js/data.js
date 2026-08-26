@@ -259,8 +259,9 @@ const SEED_GOALS = [
     deadline: "2026-11-05",
     note: "Early-bird four-day pass, 5–8 Nov at Dubai Parks. Fundable once the rent gap closes — not before." },
   { id: "g9", stage: 3, name: "Couple's trip — 4 to 5 days", target: 4000, currentRef: "goalFund",
-    deadline: "2027-03-31",
-    note: "Midpoint of the AED 3,000–5,000 range. No date set yet; setting one activates the countdown." },
+    deadline: null,
+    note: "On hold — no date set. Midpoint of the AED 3,000–5,000 range. Setting a date on the "
+        + "More tab activates the countdown; until then this tracks funding only." },
   { id: "g10", stage: 3, name: "January rent cheque", target: 11750, currentRef: "goalFund",
     deadline: "2027-01-22",
     note: "The next quarterly cheque. Assumed flat — confirm with the landlord." },
