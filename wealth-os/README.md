@@ -8,7 +8,7 @@ Two deliverables live here and they agree with each other to the dirham:
 | | What it is |
 |---|---|
 | `Johnnys_Edge_Lifetime_Finance.xlsx` | The workbook: 17 sheets, 1,035 formulas, 30 integrity checks |
-| `index.html` + `app.js` + `styles.css` | The app: an offline-capable PWA seeded from that workbook |
+| `index.html` + `js/` + `styles.css` | The app: an offline-capable PWA, 21 pages, seeded from that workbook |
 
 Everything is stated as of **25 August 2026**, the date of the last confirmed
 balance in the source file.
@@ -97,37 +97,123 @@ order against the original file.
 ## The app
 
 Open `index.html`, or serve the folder and add it to a phone home screen. It
-works offline after the first load.
+works offline after the first load, and everything stays on the device.
+
+### Seven tabs, fourteen sub-pages
 
 | Tab | What it does |
 |---|---|
-| **Home** | Net worth, health score, cash position, the next ninety days, top actions |
-| **Money** | The full ledger — add, edit, filter, search; category and merchant breakdowns |
+| **Home** | Net worth, health score, today against the daily cap, runway, the 90-day forecast, top actions |
+| **Money** | The full ledger — add, edit, filter, search, quick-add; category and merchant breakdowns |
 | **Budget** | Plan against actual run rate, by group, with health ratios |
 | **Invest** | Holdings, allocation against target, risk controls |
 | **Plan** | Net worth statement, 20-year projection, lever sensitivity, independence, goals |
-| **Advisor** | Live recommendations ranked by monthly-equivalent impact, with the reasoning |
-| **More** | Debt schedule, obligations, account balances, every assumption, export/import |
+| **Advisor** | 24 live rules ranked by monthly-equivalent impact, with the reasoning |
+| **More** | A hub into everything below |
+
+Sub-pages: **Cashflow forecast · Spending calendar · Recurring & subscriptions ·
+Import · Income · Rules · Reports · SIP schedule · Net worth history · Debt plan ·
+Accounts & pots · Assumptions & data · Search · How this works.**
+
+### The cashflow forecast
+
+The piece that matters most. It walks day by day from today to a horizon you
+choose, applying dated income, obligations, debt payments, SIP instalments,
+confirmed recurring bills and a daily living burn — then tells you the day the
+money runs out, before it does.
+
+Three things make it honest rather than merely pretty:
+
+- **It starts from safe-to-spend, not the bank balance.** Money in a pot is
+  already promised.
+- **A pot earmarked for a bill is netted off that bill.** Otherwise the same
+  dirham is punished twice — once by being held back, once by being spent.
+- **It refuses to count the same money twice.** A Tabby obligation that is also
+  a scheduled debt payment appears once. A dated salary estimate overrides the
+  recurring assumption for that month, so AED 2,906 is treated as the
+  *remainder* of the August cycle rather than an extra AED 7,915 on top of it.
+
+On the seeded position it reads: negative from **5 September**, bottoming at
+**−AED 5,260 on 25 October** — the three days between the rent cheque clearing
+and the next salary.
+
+### Import: paste what the bank actually sends you
+
+Paste one bank SMS or fifty. The parser pulls the amount, merchant, card, date
+and closing balance, matches the card digits to a real account, and
+auto-categorises through the rules engine. Rows that already exist are flagged
+as duplicates and unticked for you. Nothing is written until you confirm.
+
+CSV import works the same way and matches column names loosely, so most bank
+exports load unedited.
+
+A message that reports a closing balance is treated as a **confirmation** —
+it sets the balance rather than adjusting it, so an import can never
+double-count.
 
 ### How it handles money
 
-- **A balance you confirm always wins.** Updating an account from a bank message
-  sets the balance absolutely rather than adjusting it, so nothing double-counts.
-- **A transaction you record moves its account.** New entries you add here reduce
-  the balance they were paid from. The seeded August history carries no account
-  link, because those balances are already stated *after* those transactions.
-- **Settling a debt does not make you richer.** Marking a Tabby payment paid
-  reduces both the balance and what you owe, so net worth stays flat.
-- **Expected money is never cash.** The AED 2,906 salary expected on 26 August
-  is modelled as an inflow, never as a balance.
+- **A balance you confirm always wins.** It sets truth absolutely; everything
+  else adjusts from there.
+- **A transaction you record moves its account.** Seeded August history carries
+  no account link, because those balances are already stated *after* those
+  transactions.
+- **Settling a debt does not make you richer.** Balance down, liability down,
+  net worth flat. If a payment eats into pot money, the app says so.
+- **Paying an earmarked bill draws its pot down too.**
+- **Expected money is never cash.** A salary you have not received is an event
+  in the forecast, never a balance.
 
-### Data
+### Everything else
 
-Everything lives in `localStorage` on the device. Nothing is uploaded anywhere.
-Export and import JSON from the More tab; **Reset to workbook** returns every
-figure to the seeded position.
+- **Recurring detection** — two or more charges at a regular interval with a
+  stable amount become a proposed subscription; you confirm, and it enters the
+  forecast. Merchants that repeat without a rhythm are shown separately as
+  habits rather than contracts.
+- **Rules engine** — correct a category by hand and a rule is written for you,
+  but only when the guess was actually wrong, and only once per merchant.
+- **Daily cap tracker** — today, this week, no-spend streak, and a calendar
+  heatmap with drill-down into any day.
+- **Pots** — virtual envelopes inside real accounts, with payday allocation.
+- **Income** — sources, expected dates, receipts, concentration.
+- **SIP schedule** — per-fund plans, next dates, contribution log that updates
+  cost basis so new money never shows up as a gain.
+- **Debt** — multiple debts, avalanche against snowball, payoff dates and cost.
+- **Net worth history** — a snapshot a day, charted, with change attribution.
+- **Reports** — month by month, printable, with prior-month deltas.
+- **Undo** — whole-state, 25 deep, on everything including a bulk import.
+- **Search** — across transactions, obligations, goals, holdings and budget.
+- **Keyboard** — `/` search, `N` new transaction, `Esc` close, `Ctrl+Z` undo.
 
----
+### Code layout
+
+No build step, no dependencies. Eleven plain scripts loaded in order:
+
+| File | Role |
+|---|---|
+| `js/util.js` | Formatting, dates, CSV, small maths |
+| `js/data.js` | Seed data transcribed from the workbook |
+| `js/store.js` | State, persistence, v1→v2 migration, undo |
+| `js/engine.js` | `metrics()`, `forecast()`, recurring detection, debt strategies, reports, rules |
+| `js/advisor.js` | The 24 live recommendation rules |
+| `js/charts.js` | Inline SVG: donut, ring, area, forecast, heatmap, columns, sparkline |
+| `js/importers.js` | Bank-SMS and CSV parsing, duplicate detection |
+| `js/ui.js` | Router, modals, toasts, shared render helpers |
+| `js/views.js` | All 21 page renderers |
+| `js/modals.js` | Every write to state, each one undoable |
+| `js/app.js` | Event delegation and boot |
+
+`metrics()` is the single source of truth: every view reads from it, so no two
+screens can disagree about the position.
+
+### Verified
+
+- Every engine figure matches the workbook to the dirham — net worth, spend,
+  burn rate, blended return, the 20-year projection.
+- All 21 pages render with zero console errors.
+- No horizontal overflow at 360, 430, 768 and 1280 px.
+- Import, undo, duplicate detection, debt payment, pot accounting, search,
+  keyboard shortcuts and reload persistence all pass an automated browser suite.
 
 ## The headline finding
 
@@ -139,6 +225,12 @@ against a damage-control cap of **AED 5**. Scaled to a full month that is
 AED 6,018 against a salary of AED 7,915, and the planned budget — which includes
 a proper monthly rent accrual — does not balance by **AED 882 a month**.
 
+The day-by-day forecast puts a date on it. Starting from AED 7.27 of genuinely
+spendable cash, and with every pot, bill, debt payment and SIP accounted for
+exactly once, the balance goes **negative on 5 September** and bottoms out at
+**−AED 5,260 on 25 October** — the gap between the rent cheque clearing on the
+22nd and the salary arriving on the 26th.
+
 Four things, in order:
 
 1. Hold the rent ring-fence. AED 5,990.45 in FAB 4002 is not spendable.
@@ -149,6 +241,10 @@ Four things, in order:
 4. Start accruing rent monthly, so October 2027 is a transfer instead of a crisis.
 
 Then, and only then, raise the SIP.
+
+Switch the forecast to **budget burn** on the cashflow page to see what changes
+if the AED 5 cap is actually kept — that single toggle is the clearest argument
+in the whole app.
 
 ---
 
