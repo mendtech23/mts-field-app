@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#071827" />
+  <title>Wealth OS — Johnny's Edge</title>
+  <meta name="description" content="Budgeting, expense tracking, investments, debt and an AI advisor in one private wealth command centre." />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="stylesheet" href="styles.css?v=1" />
+</head>
+<body>
+  <div id="app">
+
+    <header id="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M3 18l5-7 4 4 5-8 4 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="brand-text">
+          <strong>Wealth&nbsp;OS</strong>
+          <small id="asOfLabel">—</small>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button id="addBtn" class="btn btn-accent" title="Record a transaction">＋ Add</button>
+        <button id="themeBtn" class="icon-btn" title="Toggle theme" aria-label="Toggle theme">◐</button>
+      </div>
+    </header>
+
+    <main id="views">
+      <section id="view-home"    class="view active" aria-label="Dashboard"></section>
+      <section id="view-money"   class="view" aria-label="Expenses and income"></section>
+      <section id="view-budget"  class="view" aria-label="Budget"></section>
+      <section id="view-invest"  class="view" aria-label="Investments"></section>
+      <section id="view-plan"    class="view" aria-label="Net worth, goals and wealth plan"></section>
+      <section id="view-advisor" class="view" aria-label="AI advisor"></section>
+      <section id="view-more"    class="view" aria-label="Debt, assumptions and settings"></section>
+    </main>
+
+    <nav id="tabbar" aria-label="Main navigation">
+      <button class="tab active" data-view="home"><span class="t-ic">◧</span><span>Home</span></button>
+      <button class="tab" data-view="money"><span class="t-ic">↔</span><span>Money</span></button>
+      <button class="tab" data-view="budget"><span class="t-ic">▤</span><span>Budget</span></button>
+      <button class="tab" data-view="invest"><span class="t-ic">◮</span><span>Invest</span></button>
+      <button class="tab" data-view="plan"><span class="t-ic">▲</span><span>Plan</span></button>
+      <button class="tab" data-view="advisor"><span class="t-ic">✦</span><span>Advisor</span></button>
+      <button class="tab" data-view="more"><span class="t-ic">⚙</span><span>More</span></button>
+    </nav>
+
+    <div id="modalRoot"></div>
+    <div id="toastRoot" aria-live="polite"></div>
+    <div id="tip" role="tooltip"></div>
+  </div>
+
+  <script src="app.js?v=1"></script>
+</body>
+</html>
