@@ -22,6 +22,8 @@ const SUBPAGES = {
   accounts:  { title: "Accounts & pots",     parent: "more" },
   settings:  { title: "Assumptions & data",  parent: "more" },
   search:    { title: "Search",              parent: "more" },
+  family:    { title: "Family & future",     parent: "plan" },
+  rentgap:   { title: "The rent gap",        parent: "home" },
   help:      { title: "How this works",      parent: "more" },
 };
 

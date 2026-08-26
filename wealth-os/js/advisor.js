@@ -17,19 +17,24 @@ function advice(m = metrics(), s = state) {
 
   /* ---- urgent, this week ---- */
   add({
-    id: "gap-sep", group: "Urgent", title: "Bank the September funding gap",
-    open: m.billsGap > 0.01, impact: m.billsGap, effort: "High", by: "2026-09-15",
-    status: m.billsGap > 0.01 ? "OPEN" : "CLOSED",
-    why: `Confirmed bills of ${money(m.nearBills)} plus ${money(A.survivalToSep25)} of survival spending exceed the `
-       + `${money(m.availableToSep)} of loose cash and expected payday. Earn it, or pause the SIP — in that order, `
-       + `and never from the protected rent.`,
+    id: "rent-gap", group: "Urgent", title: `Earn ${money(m.earnPerWeek)} a week and bank it`,
+    open: m.rentGap > 0.01, impact: m.rentGap, effort: "High", by: m.rentDeadline,
+    status: m.rentGap > 0.01 ? "OPEN" : "CLOSED",
+    why: `Spendable cash of ${money(m.spendableNow)} plus ${money(m.inflowsBeforeDeadline)} of salary, less `
+       + `${money(m.committedBeforeDeadline)} of bills, ${money(m.rentToFund)} still owed on the cheque and `
+       + `the ${money(A.safetyBuffer)} buffer, leaves a living pool of ${money(m.livingPool)} against a `
+       + `${money(m.minLivingNeed)} minimum. The gap is ${money(m.rentGap)} across ${m.daysToRentDeadline} `
+       + `days. It closes through income, not cuts — the daily cap is already at the survival floor.`,
   });
+
   add({
-    id: "rent-ringfence", group: "Urgent", title: "Do not touch the protected rent in FAB 4002",
-    open: m.rentHeld > 0, impact: m.rentHeld, effort: "None", by: "2026-10-21",
+    id: "rent-ringfence", group: "Urgent", title: "Do not touch the rent vault in FAB 4002",
+    open: m.rentHeld > 0, impact: m.rentHeld, effort: "None", by: m.rentDeadline,
     status: m.rentHeld > 0 ? "IN FORCE" : "RELEASED",
-    why: `FAB 4002 shows ${money(6090.70)} but only ${money(100.25)} of it is yours to spend. Treating the account `
-       + `balance as available is the single most likely way this plan fails.`,
+    why: `Every dirham of the ${money(m.rentHeld)} in FAB 4002 is committed to the October cheque — the whole `
+       + `balance, not part of it. Money accumulates there, then moves to FAB 4001 shortly before the 22nd. `
+       + `Treating that balance as available is the single most likely way this plan fails, and a refund that `
+       + `never lands is the second.`,
   });
   add({
     id: "tabby-min", group: "Urgent", title: "Let the no-fee minimum run on 3 Sep — do not pay the full statement",
@@ -142,8 +147,8 @@ function advice(m = metrics(), s = state) {
   });
   add({
     id: "sip-hold", group: "Investing", title: "Decide on the SIP on 8 Sep, not before",
-    open: m.billsGap > 0.01, impact: A.sipAed, effort: "None", by: "2026-09-08",
-    status: m.billsGap > 0.01 ? "CONDITIONAL" : "SAFE TO CONTINUE",
+    open: m.rentGap > 0.01, impact: A.sipAed * 2, effort: "None", by: "2026-09-08",
+    status: m.rentGap > 0.01 ? "CONDITIONAL" : "SAFE TO CONTINUE",
     why: "A paused SIP is cheap to restart; a missed rent cheque is not. But pausing early, while the gap might "
        + "still be closed by earning, gives up compounding for nothing. Decide on real balances.",
   });
@@ -218,6 +223,27 @@ function advice(m = metrics(), s = state) {
        + `and over a decade it matters more than all the others combined.`,
   });
 
+  add({
+    id: "grocery-transfer", group: "Structure",
+    title: "Plan for the grocery bill moving across on 15 September",
+    open: true, impact: A.groceryTransfer, effort: "Medium", by: A.partnerLastWorkingDay,
+    status: todayISO() >= A.partnerLastWorkingDay ? "IN EFFECT" : "COMING",
+    why: `Her last working day is ${longDate(A.partnerLastWorkingDay)}, and about `
+       + `${money(A.groceryTransfer)} a month of groceries transfers to this household from then. It is `
+       + `certain, it recurs, and it lands in the middle of the rent window — which makes it the one `
+       + `forecast change on this list that is not a choice. Get the real figure when it firms up; the `
+       + `midpoint is standing in for it.`,
+  });
+  add({
+    id: "hr-maternity", group: "Structure", title: "Confirm with HR that maternity is not excluded",
+    open: true, impact: 0, effort: "None", by: addDaysISO(todayISO(), 14),
+    status: "UNCONFIRMED",
+    why: "Her Essential Benefits Plan is active with no waiting period, and the mandated sub-limit is "
+       + "AED 7,000 for a normal delivery with a 10% co-payment. Whether maternity is excluded on this "
+       + "specific tier is a five-minute call — and the difference between a sub-limit you assumed and "
+       + "one you confirmed is thousands of dirhams. Worth doing regardless of timing.",
+  });
+
   /* ---- housekeeping the app can check for itself ---- */
   const st = sGlobal();
   const lastBackup = st.settings.lastBackup;
@@ -241,6 +267,7 @@ function advice(m = metrics(), s = state) {
     "sip-hold": "month", amana: "once", stepup: "life",
     runway: "once", minbalance: "once", subs: "month",
     "income-concentration": "once", backup: "once",
+    "rent-gap": "once", "grocery-transfer": "month", "hr-maternity": "once",
   };
   const perMonth = (x) => x.scale === "life" ? x.impact / (A.horizonYears * 12)
                         : x.scale === "once" ? x.impact / 12

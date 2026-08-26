@@ -18,10 +18,13 @@ SAFE = {
     "IF", "AND", "OR", "NOT", "MAX", "MIN", "ABS", "AVERAGE", "ROUND", "INT",
     "IFERROR", "INDEX", "MATCH", "TEXT", "YEAR", "MONTH", "DAY", "DATE", "TODAY",
     "MOD", "POWER", "SQRT", "LEN", "TRIM", "CONCATENATE", "VALUE",
+    "ROW", "COLUMN", "SMALL", "LARGE", "ROUNDUP", "ROUNDDOWN", "CHAR",
+    "FV", "PMT", "LOOKUP", "EDATE", "EOMONTH", "WEEKDAY", "DATEVALUE",
 }
 
+# The sheet-name part must be followed by "!", or "AA$6" parses as sheet "A".
 CELL = re.compile(
-    r"(?:'(?P<q>[^']+)'|(?P<b>[A-Za-z_][A-Za-z0-9_ .]*))?!?"
+    r"(?:(?:'(?P<q>[^']+)'|(?P<b>[A-Za-z_][A-Za-z0-9_ .]*))!)?"
     r"(?P<ref>\$?[A-Z]{1,3}\$?\d{1,7}(?::\$?[A-Z]{1,3}\$?\d{1,7})?)"
 )
 FUNC = re.compile(r"([A-Z][A-Z0-9._]*)\s*\(")

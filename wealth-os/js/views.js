@@ -36,6 +36,36 @@ function renderHome() {
       </div>
     </div>
 
+    <div class="card ${m.rentGap > 0 ? "edge-bad" : "edge-good"}">
+      <div class="card-head">
+        <div><h2>The rent gap</h2>
+          <div class="sub">${m.daysToRentDeadline} days to ${longDate(m.rentDeadline)} · the binding constraint</div></div>
+        ${linkBtn("Detail", "rentgap")}
+      </div>
+      <div class="today-row">
+        <div>
+          <div class="today-value ${m.rentGap > 0 ? "num-neg" : "num-pos"}">${money(m.earnPerWeek)}</div>
+          <div class="muted" style="font-size:12px">to earn each week</div>
+        </div>
+        <div>
+          <div class="today-value">${money(m.rentGap)}</div>
+          <div class="muted" style="font-size:12px">total gap</div>
+        </div>
+        <div>
+          <div class="today-value">${pct(safeDiv(m.rentHeld, m.A.rentCheque), 0)}</div>
+          <div class="muted" style="font-size:12px">of the cheque vaulted</div>
+        </div>
+      </div>
+      <div class="bar ${m.rentGap > 0 ? "warn" : "good"}" style="margin-top:10px">
+        <i style="width:${clamp(safeDiv(m.rentHeld, m.A.rentCheque) * 100, 0, 100).toFixed(0)}%"></i></div>
+      <div class="note ${m.rentGap > 0 ? "bad" : "good"}">
+        ${m.rentGap > 0
+          ? `Earn <strong>${money(m.earnPerWeek)}</strong> a week and don't spend it. That single number
+             closes the gap; every other goal in this app waits behind it and becomes possible once it's done.`
+          : `The gap is closed. Hold the line to 21 October and the cheque clears.`}
+      </div>
+    </div>
+
     <div class="card ${m.todaySpend > cap ? "edge-bad" : "edge-good"}">
       <div class="card-head">
         <div><h2>Today</h2><div class="sub">${longDate(todayISO())} · cap ${money(cap)} a day</div></div>
@@ -411,9 +441,12 @@ function renderPlan() {
 
   return `
     ${card("Net worth statement", "Everything you own, everything you owe, in dirhams",
-      kv("Liquid cash", money(m.liquidCash))
-      + kv("Investments", money(m.invested))
-      + kv("<strong>Total assets</strong>", money(m.totalAssets))
+      kv("Liquid cash (dirham accounts)", money(m.liquidCash))
+      + kv("Investments", money(m.invested), "", "Mutual funds, Amana and Binance")
+      + kv("<strong>Total assets</strong>", money(m.totalAssets), "",
+           "The figure the workbook headlines — it does not net off debt")
+      + kv("Rupee SIP account", money(m.foreignCash), "muted",
+           "Money in transit; it funds the SIP and belongs to neither total")
       + kv("Debt", `−${fmt(m.debtOutstanding)}`, "num-neg")
       + `<div class="kv strong-top"><span class="k"><strong>Net worth</strong></span>
           <span class="v">${money(m.netWorth)}</span></div>`
@@ -424,7 +457,7 @@ function renderPlan() {
            m.netWorth - m.rentToFund - m.extraCashNeeded >= 0 ? "" : "num-neg")
       + `<div class="note">Net worth is the scoreboard; the budget is the game. A disciplined month shows up here as
         a higher number even when the current account looks empty, because units bought outlast cash spent.</div>`,
-      linkBtn("History", "history"))}
+      linkBtn("History", "history") + linkBtn("Family", "family"))}
 
     ${statBlock([
       { k: "Emergency cover", v: m.emergencyCover.toFixed(2) + " mo",
@@ -484,8 +517,10 @@ function renderPlan() {
           ${A.horizonYears} years. The fix is the contribution lever, not a better fund — try the scenarios above.</div>` : ""))}
 
     ${[1, 2, 3].map((stage) => card(
-      ["", "Stage 1 — survive the quarter", "Stage 2 — build the buffer", "Stage 3 — compound"][stage],
-      ["", "Nothing later matters until these are done", "The buffer that stops the crisis repeating", "The long game"][stage],
+      ["", "Stage 1 — close the rent gap", "Stage 2 — rebuild the floor", "Stage 3 — family, goals and compounding"][stage],
+      ["", "Nothing below moves until this is done",
+       "One month of breathing room, then six months of cover",
+       "Fundable only once stages 1 and 2 are clear"][stage],
       goals.filter((g) => g.stage === stage).map((g) => `
         <div class="row flat">
           <div class="row-main">
@@ -506,10 +541,20 @@ function goalRows(m) {
     if (g.months) target = m.essential * g.months;
     if (g.yearRent) target = A.rentCheque * A.rentChequesPerYear;
     if (g.fiTarget) target = m.fiTarget;
+    if (g.rentGap) target = m.rentGap;
     const current = {
       looseCash: m.looseCash, rentHeld: m.rentHeld, emergency: m.emergency,
       invested: m.invested, netWorth: m.netWorth, debtCleared: m.debtCleared,
+      safeToSpend: Math.max(0, m.safeToSpend),
+      /* Nothing in stage 3 is funded until the rent gap closes, so its
+         progress is honestly zero until that happens. */
+      goalFund: m.rentGap > 0 ? 0 : Math.max(0, m.livingPool),
+      rentGapClosed: Math.max(0, m.rentGap === 0 ? 1 : 0),
     }[g.currentRef] || 0;
+    if (g.rentGap) {
+      return { ...g, target: m.rentGap, current: 0, gap: m.rentGap,
+               progress: m.rentGap > 0 ? 0 : 1 };
+    }
     return { ...g, target, current, gap: Math.max(0, target - current),
              progress: target ? clamp(current / target, 0, 1) : 1 };
   });
@@ -608,6 +653,8 @@ function renderMore() {
          ["import", "Import", "Bank messages and CSV"],
          ["search", "Search", "Everything, everywhere"],
          ["settings", "Assumptions & data", "Every lever, export and backup"],
+         ["family", "Family & future", "Maternity, the buffer and a home, honestly costed"],
+         ["rentgap", "The rent gap", "The one number that decides the quarter"],
          ["help", "How this works", "The method, in plain words"]]
         .map(([v, t, s]) => `<button class="hub" data-goto="${v}">
           <span class="hub-t">${esc(t)}</span><span class="hub-s">${esc(s)}</span></button>`).join("")}
@@ -1354,4 +1401,180 @@ function renderHelp() {
         <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes the last change, including a bulk import</li>
         <li>Add the app to your home screen and it works with no connection at all</li>
       </ul>`)}`;
+}
+
+/* ---------------------------------------------------------- rent gap --- */
+/* The workbook's headline, reproduced line for line so the two can never
+   disagree about the one number that decides the quarter. */
+function renderRentGap() {
+  const m = metrics();
+  const A = m.A;
+  const build = [
+    ["Spendable cash now", m.spendableNow, "Every dirham account less what the pots hold"],
+    ["Salary landing before the deadline", m.inflowsBeforeDeadline, "Only pay dates on or before 21 Oct — the 26 Oct salary is four days too late"],
+    ["Bills committed before then", -m.committedBeforeDeadline, "Every dated outflow except the rent cheque itself"],
+    ["Rent still to fund", -m.rentToFund, `Cheque ${money(A.rentCheque)} less ${money(m.rentHeld)} already vaulted`],
+    ["Safety buffer held back", -m.safetyBuffer, "The cash you refuse to go below"],
+  ];
+
+  return `${subHeader("rentgap")}
+    <div class="card hero ${m.rentGap > 0 ? "edge-bad" : "edge-good"}">
+      <div class="hero-label">Earn this much every week, and don't spend it</div>
+      <div class="hero-value ${m.rentGap > 0 ? "num-neg" : "num-pos"}">${money(m.earnPerWeek)}</div>
+      <div class="hero-sub">
+        ${money(m.rentGap)} to find across ${m.daysToRentDeadline} days —
+        ${money(m.earnPerDay)} a day until ${longDate(m.rentDeadline)}
+      </div>
+    </div>
+
+    ${statBlock([
+      { k: "Rent cheque", v: money(A.rentCheque), n: `clears ${shortDate("2026-10-22")}` },
+      { k: "Already vaulted", v: money(m.rentHeld), tone: "good",
+        n: pct(safeDiv(m.rentHeld, A.rentCheque), 0) + " funded" },
+      { k: "Still to fund", v: money(m.rentToFund), tone: "bad", n: "by 21 Oct" },
+      { k: "Days left", v: String(m.daysToRentDeadline), tone: m.daysToRentDeadline < 30 ? "bad" : "warn" },
+    ])}
+
+    ${card("How the gap is built", "Each line is a fact from the ledger, not an estimate", `
+      ${build.map(([label, v, note]) => `
+        <div class="kv"><span class="k">${esc(label)}<br>
+          <span class="muted" style="font-size:11.5px">${esc(note)}</span></span>
+          <span class="v ${v < 0 ? "num-neg" : ""}">${v < 0 ? "−" + fmt(Math.abs(v)) : money(v)}</span></div>`).join("")}
+      <div class="kv strong-top"><span class="k"><strong>Living pool to the deadline</strong></span>
+        <span class="v ${m.livingPool < 0 ? "num-neg" : "num-pos"}">${money(m.livingPool)}</span></div>
+      <div class="kv"><span class="k">Minimum you can live on
+        <br><span class="muted" style="font-size:11.5px">${m.daysToRentDeadline} days at the ${money(A.dailyCap)} floor</span></span>
+        <span class="v">${money(m.minLivingNeed)}</span></div>
+      <div class="kv strong-top"><span class="k"><strong>THE GAP</strong></span>
+        <span class="v ${m.rentGap > 0 ? "num-neg" : "num-pos"}">${money(m.rentGap)}</span></div>
+      <div class="note ${m.rentGap > 0 ? "bad" : "good"}">
+        ${m.rentGap > 0
+          ? `The living pool is <strong>${money(m.livingPool)}</strong> — below zero, which means the rent
+             cannot be funded and the next ${m.daysToRentDeadline} days lived through on the money in hand.
+             The gap closes through income, not through cuts: the cap is already at the survival floor.`
+          : `The pool covers the minimum living need. Hold the line and the cheque clears.`}
+      </div>`)}
+
+    ${m.autopayCommitted > 0 ? card("One number to be careful about", "", `
+      <p class="verdict">The AED ${fmt(m.autopayCommitted)} Tabby minimum is marked as settled because
+      autopay is already set, so it sits outside the committed-outflows figure above. The cash does not
+      actually leave until 3 September. The day-by-day forecast still charges it on that date, which is
+      why the forecast reads tighter than this page — deliberately. Treat this page as the funding
+      arithmetic and the forecast as the bank balance.</p>`, linkBtn("Forecast", "flow")) : ""}
+
+    ${card("What actually closes it", "In order, and nothing jumps the queue", `
+      <ol class="steps">
+        <li><strong>Earn ${money(m.earnPerWeek)} a week and bank it.</strong> Only confirmed receipts count.
+            This single number closes the gap on its own.</li>
+        <li><strong>Hold spending at the ${money(A.dailyCap)} floor.</strong> The cap is already at survival
+            level, so there is nothing left to cut — this protects the plan rather than improving it.</li>
+        <li><strong>Pausing the September and October SIPs frees ${money(A.sipAed * 2)}.</strong>
+            That is ${pct(safeDiv(A.sipAed * 2, m.rentGap), 0)} of the gap, and you keep every unit you
+            already own. Decide it on 8 September against real balances, not now against estimates.</li>
+        <li><strong>Never release vault money against an unconfirmed inflow.</strong> A refund that fails
+            turns a tight plan into a missed cheque.</li>
+      </ol>`)}`;
+}
+
+/* ------------------------------------------------ family & future ------ */
+function renderFamily() {
+  const m = metrics();
+  const F = SEED_FAMILY;
+  const ins = F.insurance;
+  const covered = ins.normalDelivery * (1 - ins.coPayment);
+  const outOfPocket = Math.max(0, F.workingBudget - covered);
+  const home = F.home;
+  const cashAtClosing = home.examplePrice * home.cashAtClosing;
+
+  return `${subHeader("family")}
+    ${statBlock([
+      { k: "Emergency target", v: money(m.emergencyTarget), tone: "warn",
+        n: `${m.A.emergencyMonths} months of essentials` },
+      { k: "Held today", v: money(m.emergency), tone: "bad",
+        n: pct(safeDiv(m.emergency, m.emergencyTarget), 1) + " of target" },
+      { k: "Maternity budget", v: money(F.workingBudget), n: "mid private range" },
+      { k: "Likely out of pocket", v: money(outOfPocket), tone: "warn", n: "after her EBP cover" },
+    ])}
+
+    ${card("The change that has already happened", "Confirmed 14 August", `
+      <p class="verdict">Her last working day is <strong>${longDate(F.partner.lastWorkingDay)}</strong>.
+      She covered the groceries — under AED 2,000 a month — and that bill transfers to this household
+      from that date, in the middle of the rent window. Rent has already been yours alone this year, so
+      no rent figure changes.</p>
+      <div class="kv"><span class="k">Grocery bill transferring</span>
+        <span class="v num-neg">+${fmt(F.partner.groceryTransfer)} a month</span></div>
+      <div class="kv"><span class="k">Essentials before the change</span>
+        <span class="v">${money(m.essential)}</span></div>
+      <div class="kv"><span class="k">Essentials after 15 September</span>
+        <span class="v num-neg">${money(m.essentialForward)}</span></div>
+      <div class="note warn">This is the single most important change on this page, because it is
+        certain, it is recurring, and it lands before the rent cheque. The emergency-fund target below
+        is sized on the household that will exist, not the one that exists today.</div>`)}
+
+    ${card("Maternity — what her insurance actually covers", esc(ins.tier + " · " + ins.status), `
+      <div class="kv"><span class="k">EBP sub-limit, normal delivery</span><span class="v">${money(ins.normalDelivery)}</span></div>
+      <div class="kv"><span class="k">EBP sub-limit, C-section</span><span class="v">${money(ins.cSection)}</span></div>
+      <div class="kv"><span class="k">Your co-payment</span><span class="v">${pct(ins.coPayment, 0)}</span></div>
+      <div class="kv"><span class="k">Effectively covered, normal delivery</span><span class="v num-pos">${money(covered)}</span></div>
+      <div class="kv strong-top"><span class="k"><strong>Gap to the working budget</strong></span>
+        <span class="v num-neg">${money(outOfPocket)}</span></div>
+      <div class="scroll-x" style="margin-top:12px"><table class="tbl">
+        <thead><tr><th>Route</th><th class="num">Low</th><th class="num">High</th><th>Source</th></tr></thead>
+        <tbody>${F.maternity.map((x) => `<tr><td>${esc(x.label)}</td>
+          <td class="num">${money(x.low)}</td><td class="num">${money(x.high)}</td>
+          <td class="muted" style="font-size:11.5px">${esc(x.note)}</td></tr>`).join("")}</tbody>
+      </table></div>
+      <div class="note">${esc(ins.note)}</div>
+      <div class="note warn"><strong>Five-minute call worth making regardless of timing:</strong> confirm
+        with HR that maternity is not excluded under this specific plan, even though coverage is active.
+        A sub-limit you assumed and a sub-limit you confirmed are different things.</div>`)}
+
+    ${card("The newborn year, which insurance does not touch", "", `
+      <div class="kv"><span class="k">First-year essentials</span><span class="v">${money(F.newbornFirstYear)}</span></div>
+      <div class="kv"><span class="k">Contingency for scans and extras</span><span class="v">${money(F.contingency)}</span></div>
+      <div class="kv strong-top"><span class="k"><strong>Total family provision</strong></span>
+        <span class="v">${money(F.workingBudget + F.newbornFirstYear + F.contingency)}</span></div>
+      <div class="note">Crib, car seat, clothing, paediatrician visits, formula and diapers. Insurance
+        covers none of it. Treat the figure as a floor rather than a ceiling.</div>`)}
+
+    ${card("Emergency fund — the real insurance", "Single income, family coming", `
+      <div class="bar ${m.emergency >= m.emergencyTarget ? "good" : "bad"}" style="margin-bottom:12px">
+        <i style="width:${clamp(safeDiv(m.emergency, m.emergencyTarget) * 100, 0, 100).toFixed(1)}%"></i></div>
+      <div class="kv"><span class="k">Monthly essentials used for the target</span>
+        <span class="v">${money(m.A.monthlyEssentials)}</span></div>
+      <div class="kv"><span class="k">${m.A.emergencyMonths}-month target</span><span class="v">${money(m.emergencyTarget)}</span></div>
+      <div class="kv"><span class="k">Held today</span><span class="v num-neg">${money(m.emergency)}</span></div>
+      <div class="kv"><span class="k">Months of cover</span>
+        <span class="v num-neg">${m.emergencyCover.toFixed(2)}</span></div>
+      <div class="note bad">Standard guidance for a single-income household is six months. You are
+        currently on ${m.emergencyCover.toFixed(2)}. That is the honest number, and it is why the family
+        provision above sits behind the rent gap and the buffer rather than in front of them.</div>`)}
+
+    ${card("A home — the arithmetic before the ambition", "", `
+      <div class="kv"><span class="k">Typical lender minimum salary</span><span class="v">${money(home.dubaiMinSalary)}</span></div>
+      <div class="kv"><span class="k">Lowest seen, small loans only</span><span class="v">${money(home.dubaiMinSalaryLowest)}</span></div>
+      <div class="kv"><span class="k">Your salary today</span>
+        <span class="v ${m.income >= home.dubaiMinSalary ? "num-pos" : "num-neg"}">${money(m.income)}</span></div>
+      <div class="kv"><span class="k">Deposit on a ${money0(home.examplePrice)} home</span>
+        <span class="v">${money(home.examplePrice * home.downPayment)}</span></div>
+      <div class="kv"><span class="k">Total cash needed at closing</span>
+        <span class="v">${money(cashAtClosing)}</span></div>
+      <div class="note ${m.income >= home.dubaiMinSalary ? "" : "warn"}">
+        ${esc(home.note)} On today's salary this is not eligible — the lever that moves it is income, not
+        saving harder. It is a multi-year, income-led goal, and putting it behind the emergency fund is
+        not pessimism, it is sequencing.</div>
+      ${!home.indiaCity ? `<div class="note">India: no city set. Prices vary enormously between cities,
+        so there is no honest number to show until one is chosen.</div>` : ""}`)}
+
+    ${card("Four paths to a crore", "The workbook's own modelling, and what each one costs", `
+      <div class="scroll-x"><table class="tbl wide">
+        <thead><tr><th>Path</th><th class="num">Years</th><th>Monthly cost</th><th>Trade-off</th></tr></thead>
+        <tbody>${SEED_CRORE_PATHS.map((x, i) => `<tr>
+          <td>${esc(x.label)}${i === 2 ? " " + pill("fastest realistic", "good") : ""}</td>
+          <td class="num">${x.years}</td><td>${esc(x.monthly)}</td>
+          <td class="muted" style="font-size:11.5px">${esc(x.tradeoff)}</td></tr>`).join("")}</tbody>
+      </table></div>
+      <div class="note">Seven years is not reachable: it would need roughly INR 55,000 a month, about
+        four and a half times the current salary. The lever that moves this is income growth, not fund
+        selection — which is the same conclusion the rent gap reaches by a different route.</div>`)}`;
 }

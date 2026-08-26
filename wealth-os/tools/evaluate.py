@@ -27,6 +27,15 @@ class XlError(Exception):
     def __init__(self, code): super().__init__(code); self.code = code
 
 
+class ErrCell:
+    """An error carried as a value, not raised. Excel does this inside arrays:
+    1/{1;0;1} yields {1;#DIV/0!;1}, and LOOKUP then skips the error element.
+    Raising there would abort a formula Excel evaluates happily."""
+    __slots__ = ("code",)
+    def __init__(self, code): self.code = code
+    def __repr__(self): return self.code
+
+
 # --------------------------------------------------------------- tokenizer --
 TOKEN = re.compile(r"""
     (?P<str>"(?:[^"]|"")*")
@@ -60,8 +69,9 @@ def tokenize(f):
 class Parser:
     """Recursive descent; precedence follows Excel."""
 
-    def __init__(self, tokens, sheet, book):
+    def __init__(self, tokens, sheet, book, here=None):
         self.t, self.i, self.sheet, self.book = tokens, 0, sheet, book
+        self.here = here or (1, 1)      # (row, col) of the cell being evaluated
 
     def peek(self): return self.t[self.i] if self.i < len(self.t) else (None, None)
     def next(self):
@@ -105,9 +115,15 @@ class Parser:
             if op == "*":
                 left = broadcast(lambda x, y: num(x) * num(y), left, right)
             else:
+                array = isinstance(left, Range) or isinstance(right, Range)
                 def _div(x, y):
+                    if isinstance(x, ErrCell): return x
+                    if isinstance(y, ErrCell): return y
                     d = num(y)
-                    if d == 0: raise XlError("#DIV/0!")
+                    if d == 0:
+                        # inside an array this is a value Excel keeps and skips
+                        if array: return ErrCell("#DIV/0!")
+                        raise XlError("#DIV/0!")
                     return num(x) / d
                 left = broadcast(_div, left, right)
         return left
@@ -144,8 +160,8 @@ class Parser:
             return inner
         if k == "func":
             if self.next()[0] != "lp": raise XlError("#PARSE! missing (")
-            args = self.arglist()
-            return call(v, args, self.book)
+            spans = self.arg_spans()
+            return call_lazy(v, spans, self)
         if k == "sheet":
             name = v[:-1]
             if name.startswith("'"): name = name[1:-1].replace("''", "'")
@@ -156,29 +172,89 @@ class Parser:
             return self.book.resolve(self.sheet, v)
         raise XlError(f"#PARSE! unexpected {k} {v!r}")
 
-    def arglist(self):
-        args = []
+    def arg_spans(self):
+        """Record each argument's token span without evaluating it, so a
+        function can choose which of its arguments to evaluate at all."""
+        spans = []
         if self.peek()[0] == "rp":
-            self.next(); return args
+            self.next(); return spans
+        depth, start = 0, self.i
         while True:
-            # an omitted argument (",,") evaluates to blank
-            if self.peek()[0] in ("comma", "rp"):
-                args.append(None)
-            else:
-                args.append(self.compare())
-            k, _ = self.next()
-            if k == "rp": return args
-            if k != "comma": raise XlError("#PARSE! bad argument list")
+            k, _ = self.peek()
+            if k is None: raise XlError("#PARSE! unterminated arguments")
+            if k == "lp": depth += 1
+            elif k == "rp":
+                if depth == 0:
+                    spans.append((start, self.i)); self.next(); return spans
+                depth -= 1
+            elif k == "comma" and depth == 0:
+                spans.append((start, self.i)); self.next(); start = self.i; continue
+            self.next()
 
+    def eval_span(self, span):
+        lo, hi = span
+        if lo == hi: return None                    # an omitted argument
+        sub = Parser(self.t[lo:hi], self.sheet, self.book, self.here)
+        return sub.parse()
+
+
+
+LAZY = {"IF", "IFERROR", "AND", "OR", "IFS"}
+
+
+def truthy(v):
+    v = scalar(v)
+    if isinstance(v, ErrCell): raise XlError(v.code)
+    if isinstance(v, bool): return v
+    if v is None or v == "": return False
+    return num(v) != 0
+
+
+def call_lazy(name, spans, parser):
+    """IF and friends must not evaluate the branch they do not take: a
+    division by zero down the untaken path is not an error in Excel."""
+    if name in LAZY:
+        if name == "IF":
+            cond = truthy(parser.eval_span(spans[0]))
+            if cond:
+                return scalar(parser.eval_span(spans[1])) if len(spans) > 1 else True
+            return scalar(parser.eval_span(spans[2])) if len(spans) > 2 else False
+        if name == "IFERROR":
+            try:
+                v = scalar(parser.eval_span(spans[0]))
+                if isinstance(v, ErrCell): raise XlError(v.code)
+                return v
+            except XlError:
+                return scalar(parser.eval_span(spans[1]))
+        if name == "IFS":
+            for i in range(0, len(spans) - 1, 2):
+                if truthy(parser.eval_span(spans[i])):
+                    return scalar(parser.eval_span(spans[i + 1]))
+            raise XlError("#N/A")
+        if name == "AND":
+            for sp in spans:
+                for v in flat([parser.eval_span(sp)]):
+                    if not truthy(v): return False
+            return True
+        if name == "OR":
+            for sp in spans:
+                for v in flat([parser.eval_span(sp)]):
+                    if truthy(v): return True
+            return False
+    return call(name, [parser.eval_span(sp) for sp in spans], parser.book, parser.here)
 
 # --------------------------------------------------------------- coercion --
 class Range(list):
     """A rectangular range: a flat list of values, kept distinct from a scalar."""
+    first_row = 1
+    first_col = 1
+    width = 1
 
 
 def num(v):
     if isinstance(v, Range):
         v = v[0] if v else 0
+    if isinstance(v, ErrCell): raise XlError(v.code)
     v = to_serial(v)
     if v is None or v == "": return 0.0
     if isinstance(v, bool): return 1.0 if v else 0.0
@@ -257,10 +333,10 @@ def flat(args):
 
 def numbers(args):
     return [num(x) for x in flat(args)
-            if x is not None and x != "" and not isinstance(x, str)]
+            if x is not None and x != "" and not isinstance(x, (str, ErrCell))]
 
 
-def call(name, args, book):
+def call(name, args, book, here=(1, 1)):
     if name == "IF":
         cond = scalar(args[0])
         cond = bool(cond) if isinstance(cond, bool) else num(cond) != 0
@@ -288,7 +364,7 @@ def call(name, args, book):
     if name == "DATE":
         d = dt.datetime(int(num(args[0])), int(num(args[1])), int(num(args[2])))
         return (d - EPOCH).days * 1.0
-    if name == "TODAY": return float((dt.datetime(2026, 8, 25) - EPOCH).days)
+    if name == "TODAY": return float((dt.datetime(2026, 8, 26) - EPOCH).days)
     if name == "IFERROR":
         try: return scalar(args[0])
         except XlError: return scalar(args[1])
@@ -313,20 +389,169 @@ def call(name, args, book):
         arrays = [a if isinstance(a, Range) else Range([a]) for a in args]
         n = min(len(a) for a in arrays)
         return float(sum(math.prod(num(a[i]) for a in arrays) for i in range(n)))
+    if name == "CONCATENATE":
+        return "".join(as_text(a) for a in flat(args))
+    if name == "MATCH":
+        v = scalar(args[0])
+        arr = args[1] if isinstance(args[1], Range) else Range([args[1]])
+        typ = int(num(args[2])) if len(args) > 2 and args[2] is not None else 1
+        if typ == 0:
+            for i, item in enumerate(arr):
+                if isinstance(item, ErrCell): continue
+                try:
+                    if compare("=", item, v): return float(i + 1)
+                except XlError:
+                    continue
+            raise XlError("#N/A")
+        best = None
+        for i, item in enumerate(arr):
+            if item is None or item == "" or isinstance(item, ErrCell): continue
+            try:
+                ok = compare("<=", item, v) if typ == 1 else compare(">=", item, v)
+            except XlError:
+                continue
+            if ok: best = i
+        if best is None: raise XlError("#N/A")
+        return float(best + 1)
+    if name == "INDEX":
+        arr = args[0] if isinstance(args[0], Range) else Range([args[0]])
+        r = int(num(args[1])) if len(args) > 1 and args[1] is not None else 1
+        c = int(num(args[2])) if len(args) > 2 and args[2] is not None else None
+        if c is None:
+            if r < 1 or r > len(arr): raise XlError("#REF!")
+            return arr[r - 1]
+        width = getattr(arr, "width", 1)
+        idx = (r - 1) * width + (c - 1)
+        if idx < 0 or idx >= len(arr): raise XlError("#REF!")
+        return arr[idx]
+    if name == "ROW":
+        if not args or args[0] is None: return float(here[0])
+        a = args[0]
+        return float(a.first_row) if isinstance(a, Range) and hasattr(a, "first_row") else float(here[0])
+    if name == "COLUMN":
+        if not args or args[0] is None: return float(here[1])
+        return float(here[1])
+    if name == "SMALL":
+        xs = sorted(numbers([args[0]]))
+        k = int(num(args[1]))
+        if k < 1 or k > len(xs): raise XlError("#NUM!")
+        return xs[k - 1]
+    if name == "LARGE":
+        xs = sorted(numbers([args[0]]), reverse=True)
+        k = int(num(args[1]))
+        if k < 1 or k > len(xs): raise XlError("#NUM!")
+        return xs[k - 1]
+    if name == "ROUNDUP":
+        d = int(num(args[1])) if len(args) > 1 else 0
+        x = num(args[0]); f = 10 ** d
+        return math.ceil(abs(x) * f) / f * (1 if x >= 0 else -1)
+    if name == "ROUNDDOWN":
+        d = int(num(args[1])) if len(args) > 1 else 0
+        x = num(args[0]); f = 10 ** d
+        return math.floor(abs(x) * f) / f * (1 if x >= 0 else -1)
+    if name == "CHAR":
+        return chr(int(num(args[0])))
+    if name == "FV":
+        # FV(rate, nper, pmt, [pv], [type])
+        rate, nper, pmt = num(args[0]), num(args[1]), num(args[2])
+        pv = num(args[3]) if len(args) > 3 and args[3] is not None else 0.0
+        typ = num(args[4]) if len(args) > 4 and args[4] is not None else 0.0
+        if rate == 0:
+            return -(pv + pmt * nper)
+        f = (1 + rate) ** nper
+        return -(pv * f + pmt * (1 + rate * typ) * (f - 1) / rate)
+    if name == "PMT":
+        rate, nper, pv = num(args[0]), num(args[1]), num(args[2])
+        fv_ = num(args[3]) if len(args) > 3 and args[3] is not None else 0.0
+        if rate == 0: return -(pv + fv_) / nper
+        f = (1 + rate) ** nper
+        return -(pv * f + fv_) * rate / (f - 1)
+    if name == "EDATE":
+        base = EPOCH + dt.timedelta(days=num(args[0]))
+        months = int(num(args[1]))
+        y, m = base.year, base.month + months
+        y += (m - 1) // 12; m = (m - 1) % 12 + 1
+        import calendar
+        d = min(base.day, calendar.monthrange(y, m)[1])
+        return float((dt.datetime(y, m, d) - EPOCH).days)
+    if name == "EOMONTH":
+        base = EPOCH + dt.timedelta(days=num(args[0]))
+        months = int(num(args[1]))
+        y, m = base.year, base.month + months
+        y += (m - 1) // 12; m = (m - 1) % 12 + 1
+        import calendar
+        return float((dt.datetime(y, m, calendar.monthrange(y, m)[1]) - EPOCH).days)
+    if name == "WEEKDAY":
+        d = EPOCH + dt.timedelta(days=num(args[0]))
+        typ = int(num(args[1])) if len(args) > 1 and args[1] is not None else 1
+        py = d.weekday()                      # Mon=0
+        if typ == 1: return float((py + 1) % 7 + 1)   # Sun=1
+        if typ == 2: return float(py + 1)             # Mon=1
+        if typ == 3: return float(py)                 # Mon=0
+        return float((py + 1) % 7 + 1)
+    if name == "DATEVALUE":
+        txt = as_text(args[0]).strip()
+        for f in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d %b %Y", "%d-%b-%Y", "%m/%d/%Y"):
+            try: return float((dt.datetime.strptime(txt, f) - EPOCH).days)
+            except ValueError: pass
+        raise XlError("#VALUE!")
+    if name == "LOOKUP":
+        # vector form only, which is all this workbook uses
+        v = scalar(args[0])
+        vec = args[1] if isinstance(args[1], Range) else Range([args[1]])
+        res = args[2] if len(args) > 2 else vec
+        if not isinstance(res, Range): res = Range([res])
+        best = None
+        for i, item in enumerate(vec):
+            if item is None or item == "": continue
+            try:
+                if isinstance(v, str) or isinstance(item, str):
+                    okc = as_text(item).upper() <= as_text(v).upper()
+                else:
+                    okc = num(item) <= num(v)
+            except XlError:
+                continue
+            if okc: best = i
+        if best is None: raise XlError("#N/A")
+        return res[best] if best < len(res) else None
     raise XlError(f"#NAME? {name}")
 
 
 NUMFMT = re.compile(r"^#,##0(\.0+)?$")
+DATEFMT = re.compile(r"(yyyy|yyyy|yy|mmmm|mmm|mm|m|dddd|ddd|dd|d|hh|h|ss|s)", re.I)
+MONTHS_L = ["January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"]
+DAYS_L = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
 def excel_text(v, fmt):
+    """Excel's TEXT covers both number and date pictures. Date pictures are
+    the ones this workbook leans on for its month keys, so they matter as
+    much as the currency ones."""
+    if re.search(r"[ymdhs]", fmt, re.I) and not fmt.strip().startswith("#"):
+        d = EPOCH + dt.timedelta(days=num(v))
+        # "m" means minutes when it follows an hour token; this workbook never
+        # does that, so month is the safe reading throughout.
+        def sub(mo):
+            t = mo.group(0).lower()
+            return {
+                "yyyy": f"{d.year:04d}", "yy": f"{d.year % 100:02d}",
+                "mmmm": MONTHS_L[d.month - 1], "mmm": MONTHS_L[d.month - 1][:3],
+                "mm": f"{d.month:02d}", "m": str(d.month),
+                "dddd": DAYS_L[d.weekday()], "ddd": DAYS_L[d.weekday()][:3],
+                "dd": f"{d.day:02d}", "d": str(d.day),
+                "hh": f"{d.hour:02d}", "h": str(d.hour),
+                "ss": f"{d.second:02d}", "s": str(d.second),
+            }[t]
+        return DATEFMT.sub(sub, fmt)
     x = num(v)
     m = NUMFMT.match(fmt)
     if m:
-        d = len(m.group(1)) - 1 if m.group(1) else 0
-        return f"{x:,.{d}f}"
+        dgt = len(m.group(1)) - 1 if m.group(1) else 0
+        return f"{x:,.{dgt}f}"
     if fmt in ("0", "#"): return f"{x:,.0f}".replace(",", "")
     if fmt.endswith("%"): return f"{x * 100:.1f}%"
+    if fmt == "0.0": return f"{x:,.1f}"
     return f"{x:,.2f}"
 
 
@@ -348,7 +573,7 @@ class Book:
         if isinstance(raw, str) and raw.startswith("="):
             self.stack.append(key)
             try:
-                val = Parser(tokenize(raw[1:]), sheet, self).parse()
+                val = Parser(tokenize(raw[1:]), sheet, self, (row, col)).parse()
                 val = scalar(val)
             except XlError as e:
                 val = e.code
@@ -369,8 +594,11 @@ class Book:
         mn_c, mn_r, mx_c, mx_r = range_boundaries(ref.replace("$", ""))
         if (mn_c, mn_r) == (mx_c, mx_r):
             return self.cell_value(sheet, mn_r, mn_c)
-        return Range([self.cell_value(sheet, r, c)
-                      for r in range(mn_r, mx_r + 1) for c in range(mn_c, mx_c + 1)])
+        rng = Range([self.cell_value(sheet, r, c)
+                     for r in range(mn_r, mx_r + 1) for c in range(mn_c, mx_c + 1)])
+        rng.first_row, rng.first_col = mn_r, mn_c
+        rng.width = mx_c - mn_c + 1
+        return rng
 
     def evaluate_all(self):
         for ws in self.wb.worksheets:

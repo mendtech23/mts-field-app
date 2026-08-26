@@ -7,15 +7,71 @@ Two deliverables live here and they agree with each other to the dirham:
 
 | | What it is |
 |---|---|
-| `Johnnys_Edge_Lifetime_Finance.xlsx` | The workbook: 17 sheets, 1,035 formulas, 30 integrity checks |
-| `index.html` + `js/` + `styles.css` | The app: an offline-capable PWA, 21 pages, seeded from that workbook |
+| `Johnnys_Edge_Finance_OS.xlsx` | **The live workbook** — 26 sheets, 4,123 formulas, 22 integrity checks. Audited and amended. |
+| `Johnnys_Edge_Lifetime_Finance.xlsx` | The earlier workbook, kept for reference |
+| `index.html` + `js/` + `styles.css` | The app: an offline-capable PWA, 23 pages, seeded from the live workbook |
 
-Everything is stated as of **25 August 2026**, the date of the last confirmed
+Everything is stated as of **26 August 2026**, the date of the last confirmed
 balance in the source file.
 
 ---
 
-## The workbook
+## The number that decides the quarter
+
+> **Earn AED 386.38 a week and don't spend it.**
+
+Spendable cash of AED 156.80, plus AED 7,914.88 of salary landing before the
+deadline, less AED 4,263.41 of bills, AED 5,809.30 still owed on the cheque and
+the AED 250 buffer, leaves a living pool of **−AED 2,251.03** against a minimum
+living need of AED 840. The gap is **AED 3,091.03 across 56 days**.
+
+It closes through income, not cuts — the daily cap is already at the AED 15
+survival floor. Everything else in this repo waits behind that one number.
+
+---
+
+## The audit
+
+The new workbook arrived in genuinely good shape: **zero formula errors across
+all 4,120 formulas**, and all 22 of its own integrity checks passing. Every
+defect below is structural rather than arithmetic — no number was wrong.
+
+To check it at all I had to rebuild my evaluator, because LibreOffice in this
+environment ships without its Calc filters and cannot open a spreadsheet. It now
+handles lazy `IF` (Excel does not evaluate the branch it does not take, and this
+file relies on that), array-carried errors (the `LOOKUP(2,1/(…))` idiom needs
+`1/0` to be a value, not an abort), `INDEX`/`MATCH`, `FV`, `SMALL`, `EDATE`,
+`WEEKDAY` and date pictures in `TEXT`.
+
+That last one matters: **my first pass reported the month-to-date spending check
+as failing.** It was not. My `TEXT()` could not render `"YYYY-MM"`, so the month
+keys did not match. The workbook was right and my tool was wrong.
+
+### What was amended
+
+| # | Sheet | Defect | Effect |
+|---|---|---|---|
+| 1 | Account History | The latest-balance summary sat at A21:D29, *inside* the `$A$7:$A$100` ranges its own `LOOKUP`s scan | 136 circular references. All eight accounts read "No data" — the whole feature was dead. Moved to G5:J14. |
+| 2 | Account History | `B7` read "FAB 1001 Current" | A typo for 4001, so that entry matched no account |
+| 3 | Account History | `C7`/`C8` held the text "REQUIRES DATA" in a balance column | The lookup counted text as a reading. Blanked; reason moved to the note column. |
+| 4 | Account History | Log ended 11 Aug while Accounts was confirmed to 26 Aug | The summary contradicted the live sheet. Added the four confirmed 25–26 Aug readings. |
+| 5 | Account History | Change-vs-last-entry formula on some rows, missing on others, including two header rows | Applied uniformly to rows 7–100 and guarded so an empty row stays empty |
+| 6 | Investments | Two identical TOTAL rows (12 and 13) | Nothing referenced the second. Removed. |
+| 7 | Accounts | `H15` asserted "Must equal AED 4,277.19" against a live AED 6,105.17 | A note left behind by an earlier balance set. Now a formula that states the current total. |
+| 8 | Settings | Next-income date used `<=` against the salary day | On payday itself it returned *today*, leaving zero days to income — which drove the safe daily limit to zero on the one day of the month you are paid. Changed to `<`. |
+| 9 | Checks & Audit | The household-plus-personal check compared two typed constants with each other | It could never fail, and both had drifted from the live figures (5,939.85 + 1,503.16 against a real 6,028.40 + 1,559.25). Both sides now read the engine. |
+| 10 | Checks & Audit | Three MODEL STATUS banners had accumulated, two sitting in the source log's ID column | Which is why the log began at S6 with S1–S5 missing. One banner now; log renumbered S1–S8 with every entry preserved. |
+| 11 | Checks & Audit | Three check notes described superseded balance sets | The FAB note added up to 7,183.87 against a live 5,963.32. Rewritten. |
+| 12 | MASTER PLAN | Row 11 labelled "TOTAL NET WORTH" but pointed at total *assets* | It does not net off the AED 2,687.36 Tabby debt. Relabelled, with a true net-worth line added (new engine row E59). |
+
+After amendment: **0 circular references, 0 formula errors, 22/22 checks OK.**
+An amendment log recording all twelve fixes is written into `Checks & Audit`.
+
+> No rows were ever inserted. `openpyxl` does not rewrite formulas when rows
+> shift, so an insert would silently break the stage tables below it — the one
+> fix that needed a new row got a new engine row on Settings instead.
+
+## The earlier workbook
 
 ### What was repaired
 
@@ -111,9 +167,17 @@ works offline after the first load, and everything stays on the device.
 | **Advisor** | 24 live rules ranked by monthly-equivalent impact, with the reasoning |
 | **More** | A hub into everything below |
 
-Sub-pages: **Cashflow forecast · Spending calendar · Recurring & subscriptions ·
-Import · Income · Rules · Reports · SIP schedule · Net worth history · Debt plan ·
-Accounts & pots · Assumptions & data · Search · How this works.**
+Plus two pages the new workbook made necessary:
+
+| Page | What it does |
+|---|---|
+| **The rent gap** | The workbook's headline arithmetic, line for line — spendable cash, inflows, commitments, the vault, the buffer, the living pool, the gap, and the weekly earning target. Reproduced exactly so the two can never disagree. |
+| **Family & future** | The grocery bill transferring on 15 Sep, what her EBP actually covers on a delivery, the newborn year insurance does not touch, the six-month emergency target sized on the household that *will* exist, an honest home-purchase reality check, and the four modelled paths to a crore. |
+
+Sub-pages: **The rent gap · Cashflow forecast · Spending calendar · Recurring &
+subscriptions · Import · Income · Rules · Reports · SIP schedule · Net worth
+history · Debt plan · Accounts & pots · Family & future · Assumptions & data ·
+Search · How this works.**
 
 ### The cashflow forecast
 
@@ -133,9 +197,15 @@ Three things make it honest rather than merely pretty:
   recurring assumption for that month, so AED 2,906 is treated as the
   *remainder* of the August cycle rather than an extra AED 7,915 on top of it.
 
-On the seeded position it reads: negative from **5 September**, bottoming at
-**−AED 5,260 on 25 October** — the three days between the rent cheque clearing
+On the current position it reads: negative from **10 September**, bottoming at
+**−AED 6,155 on 25 October** — the three days between the rent cheque clearing
 and the next salary.
+
+The forecast reads tighter than the rent-gap page on purpose. The workbook marks
+the AED 1,314.50 Tabby minimum as settled because autopay is already set, so it
+sits outside committed outflows — but the cash does not leave until 3 September,
+and the day-by-day forecast charges it on that date. Treat the rent-gap page as
+the funding arithmetic and the forecast as the bank balance.
 
 ### Import: paste what the bank actually sends you
 
@@ -257,3 +327,50 @@ Both are flagged in the workbook and in the app, because the model leans on them
   the monthly rent accrual, the essentials ratio and the emergency-fund target.
 - **AED/INR is 0.0385333**, derived from the last confirmed transfer
   (AED 462.40 funded INR 12,000 on 10 Aug 2026). Refresh it from the next receipt.
+
+
+---
+
+## Two figures the app deliberately keeps apart
+
+**Total assets — AED 18,910.50.** Dirham cash of AED 6,105.17 plus investments of
+AED 12,805.33 (mutual funds AED 9,437.48, Amana AED 3,176.05, Binance AED 191.80).
+This is the workbook's headline and the app matches it to the fils.
+
+**Net worth — AED 16,223.14.** The same figure with the AED 2,687.36 of Tabby
+exposure netted off. The workbook headlines the gross number; the app shows both,
+because "what you own" and "what you'd have if you settled up" are different
+questions.
+
+The **ICICI rupee account (INR 12,388.51 ≈ AED 477)** is in neither total. It is
+money in transit: a remittance that funds the SIP and leaves again on the 10th.
+Counting it as household cash would overstate what you can spend; counting it as
+an investment would double-count the units it is about to buy.
+
+---
+
+## What changed in this pass
+
+- The workbook was audited (4,120 formulas, zero errors) and amended (twelve
+  structural fixes, including 136 circular references that had killed an entire
+  sheet's headline feature).
+- The app was re-seeded from it: the 26 August balances, the Binance sleeve, the
+  AED 15 daily floor and AED 250 buffer, the confirmed quarterly rent cadence,
+  the corrected Tabby schedule, and the partner's income change.
+- Two pages were added — the rent gap and family planning — and the advisor
+  gained rules for the grocery transfer, the HR maternity call, and the SIP
+  pause priced against the gap.
+- **The rent cheque cadence is now confirmed: four cheques a year.** That was the
+  open question from the last pass, and it is settled.
+
+## Still open
+
+- **The couple's trip has no date.** Setting one activates the countdown and the
+  weekly saving figure.
+- **India property has no city.** Prices vary enormously between cities, so there
+  is no honest number to show until one is chosen.
+- **Confirm with HR that maternity is not excluded** on her specific EBP tier,
+  even though coverage is active with no waiting period. Five minutes; worth
+  thousands.
+- **Get the real grocery figure** once it firms up. AED 1,500 is the midpoint of
+  a stated "under AED 2,000" and it lands inside the rent window.

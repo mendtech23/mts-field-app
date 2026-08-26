@@ -6,6 +6,10 @@
    ============================================================ */
 "use strict";
 
+function rentToFundRaw(A, rentHeld) {
+  return Math.max(0, round2(A.rentCheque - rentHeld));
+}
+
 const toAedWith = (A) => (v, ccy) =>
   ccy === "INR" ? v * A.aedPerInr : ccy === "USD" ? v * A.aedPerUsd : v;
 
@@ -15,7 +19,10 @@ function metrics(s = state) {
   const toAed = toAedWith(A);
 
   /* ---------------------------------------------------------- cash ----- */
-  const liquidCash = sum(s.accounts, (a) => toAed(a.balance, a.ccy));
+  /* Only dirham accounts count as household liquid cash. The rupee account
+     exists to fund the SIP and is never available for a bill here. */
+  const liquidCash = sum(s.accounts.filter((a) => a.ccy === "AED"), (a) => a.balance);
+  const foreignCash = sum(s.accounts.filter((a) => a.ccy !== "AED"), (a) => toAed(a.balance, a.ccy));
   const emergency  = sum(s.pots.filter((p) => p.kind === "emergency"), (p) => p.balance);
   const rentHeld   = sum(s.pots.filter((p) => p.kind === "vault"), (p) => p.balance);
   const potsHeld   = sum(s.pots, (p) => p.balance);
@@ -60,9 +67,13 @@ function metrics(s = state) {
   const debtCleared = sum(debts, (d) => d.paid);
 
   /* ------------------------------------------------- balance sheet ----- */
-  const totalAssets = liquidCash + invested;
-  const netWorth = totalAssets - debtOutstanding;
-  const rentToFund = Math.max(0, A.rentCheque - rentHeld);
+  /* Total assets is dirham cash plus investments, exactly as the workbook
+     defines it. The rupee SIP-funding account is money in transit and sits in
+     neither total. Net worth then nets the debt off — the workbook headlines
+     the gross figure, so both are reported and the difference is stated. */
+  const totalAssets = round2(liquidCash + invested);
+  const netWorth = round2(totalAssets - debtOutstanding);
+  const rentToFund = Math.max(0, round2(A.rentCheque - rentHeld));
 
   /* -------------------------------------------------------- ledger ----- */
   const spend = s.tx.filter((t) => t.counts);
@@ -163,6 +174,50 @@ function metrics(s = state) {
   const emgPlan = (budget.find((b) => b.id === "b14") || {}).plan || 0;
   const savingsRate = safeDiv(sipPlan + emgPlan, income);
 
+  /* ------------------------------------------------- the rent gap -------
+     This is the workbook's headline number and the app reproduces it exactly,
+     so the two can never disagree about the one figure that matters.
+
+       living pool = spendable + inflows − commitments − rent still to fund − buffer
+       gap         = minimum living need over the window − that pool
+
+     A negative pool is not an error: it means the rent cannot be funded and
+     the month lived through on the money in hand. */
+  const rentDeadline = A.rentDeadline || "2026-10-21";
+  const daysToRentDeadline = Math.max(0, diffDays(todayISO(), rentDeadline));
+
+  /* Salary dates strictly after today and on or before the deadline. */
+  let inflowsBeforeDeadline = 0;
+  for (let k = monthKey(todayISO()); k <= monthKey(rentDeadline); k = addMonthsKey(k, 1)) {
+    for (const src of s.incomeSources) {
+      if (!src.active || !src.expectedMonthly || !src.dayOfMonth) continue;
+      const when = dayOfMonthISO(k, src.dayOfMonth);
+      if (when > todayISO() && when <= rentDeadline) inflowsBeforeDeadline += src.expectedMonthly;
+    }
+  }
+
+  /* Everything dated before the deadline except the rent cheque itself.
+     An item already committed to autopay is excluded here — the workbook
+     treats it as settled — but the day-by-day forecast still charges it. */
+  const committedBeforeDeadline = sum(
+    s.obligations.filter((o) => !o.paid && !o.autopayCommitted
+      && o.due <= rentDeadline && o.priority !== "Critical_rent" && o.id !== "o-rent"),
+    (o) => o.amount);
+  const autopayCommitted = sum(
+    s.obligations.filter((o) => !o.paid && o.autopayCommitted && o.due <= rentDeadline),
+    (o) => o.amount);
+
+  const safetyBuffer = A.safetyBuffer || 0;
+  const spendableNow = round2(liquidCash - potsHeld);
+  const livingPool = round2(spendableNow + inflowsBeforeDeadline - committedBeforeDeadline
+                            - rentToFundRaw(A, rentHeld) - safetyBuffer);
+  const minLivingNeed = daysToRentDeadline * A.dailyCap;
+  const rentGap = Math.max(0, round2(minLivingNeed - livingPool));
+  const earnPerDay = daysToRentDeadline ? rentGap / daysToRentDeadline : 0;
+  const earnPerWeek = earnPerDay * 7;
+  const dailyLimitToRent = daysToRentDeadline ? livingPool / daysToRentDeadline : 0;
+  const safeDailyLimit = Math.max(0, dailyLimitToRent);
+
   /* ------------------------------------------- near-term funding gap --- */
   const nearBills = 813.28 + A.tabbyMinSep + 590.98 + 323.95;
   const availableToSep = looseCash + 2906;
@@ -170,7 +225,12 @@ function metrics(s = state) {
   const extraCashNeeded = billsGap + A.sipAed;
 
   /* ------------------------------------------------------ coverage ----- */
-  const emergencyTarget = essential * A.emergencyMonths;
+  /* From 15 September the grocery bill moves onto this household. The
+     emergency-fund target has to be sized on the household that will exist,
+     not the one that exists today. */
+  const groceryTransferLive = todayISO() >= (A.partnerLastWorkingDay || "9999-12-31");
+  const essentialForward = essential + (A.groceryTransfer || 0);
+  const emergencyTarget = (A.monthlyEssentials || essentialForward) * A.emergencyMonths;
   const emergencyCover = safeDiv(emergency, essential);
   const liquidityMonths = safeDiv(looseCash, essential);
   const debtToAssets = safeDiv(debtOutstanding, totalAssets);
@@ -203,6 +263,7 @@ function metrics(s = state) {
     ? (sum(holdings.filter((h) => h.ccy === "INR" && h.cls !== "Broker cash" && h.cls !== "Commodity"), (h) => h.aed) * A.returnIndiaEq
       + sum(holdings.filter((h) => h.cls === "Commodity"), (h) => h.aed) * A.returnCommodity
       + sum(holdings.filter((h) => h.cls === "Global equity"), (h) => h.aed) * A.returnGlobalEq
+      + sum(holdings.filter((h) => h.cls === "Crypto"), (h) => h.aed) * (A.returnCrypto || A.returnGlobalEq)
       + sum(holdings.filter((h) => h.cls === "Broker cash"), (h) => h.aed) * A.returnCash) / invested
     : A.returnIndiaEq) + A.scenarioAdj;
 
@@ -232,7 +293,12 @@ function metrics(s = state) {
     budget, essential, lifestyle, wealthOut, lifestyleRate, income, totalOutflow,
     surplus, savingsRate, sipPlan, emgPlan,
     nearBills, availableToSep, billsGap, extraCashNeeded,
+    foreignCash, rentDeadline, daysToRentDeadline, inflowsBeforeDeadline,
+    committedBeforeDeadline, autopayCommitted, safetyBuffer, spendableNow,
+    livingPool, minLivingNeed, rentGap, earnPerDay, earnPerWeek,
+    dailyLimitToRent, safeDailyLimit,
     emergencyTarget, emergencyCover, liquidityMonths, debtToAssets, runwayDays,
+    groceryTransferLive, essentialForward,
     comp, health, grade, blended, monthly, projection, annualEssential, fiTarget, yearsToFI, overdrawn,
     snaps, nwChange, nwChangeSinceStart,
   };

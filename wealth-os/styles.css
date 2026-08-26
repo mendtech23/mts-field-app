@@ -318,7 +318,7 @@ textarea { min-height: 70px; resize: vertical; }
 .kv { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px dashed var(--hairline); font-size: 13.5px; }
 .kv:last-child { border-bottom: 0; }
 .kv .k { color: var(--muted); }
-.kv .v { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.kv .v { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 
 .num-pos { color: var(--good-ink); }
 .num-neg { color: var(--bad-ink); }

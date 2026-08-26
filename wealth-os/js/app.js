@@ -13,6 +13,7 @@ const RENDERERS = {
   import: renderImport, income: renderIncome, rules: renderRules, reports: renderReports,
   sips: renderSips, history: renderHistory, debt: renderDebt, accounts: renderAccounts,
   settings: renderSettings, search: renderSearch, help: renderHelp,
+  family: renderFamily, rentgap: renderRentGap,
 };
 
 function render() {
@@ -78,11 +79,11 @@ function commitImport() {
   toast(`Imported ${rows.length} transaction${rows.length === 1 ? "" : "s"}`, undoAction());
 }
 
-const SAMPLE_SMS = `Purchase of AED 13.50 with Debit Card 4001 at ENOC Site 39, Dubai on 25-08-2026 06:36. Avl Bal AED 3.45
+const SAMPLE_SMS = `Purchase of AED 24.50 with Debit Card 4001 at Asas Al Madina General, Dubai on 27-08-2026 19:12. Avl Bal AED 4.20
 
-Purchase of AED 65.00 with Debit Card 4001 at ISK Gents Saloon, Dubai on 22-08-2026 11:46. Avl Bal AED 9.20
+Purchase of AED 62.00 with Debit Card 3695 at Zomato, Dubai on 27-08-2026 20:40. Avl Bal AED 76.23
 
-AED 2906.00 credited to your FAB account 4002 on 26-08-2026. Avl Bal AED 8996.70`;
+AED 450.00 credited to your FAB account 4002 on 27-08-2026. Avl Bal AED 6390.70`;
 
 /* ------------------------------------------------------------ events --- */
 document.addEventListener("click", (e) => {

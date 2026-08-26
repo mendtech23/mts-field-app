@@ -12,46 +12,58 @@
    message, statement or bill; "estimate" means it has not happened yet. */
 
 const SEED_ACCOUNTS = [
-  { id: "fab4001", name: "FAB 4001 — spending",   bank: "FAB",   balance: 3.45,    ccy: "AED", kind: "current",   locked: false, asOf: "2026-08-25", status: "actual",
-    note: "Day-to-day card account. Confirmed after the ENOC purchase." },
-  { id: "fab4002", name: "FAB 4002 — rent",       bank: "FAB",   balance: 6090.70, ccy: "AED", kind: "current",   locked: true,  asOf: "2026-08-23", status: "actual",
-    note: "Holds AED 5,990.45 of protected rent plus AED 100.25 towards DEWA." },
-  { id: "fabemg",  name: "FAB emergency fund",    bank: "FAB",   balance: 7.67,    ccy: "AED", kind: "savings",   locked: true,  asOf: "2026-08-25", status: "actual",
-    note: "Ring-fenced. Never spend." },
-  { id: "nbdcur",  name: "NBD current",           bank: "NBD",   balance: 0.20,    ccy: "AED", kind: "current",   locked: false, asOf: "2026-08-17", status: "actual",
-    note: "Card-linked; effectively empty." },
-  { id: "nbdsav",  name: "NBD Plus Saver",        bank: "NBD",   balance: 2.73,    ccy: "AED", kind: "savings",   locked: false, asOf: "2026-08-14", status: "reported",
-    note: "Last reported 14 Aug; refresh if it has moved." },
-  { id: "tabbyc",  name: "Tabby Cash wallet",     bank: "Tabby", balance: 0.89,    ccy: "AED", kind: "wallet",    locked: false, asOf: "2026-08-14", status: "reported",
-    note: "The wallet, not the Card. Spending it never touches Card debt." },
-  { id: "cash",    name: "Cash on hand / Wio",    bank: "Cash",  balance: 0,       ccy: "AED", kind: "cash",      locked: false, asOf: "2026-08-25", status: "actual",
-    note: "No other cash balance reported." },
+  { id: "fab4001", name: "FAB 4001 — spending",   bank: "FAB",   balance: 14.95,   ccy: "AED", kind: "current", locked: false, asOf: "2026-08-26", status: "actual",
+    note: "Card XXXX1599. Confirmed after the Emarat fuel purchase at 18:20." },
+  { id: "fab4002", name: "FAB 4002 — rent vault", bank: "FAB",   balance: 5940.70, ccy: "AED", kind: "current", locked: true,  asOf: "2026-08-25", status: "actual",
+    note: "The rent vault. AED 150 was moved out for home expenditure. 50.6% of the cheque funded." },
+  { id: "fabemg",  name: "FAB 4003 — emergency",  bank: "FAB",   balance: 7.67,    ccy: "AED", kind: "savings", locked: true,  asOf: "2026-08-11", status: "actual",
+    note: "Ring-fenced. Next milestone AED 1,000." },
+  { id: "nbdcur",  name: "NBD Current",           bank: "NBD",   balance: 138.23,  ccy: "AED", kind: "current", locked: false, asOf: "2026-08-26", status: "actual",
+    note: "Card 3695. Cielo Kabab, Emarat 6192 and Netflix (36.09, not the 35.00 advertised) all cleared." },
+  { id: "nbdsav",  name: "NBD Plus Saver",        bank: "NBD",   balance: 2.73,    ccy: "AED", kind: "savings", locked: false, asOf: "2026-08-04", status: "actual",
+    note: "Includes AED 1.64 of interest." },
+  { id: "tabbyc",  name: "Tabby Cash wallet",     bank: "Tabby", balance: 0.89,    ccy: "AED", kind: "wallet",  locked: false, asOf: "2026-08-04", status: "actual",
+    note: "A funded wallet, never Card borrowing. The two must never be merged." },
+  { id: "cash",    name: "Cash / Wio",            bank: "Cash",  balance: 0,       ccy: "AED", kind: "cash",    locked: false, asOf: "2026-08-11", status: "actual",
+    note: "No balance reported." },
+  { id: "icici",   name: "ICICI — SIP funding",   bank: "ICICI", balance: 12388.51, ccy: "INR", kind: "current", locked: true, asOf: "2026-08-26", status: "actual",
+    note: "Personal India account, confirmed by app screenshot. The monthly SIP auto-debit pulls INR 12,000 from here, returning it to about 388. Not part of the AED household position." },
 ];
 
 const SEED_HOLDINGS = [
-  { id: "h1", name: "Nippon Large Cap",      house: "Nippon",        cls: "Indian large cap", units: 758.192, cost: 75000,    value: 78012.04, nav: 102.89,       ccy: "INR", sip: "Active",    note: "MF Central 10 Aug" },
-  { id: "h2", name: "Nippon Multi Cap",      house: "Nippon",        cls: "Indian multi cap", units: 226.127, cost: 73936.89, value: 77061.61, nav: 340.7896,     ccy: "INR", sip: "Active",    note: "Multi Cap email confirms 8.803 new units" },
-  { id: "h3", name: "Nippon Growth Mid Cap", house: "Nippon",        cls: "Indian mid cap",   units: 6.993,   cost: 33000,    value: 35303.33, nav: 5048.38,      ccy: "INR", sip: "Active",    note: "MF Central 10 Aug" },
-  { id: "h4", name: "Nippon Small Cap",      house: "Nippon",        cls: "Indian small cap", units: 189.636, cost: 35968,    value: 39456.63, nav: 208.07,       ccy: "INR", sip: "Active",    note: "MF Central 10 Aug" },
-  { id: "h5", name: "Nippon Silver ETF FoF", house: "Nippon",        cls: "Commodity",        units: 115.191, cost: 2971.14,  value: 4046.82,  nav: 35.13,        ccy: "INR", sip: "Cancelled", note: "Holding remains; SIP cancelled" },
-  { id: "h6", name: "Motilal Oswal Midcap",  house: "Motilal Oswal", cls: "Indian mid cap",   units: 93.721,  cost: 11000,    value: 11206.72, nav: 119.5753353,  ccy: "INR", sip: "Active",    note: "MF Central 10 Aug" },
-  { id: "h7", name: "Amana trading account", house: "Amana Capital", cls: "Global equity",    units: 41,      cost: 852.11,   value: 864.82,   nav: 0,            ccy: "USD", sip: "Manual",    note: "41 open positions; statement through 10 Aug" },
-  { id: "h8", name: "ICICI settlement cash", house: "ICICI",         cls: "Broker cash",      units: 0,       cost: 388.51,   value: 388.51,   nav: 0,            ccy: "INR", sip: "Idle",      note: "Rupee cash left after the August SIPs" },
+  { id: "h1", name: "Nippon Large Cap",      house: "Nippon",        cls: "Indian large cap", units: 758.192, cost: 75000,    value: 77312.84, nav: 101.97,   ccy: "INR", sip: "Active",    note: "Repriced 25 Aug" },
+  { id: "h2", name: "Nippon Multi Cap",      house: "Nippon",        cls: "Indian multi cap", units: 226.127, cost: 73936.89, value: 76555.30, nav: 338.55,   ccy: "INR", sip: "Active",    note: "Repriced 25 Aug" },
+  { id: "h3", name: "Nippon Growth Mid Cap", house: "Nippon",        cls: "Indian mid cap",   units: 6.993,   cost: 33000,    value: 35507.45, nav: 5077.57,  ccy: "INR", sip: "Active",    note: "Repriced 25 Aug" },
+  { id: "h4", name: "Nippon Small Cap",      house: "Nippon",        cls: "Indian small cap", units: 189.636, cost: 35968,    value: 39785.63, nav: 209.80,   ccy: "INR", sip: "Active",    note: "Repriced 25 Aug" },
+  { id: "h5", name: "Nippon Silver ETF FoF", house: "Nippon",        cls: "Commodity",        units: 115.191, cost: 2971.14,  value: 4203.32,  nav: 36.49,    ccy: "INR", sip: "Cancelled", note: "SIP cancelled; the holding remains. Best performer of the Nippon sleeve." },
+  { id: "h6", name: "Motilal Oswal Midcap",  house: "Motilal Oswal", cls: "Indian mid cap",   units: 93.721,  cost: 11000,    value: 11552.99, nav: 123.27,   ccy: "INR", sip: "Paused",    note: "Best performer in the portfolio at about 23.8%. SIP currently at zero." },
+  { id: "h7", name: "Amana trading account", house: "Amana Capital", cls: "Global equity",    units: 41,      cost: 852.11,   value: 864.82,   nav: 0,        ccy: "USD", sip: "Manual",    note: "41 open positions: 16 US equities, 9 UAE equities, 4 ETFs, 12 crypto CFDs. Statement 10 Aug." },
+  { id: "h8", name: "Binance — spot crypto", house: "Binance",       cls: "Crypto",           units: 10,      cost: 191.80,   value: 191.80,   nav: 0,        ccy: "AED", sip: "Manual",    note: "10 coins; TRX and BTC the largest. App estimate, 11 Aug." },
 ];
 
 const ALLOC_TARGETS = {
-  "Indian large cap": 0.30, "Indian multi cap": 0.20, "Indian mid cap": 0.15,
-  "Indian small cap": 0.10, "Commodity": 0.05, "Global equity": 0.15, "Broker cash": 0.05,
+  "Indian large cap": 0.30, "Indian multi cap": 0.20, "Indian mid cap": 0.16,
+  "Indian small cap": 0.11, "Commodity": 0.05, "Global equity": 0.15, "Crypto": 0.03,
 };
 
 const SEED_OBLIGATIONS = [
-  { id: "o1", due: "2026-08-31", name: "DEWA August",           amount: 813.28,  status: "actual",   recurrence: "Monthly",   priority: "Essential", note: "Actual bill replaces the AED 793.42 estimate." },
-  { id: "o2", due: "2026-09-03", name: "Tabby no-fee minimum",  amount: 1314.50, status: "actual",   recurrence: "Statement", priority: "Critical",  note: "Autopay selected; keep the card frozen." },
-  { id: "o3", due: "2026-09-10", name: "Nippon SIP funding",    amount: 462.40,  status: "estimate", recurrence: "Monthly",   priority: "Wealth",    note: "INR 12,000 at the last confirmed transfer rate." },
-  { id: "o4", due: "2026-09-15", name: "du",                    amount: 590.98,  status: "estimate", recurrence: "Monthly",   priority: "Essential", note: "September estimate; replace with the generated bill." },
-  { id: "o5", due: "2026-09-15", name: "Etisalat",              amount: 323.95,  status: "estimate", recurrence: "Monthly",   priority: "Essential", note: "September estimate; replace with the generated bill." },
-  { id: "o6", due: "2026-10-03", name: "October Tabby payment", amount: 715.33,  status: "actual",   recurrence: "Statement", priority: "Critical",  note: "September statement generated and confirmed." },
-  { id: "o7", due: "2026-10-22", name: "Rent cheque",           amount: 11750,   status: "actual",   recurrence: "Lease",     priority: "Critical",  note: "Must be fully funded by 21 Oct; the 26 Oct salary is too late." },
+  /* Autopay is already set for this one, so the workbook treats it as settled
+     and leaves it out of committed outflows. The cash does not actually leave
+     until 3 Sep, which is why the day-by-day forecast still charges it then —
+     the two views differ on purpose, and the advisor says so. */
+  { id: "o-tabby-sep", due: "2026-09-03", name: "Tabby — no-fee minimum", amount: 1314.50, status: "actual",   recurrence: "Statement", priority: "Critical", autopayCommitted: true, note: "Autopay is on. Instalments 985.77 + previous-month card transactions 328.73." },
+  { id: "o-sip-sep",   due: "2026-09-10", name: "Nippon SIP — September",  amount: 462.40,  status: "estimate", recurrence: "Monthly",   priority: "Wealth",    note: "INR 12,000 at the last confirmed transfer rate." },
+  { id: "o-du-sep",    due: "2026-09-15", name: "du — September",          amount: 590.98,  status: "estimate", recurrence: "Monthly",   priority: "Essential", note: "Baseline; replace when the bill generates." },
+  { id: "o-eti-sep",   due: "2026-09-15", name: "Etisalat — September",    amount: 323.95,  status: "estimate", recurrence: "Monthly",   priority: "Essential", note: "Baseline; replace when the bill generates." },
+  { id: "o-dewa-sep",  due: "2026-09-30", name: "DEWA — September",        amount: 793.42,  status: "estimate", recurrence: "Monthly",   priority: "Essential", note: "Last confirmed bill used as the baseline." },
+  { id: "o-tabby-oct", due: "2026-10-03", name: "Tabby — September statement", amount: 715.33, status: "actual", recurrence: "Statement", priority: "Critical", note: "Confirmed via Tabby chat, 15 Aug." },
+  { id: "o-sip-oct",   due: "2026-10-10", name: "Nippon SIP — October",    amount: 462.40,  status: "estimate", recurrence: "Monthly",   priority: "Wealth",    note: "The last SIP before the rent cheque clears." },
+  { id: "o-du-oct",    due: "2026-10-15", name: "du — October",            amount: 590.98,  status: "estimate", recurrence: "Monthly",   priority: "Essential", note: "Baseline." },
+  { id: "o-eti-oct",   due: "2026-10-15", name: "Etisalat — October",      amount: 323.95,  status: "estimate", recurrence: "Monthly",   priority: "Essential", note: "Baseline." },
+  { id: "o-rent",      due: "2026-10-22", name: "RENT CHEQUE",             amount: 11750,   status: "actual",   recurrence: "Quarterly", priority: "Critical",  note: "Clears 22 Oct. Must be fully funded by the 21st — the 26 Oct salary is four days too late." },
+  { id: "o-dewa-oct",  due: "2026-10-31", name: "DEWA — October",          amount: 793.42,  status: "estimate", recurrence: "Monthly",   priority: "Essential", note: "Falls after the rent cheque; the 26 Oct salary can fund it." },
+  { id: "o-tabby-nov", due: "2026-11-03", name: "Tabby — October statement", amount: 657.53, status: "estimate", recurrence: "Statement", priority: "Critical", note: "Not yet generated; modelled at the remaining balance. Clears the card." },
+  { id: "o-rent-jan",  due: "2027-01-22", name: "RENT CHEQUE — January",   amount: 11750,   status: "estimate", recurrence: "Quarterly", priority: "Critical",  note: "Quarterly cadence confirmed by the owner. Assumed flat — confirm with the landlord." },
 ];
 
 const SEED_BUDGET = [
@@ -218,47 +230,113 @@ const SEED_INCOME = [
   { id: "i6", date: "2026-08-26", name: "Remaining payday cash",         amount: 2906,    status: "estimate", note: "Expected 26 Aug. Never counted as banked until it lands." },
 ];
 
+/* Staged exactly as the workbook stages them. Nothing in stage 2 or 3 is
+   fundable until the rent gap in stage 1 is closed — that ordering is the
+   whole point, so the app refuses to reorder it. */
 const SEED_GOALS = [
-  { id: "g1", stage: 1, name: "Close the September funding gap",       target: 651.59,  currentRef: "looseCash",   deadline: "2026-09-15", note: "Bills, survival spending and the SIP through 15 Sep against loose cash." },
-  { id: "g2", stage: 1, name: "Fully fund the October rent cheque",    target: 11750,   currentRef: "rentHeld",    deadline: "2026-10-21", note: "The cheque clears 22 Oct; the 26 Oct salary is four days too late." },
-  { id: "g3", stage: 1, name: "Clear the Tabby card to zero",          target: 2687.36, currentRef: "debtCleared", deadline: "2026-11-03", note: "Follow the schedule and this closes with no fees." },
-  { id: "g4", stage: 2, name: "Emergency fund — first milestone",      target: 1000,    currentRef: "emergency",   deadline: "2027-03-31", note: "AED 1,000 ends the era where one flat tyre is a crisis." },
-  { id: "g5", stage: 2, name: "Emergency fund — three months",         target: null,    currentRef: "emergency",   deadline: "2027-12-31", note: "Three months of essential spending.", months: 3 },
-  { id: "g6", stage: 2, name: "Emergency fund — six months",           target: null,    currentRef: "emergency",   deadline: "2029-06-30", note: "Full target. The SIP never has to be paused again.", months: 6 },
-  { id: "g7", stage: 2, name: "Rent vault — one full year of rent",    target: null,    currentRef: "rentHeld",    deadline: "2028-10-21", note: "Ends the October panic permanently.", yearRent: true },
-  { id: "g8", stage: 3, name: "Investments reach AED 25,000",          target: 25000,   currentRef: "invested",    deadline: "2029-09-01", note: "Roughly 2.5x the current portfolio on the current SIP alone." },
-  { id: "g9", stage: 3, name: "Net worth reaches AED 100,000",         target: 100000,  currentRef: "netWorth",    deadline: "2032-09-01", note: "A year of net salary held as capital." },
-  { id: "g10",stage: 3, name: "Net worth reaches AED 250,000",         target: 250000,  currentRef: "netWorth",    deadline: "2036-09-01", note: "Growth in a normal year starts to rival what saving adds." },
-  { id: "g11",stage: 3, name: "Capital covers essential living costs", target: null,    currentRef: "invested",    deadline: "2046-09-01", note: "Financial independence.", fiTarget: true },
+  { id: "g1", stage: 1, name: "Close the rent funding gap", target: null, currentRef: "rentGapClosed",
+    deadline: "2026-10-21", rentGap: true,
+    note: "The binding constraint. Every other line on this page waits behind it." },
+  { id: "g2", stage: 1, name: "Fully fund the October rent cheque", target: 11750, currentRef: "rentHeld",
+    deadline: "2026-10-21",
+    note: "Money accumulates in FAB 4002, then moves to FAB 4001 shortly before the 22nd." },
+  { id: "g3", stage: 1, name: "Clear the Tabby card to zero", target: 2687.36, currentRef: "debtCleared",
+    deadline: "2026-11-03",
+    note: "Three payments, each from a different salary. No fee at any point." },
+  { id: "g4", stage: 2, name: "Rebuild the safety buffer", target: 250, currentRef: "safeToSpend",
+    deadline: "2026-11-30",
+    note: "One month of breathing room. The cash you refuse to go below." },
+  { id: "g5", stage: 2, name: "Emergency fund — first milestone", target: 1000, currentRef: "emergency",
+    deadline: "2027-03-31",
+    note: "AED 1,000 ends the era where one unexpected cost becomes a crisis." },
+  { id: "g6", stage: 2, name: "Emergency fund — six months", target: null, currentRef: "emergency",
+    deadline: "2029-06-30", months: 6,
+    note: "Six months of essentials. Single income with a family coming — this is the real insurance." },
+  { id: "g7", stage: 2, name: "Rent vault — one full year", target: null, currentRef: "rentHeld",
+    deadline: "2028-10-21", yearRent: true,
+    note: "Four cheques held in advance. This is what permanently ends the quarterly panic." },
+  { id: "g8", stage: 3, name: "UNTOLD Dubai — 1 ticket", target: 350, currentRef: "goalFund",
+    deadline: "2026-11-05",
+    note: "Early-bird four-day pass, 5–8 Nov at Dubai Parks. Fundable once the rent gap closes — not before." },
+  { id: "g9", stage: 3, name: "Couple's trip — 4 to 5 days", target: 4000, currentRef: "goalFund",
+    deadline: "2027-03-31",
+    note: "Midpoint of the AED 3,000–5,000 range. No date set yet; setting one activates the countdown." },
+  { id: "g10", stage: 3, name: "January rent cheque", target: 11750, currentRef: "goalFund",
+    deadline: "2027-01-22",
+    note: "The next quarterly cheque. Assumed flat — confirm with the landlord." },
+  { id: "g11", stage: 3, name: "Maternity provision", target: 18000, currentRef: "goalFund",
+    deadline: "2027-06-30",
+    note: "Mid-private-range working budget. Her EBP covers a mandated AED 7,000 of a normal "
+        + "delivery with a 10% co-payment; this is the gap plus contingency." },
+  { id: "g12", stage: 3, name: "Newborn first year", target: 8000, currentRef: "goalFund",
+    deadline: "2027-12-31",
+    note: "Crib, car seat, clothing, paediatrician. Insurance covers none of it. Treat as a floor." },
+  { id: "g13", stage: 3, name: "Net worth reaches AED 100,000", target: 100000, currentRef: "netWorth",
+    deadline: "2032-09-01",
+    note: "A year of net salary held as capital." },
+  { id: "g14", stage: 3, name: "Capital covers essential living costs", target: null, currentRef: "invested",
+    deadline: "2046-09-01", fiTarget: true,
+    note: "Financial independence: essentials paid by capital rather than by work." },
 ];
 
 const SEED_ASSUMPTIONS = {
-  aedPerInr: 0.0385333,
-  aedPerUsd: 3.6725,
+  /* Currency */
+  aedPerInr: 0.0385333,          // implied by AED 462.40 = INR 12,000
+  aedPerUsd: 3.6725,             // the dirham peg, unmoved since 1997
+
+  /* Returns and inflation — planning assumptions, deliberately below trailing */
   returnIndiaEq: 0.11,
   returnGlobalEq: 0.08,
   returnCash: 0.02,
   returnCommodity: 0.05,
+  returnCrypto: 0.10,
   inflation: 0.025,
   scenarioAdj: 0,
+
+  /* Income and housing */
   salary: 7914.88,
+  salaryDay: 26,
   salaryIncrement: 0.04,
   rentCheque: 11750,
-  rentChequesPerYear: 4,
+  rentChequesPerYear: 4,         // CONFIRMED by the owner — quarterly cheques
+  rentDeadline: "2026-10-21",    // the cheque clears on the 22nd
+
+  /* Spending controls — the workbook's own floors, not invented ones */
+  dailyCap: 15,                  // minimum living need per day
+  weeklyCap: 105,                // seven days at the floor
+  safetyBuffer: 250,             // cash you refuse to go below
+  comfortMultiplier: 1.35,
+  survivalMultiplier: 0.65,
+
+  /* Wealth plan */
   targetSavingsRate: 0.20,
   sipStepUp: 0.10,
   extraMonthly: 0,
   emergencyMonths: 6,
+  monthlyEssentials: 3661,       // DEWA + du + Etisalat + groceries + household
   horizonYears: 20,
   swr: 0.04,
-  dailyCap: 5,
-  rentProtected: 5990.45,
+
+  /* Debt */
   tabbyExposure: 2687.36,
   tabbyMinSep: 1314.50,
   tabbyFullAug: 1972.03,
   tabbyOct: 715.33,
+  tabbyLimit: 8000,
+  latePenalty: 35,
+
+  /* Forecast */
+  forecastDays: 90,
+  forecastBurnMode: "actual",
+  recurringMinHits: 2,
+
+  /* Household change confirmed 14 Aug: her last working day is 15 Sep and the
+     grocery bill transfers to Johnny from then. Not a personal allowance — a
+     recurring household cost that lands in the middle of the rent window. */
+  partnerLastWorkingDay: "2026-09-15",
+  groceryTransfer: 1500,
+
   sipAed: 462.40,
-  survivalToSep25: 160,
 };
 
 /* ------------------------------------------------------------- pots ---- */
@@ -266,13 +344,10 @@ const SEED_ASSUMPTIONS = {
    they say what a balance is already spoken for, which is the whole reason
    AED 6,090.70 in FAB 4002 is not AED 6,090.70 of spending power. */
 const SEED_POTS = [
-  { id: "p-rent",  name: "Rent vault",      accountId: "fab4002", balance: 5990.45, target: 11750,
-    kind: "vault",     earmark: "o7",
-    note: "The October cheque. Untouchable." },
-  { id: "p-bills", name: "Bills float",     accountId: "fab4002", balance: 100.25,  target: 1728.21,
-    kind: "float",     earmark: "o1",
-    note: "Held against the August DEWA bill." },
-  { id: "p-emg",   name: "Emergency fund",  accountId: "fabemg",  balance: 7.67,    target: 1000,
+  { id: "p-rent",  name: "Rent vault",     accountId: "fab4002", balance: 5940.70, target: 11750,
+    kind: "vault",     earmark: "o-rent",
+    note: "The October cheque. The whole FAB 4002 balance is committed to it." },
+  { id: "p-emg",   name: "Emergency fund", accountId: "fabemg",  balance: 7.67,    target: 1000,
     kind: "emergency", earmark: null,
     note: "First milestone AED 1,000, then six months of essentials." },
 ];
@@ -281,11 +356,11 @@ const SEED_POTS = [
 const SEED_INCOME_SOURCES = [
   { id: "src-salary", name: "Salary — main employer", type: "Salary",
     expectedMonthly: 7914.88, dayOfMonth: 26, ccy: "AED", active: true,
-    note: "Paid around the 26th. The July figure is the baseline." },
+    note: "Paid on the 26th. The July figure is the baseline." },
   { id: "src-tickets", name: "Ticket dealing", type: "Side income",
     expectedMonthly: 0, dayOfMonth: 0, ccy: "AED", active: true,
-    note: "Irregular. AED 290 of profit realised in August across three tickets. "
-        + "Deliberately not built into the plan — a plan that needs a side hustle to balance is not a plan." },
+    note: "Irregular, and deliberately not built into the plan — a plan that needs a side "
+        + "hustle to balance is not a plan. It is, however, where the weekly earning target lands." },
 ];
 
 /* ------------------------------------------------------------ debts ---- */
@@ -293,19 +368,21 @@ const SEED_INCOME_SOURCES = [
    without changing any code. APR 0 is correct for Tabby while the no-fee
    minimum lands on time; the risk is the late fee, not interest. */
 const SEED_DEBTS = [
-  { id: "debt-tabby", name: "Tabby Card", balance: 2687.36, apr: 0, minPayment: 1314.50,
-    dueDay: 3, lateFee: 35, frozen: true, ccy: "AED",
-    note: "AED 1,972.03 August statement plus AED 715.33 September statement. Free while the "
-        + "minimum is met on time, which makes punctuality the whole risk." },
+  { id: "debt-tabby", name: "Tabby Card 3620", balance: 2687.36, apr: 0, minPayment: 1314.50,
+    dueDay: 3, lateFee: 35, frozen: true, ccy: "AED", limit: 8000,
+    note: "Frozen by choice. Resolves as AED 1,314.50 (Aug statement, 3 Sep) + AED 715.33 "
+        + "(Sep statement, 3 Oct) + AED 657.53 (Oct statement, ~3 Nov, not yet generated). "
+        + "Confirmed via Tabby chat, 15 Aug. Free while the minimum lands on time." },
 ];
 
 const SEED_DEBT_PAYMENTS = [
   { id: "d1", debtId: "debt-tabby", date: "2026-09-03", amount: 1314.50, paid: false,
-    paidFrom: null, from: "26 Aug salary", note: "Confirmed no-fee minimum. Autopay selected." },
+    paidFrom: null, from: "26 Aug salary", note: "No-fee minimum. Autopay already on." },
   { id: "d2", debtId: "debt-tabby", date: "2026-10-03", amount: 715.33, paid: false,
-    paidFrom: null, from: "26 Sep salary", note: "Generated September statement." },
+    paidFrom: null, from: "26 Sep salary", note: "September statement, confirmed." },
   { id: "d3", debtId: "debt-tabby", date: "2026-11-03", amount: 657.53, paid: false,
-    paidFrom: null, from: "26 Oct salary", note: "Tail of the August statement. Clears the card." },
+    paidFrom: null, from: "26 Oct salary", note: "October statement, estimated. Clears the card — "
+                                              + "AED 1,314.50 a month returns to you from then on." },
 ];
 
 /* -------------------------------------------------------------- SIPs --- */
@@ -318,8 +395,11 @@ const SEED_SIPS = [
     stepUpPct: 0.10, note: "Nippon Growth Mid Cap" },
   { id: "sip4", holdingId: "h4", amountNative: 3000, ccy: "INR", dayOfMonth: 10, active: true,
     stepUpPct: 0.10, note: "Nippon Small Cap" },
-  { id: "sip5", holdingId: "h5", amountNative: 0,    ccy: "INR", dayOfMonth: 10, active: false,
-    stepUpPct: 0,    note: "Nippon Silver ETF FoF — SIP cancelled, holding retained" },
+  { id: "sip5", holdingId: "h5", amountNative: 0, ccy: "INR", dayOfMonth: 10, active: false,
+    stepUpPct: 0, note: "Nippon Silver ETF FoF — cancelled, holding retained" },
+  { id: "sip6", holdingId: "h6", amountNative: 0, ccy: "INR", dayOfMonth: 10, active: false,
+    stepUpPct: 0, note: "Motilal Oswal Midcap — paused. Restarting this at INR 6,000 for five "
+                      + "years is the fastest realistic path to a crore." },
 ];
 
 /* Contributions actually made. August's four SIPs are confirmed by the
@@ -347,17 +427,65 @@ const SEED_RULES = [
 ];
 
 /* ------------------------------------------------------- assumptions --- */
-const SEED_ASSUMPTIONS_EXTRA = {
-  weeklyCap: 35,
-  forecastDays: 90,
-  forecastBurnMode: "actual",   // "actual" uses the ledger burn rate, "plan" uses the budget
-  salaryDay: 26,
-  recurringMinHits: 2,
-  latePenalty: 35,
-};
+/* Kept as an extension point; everything now lives in SEED_ASSUMPTIONS above. */
+const SEED_ASSUMPTIONS_EXTRA = {};
 
 /* One starting point for the net-worth history. Everything after this is
    captured by the app itself. */
 const SEED_SNAPSHOTS = [
   { date: "2026-08-25", note: "Seeded from the workbook", auto: false },
+];
+
+
+/* ------------------------------------------- family & future security --- */
+/* Researched where a source exists, flagged where it does not. Nothing here
+   is a guess dressed up as a figure. */
+const SEED_FAMILY = {
+  partner: {
+    lastWorkingDay: "2026-09-15",
+    groceryTransfer: 1500,
+    note: "Confirmed 14 Aug. She covered groceries — under AED 2,000 a month — and that bill "
+        + "transfers to Johnny from 15 September. Rent has already been his alone this year, so "
+        + "no rent figure changes. Get the real grocery number when it firms up.",
+  },
+  insurance: {
+    tier: "Basic / Essential Benefits Plan",
+    status: "Active — no waiting period",
+    normalDelivery: 7000,
+    cSection: 10000,
+    coPayment: 0.10,
+    note: "Company policy, confirmed by the owner. The sub-limits are Dubai's mandated EBP "
+        + "minimums; the patient pays 10% of the covered amount up to that limit.",
+  },
+  maternity: [
+    { label: "Government hospital", low: 6000,  high: 15000, note: "Cash-pay, normal delivery — UAE Open Healthcare Directory, Apr 2026" },
+    { label: "Private hospital",    low: 12000, high: 30000, note: "Package price, normal delivery. A C-section runs materially higher." },
+  ],
+  workingBudget: 18000,
+  newbornFirstYear: 8000,
+  contingency: 2000,
+  home: {
+    dubaiMinSalary: 15000,
+    dubaiMinSalaryLowest: 10000,
+    downPayment: 0.20,
+    cashAtClosing: 0.275,
+    examplePrice: 1000000,
+    indiaCity: null,
+    note: "Central Bank LTV cap sets the 20% deposit; total cash at closing runs about 27–28% "
+        + "of the price once the DLD fee, registration, broker and valuation are added. "
+        + "MortgageCompare.ae and Astra Terra, 2026.",
+  },
+};
+
+/* The four paths to a crore, as modelled in the workbook. Timelines are the
+   workbook's own; the trade-off column is what actually decides it. */
+const SEED_CRORE_PATHS = [
+  { label: "Keep the SIP flat at INR 12,000", years: 13.4, monthly: "INR 12,000",
+    tradeoff: "No change. The slowest path, but the only one that is survivable today." },
+  { label: "10% annual step-up", years: 11.8, monthly: "grows to INR 28,297 by year 10",
+    tradeoff: "Costs more every year. Needs real income growth behind it." },
+  { label: "Step-up plus Motilal at INR 6,000 for five years", years: 10.75, monthly: "peaks near INR 34,000 in year 5",
+    tradeoff: "The fastest realistic path. Motilal is the best performer in the portfolio at about 23.8%." },
+  { label: "Step-up plus Motilal forever", years: 10.4, monthly: "same, ongoing",
+    tradeoff: "Only four months faster than stopping at five years — not worth the extra commitment." },
 ];
