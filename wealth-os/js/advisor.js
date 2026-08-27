@@ -44,9 +44,9 @@ function advice(m = metrics(), s = state) {
        + `least afford it, and saves no fee at all — Tabby is free while the minimum lands on time.`,
   });
   add({
-    id: "salary-confirm", group: "Urgent", title: "Confirm the AED 2,906 salary actually credits",
+    id: "salary-confirm", group: "Urgent", title: "Confirm the AED 2,906.70 salary actually credits",
     open: (s.income.find((i) => i.id === "i6") || {}).status === "estimate",
-    impact: 2906, effort: "Low", by: "2026-08-26",
+    impact: 2906.70, effort: "Low", by: "2026-08-26",
     status: (s.income.find((i) => i.id === "i6") || {}).status === "estimate" ? "UNCONFIRMED" : "CONFIRMED",
     why: "Every downstream number assumes it arrives. Until it is on a statement it is a hope, and this app "
        + "deliberately refuses to call it cash.",

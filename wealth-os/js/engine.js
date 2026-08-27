@@ -109,7 +109,8 @@ function metrics(s = state) {
 
   const oneOff = byCat["Travel"] || 0;
   const utilities = byCat["Utilities & Telecom"] || 0;
-  const livingSpend = totalSpend - oneOff - utilities;
+  const debtRepay = byCat["Debt repayment"] || 0;
+  const livingSpend = totalSpend - oneOff - utilities - debtRepay;
   const dailyBurn = livingSpend / days;
   const monthlyRunRate = totalSpend * runRate;
   const personalShare = safeDiv(
@@ -123,7 +124,8 @@ function metrics(s = state) {
   }
   const livingByDay = {};
   for (const t of spend) {
-    if (t.category === "Travel" || t.category === "Utilities & Telecom") continue;
+    if (t.category === "Travel" || t.category === "Utilities & Telecom"
+     || t.category === "Debt repayment") continue;
     const d = t.date.slice(0, 10);
     livingByDay[d] = (livingByDay[d] || 0) + t.amount;
   }
@@ -219,9 +221,13 @@ function metrics(s = state) {
   const safeDailyLimit = Math.max(0, dailyLimitToRent);
 
   /* ------------------------------------------- near-term funding gap --- */
-  const nearBills = 813.28 + A.tabbyMinSep + 590.98 + 323.95;
-  const availableToSep = looseCash + 2906;
-  const billsGap = Math.max(0, nearBills + A.survivalToSep25 - availableToSep);
+  /* DEWA and the Aug Tabby statement cleared 26 Aug, so only du and Etisalat
+     (both due 15 Sep) remain unpaid before this deadline; the Sep SIP is
+     added separately below. looseCash already carries the 26 Aug salary —
+     it landed in the account balances directly — so it is not added twice. */
+  const nearBills = 590.98 + 323.95;
+  const availableToSep = looseCash;
+  const billsGap = Math.max(0, nearBills - availableToSep);
   const extraCashNeeded = billsGap + A.sipAed;
 
   /* ------------------------------------------------------ coverage ----- */
