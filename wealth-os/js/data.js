@@ -12,14 +12,19 @@
    message, statement or bill; "estimate" means it has not happened yet. */
 
 const SEED_ACCOUNTS = [
-  { id: "fab4001", name: "FAB 4001 — spending",   bank: "FAB",   balance: 14.95,   ccy: "AED", kind: "current", locked: false, asOf: "2026-08-26", status: "actual",
-    note: "Card XXXX1599. Confirmed after the Emarat fuel purchase at 18:20." },
+  { id: "fab4001", name: "FAB 4001 — spending",   bank: "FAB",   balance: 2920.95, ccy: "AED", kind: "current", locked: false, asOf: "2026-08-26", status: "actual",
+    note: "Card XXXX1599. AED 14.95 confirmed after the Emarat fuel purchase, then the AED 2,906 "
+        + "remaining August payday landed here later the same day. ASSUMED account — confirm which "
+        + "one actually received it." },
   { id: "fab4002", name: "FAB 4002 — rent vault", bank: "FAB",   balance: 5940.70, ccy: "AED", kind: "current", locked: true,  asOf: "2026-08-25", status: "actual",
     note: "The rent vault. AED 150 was moved out for home expenditure. 50.6% of the cheque funded." },
   { id: "fabemg",  name: "FAB 4003 — emergency",  bank: "FAB",   balance: 7.67,    ccy: "AED", kind: "savings", locked: true,  asOf: "2026-08-11", status: "actual",
     note: "Ring-fenced. Next milestone AED 1,000." },
   { id: "nbdcur",  name: "NBD Current",           bank: "NBD",   balance: 138.23,  ccy: "AED", kind: "current", locked: false, asOf: "2026-08-26", status: "actual",
-    note: "Card 3695. Cielo Kabab, Emarat 6192 and Netflix (36.09, not the 35.00 advertised) all cleared." },
+    note: "Card 3695. Cielo Kabab, Emarat 6192 and Netflix (36.09, not the 35.00 advertised) all cleared. "
+        + "STALE: the Sep 3 Tabby minimum (AED 1,314.50) is recorded as paid from this account today, "
+        + "but this reading predates that payment and 138.23 is not enough to cover it — a top-up or an "
+        + "unconfirmed inflow must sit between the two. Refresh this balance from the NBD app." },
   { id: "nbdsav",  name: "NBD Plus Saver",        bank: "NBD",   balance: 2.73,    ccy: "AED", kind: "savings", locked: false, asOf: "2026-08-04", status: "actual",
     note: "Includes AED 1.64 of interest." },
   { id: "tabbyc",  name: "Tabby Cash wallet",     bank: "Tabby", balance: 0.89,    ccy: "AED", kind: "wallet",  locked: false, asOf: "2026-08-04", status: "actual",
@@ -51,7 +56,7 @@ const SEED_OBLIGATIONS = [
      and leaves it out of committed outflows. The cash does not actually leave
      until 3 Sep, which is why the day-by-day forecast still charges it then —
      the two views differ on purpose, and the advisor says so. */
-  { id: "o-tabby-sep", due: "2026-09-03", name: "Tabby — no-fee minimum", amount: 1314.50, status: "actual",   recurrence: "Statement", priority: "Critical", autopayCommitted: true, note: "Autopay is on. Instalments 985.77 + previous-month card transactions 328.73." },
+  { id: "o-tabby-sep", due: "2026-09-03", name: "Tabby — no-fee minimum", amount: 1314.50, status: "actual",   recurrence: "Statement", priority: "Critical", autopayCommitted: true, paid: true, note: "Paid 26 Aug, eight days early, from NBD Current. Instalments 985.77 + previous-month card transactions 328.73." },
   { id: "o-sip-sep",   due: "2026-09-10", name: "Nippon SIP — September",  amount: 462.40,  status: "estimate", recurrence: "Monthly",   priority: "Wealth",    note: "INR 12,000 at the last confirmed transfer rate." },
   { id: "o-du-sep",    due: "2026-09-15", name: "du — September",          amount: 590.98,  status: "estimate", recurrence: "Monthly",   priority: "Essential", note: "Baseline; replace when the bill generates." },
   { id: "o-eti-sep",   due: "2026-09-15", name: "Etisalat — September",    amount: 323.95,  status: "estimate", recurrence: "Monthly",   priority: "Essential", note: "Baseline; replace when the bill generates." },
@@ -227,7 +232,7 @@ const SEED_INCOME = [
   { id: "i3", date: "2026-08-12", name: "Third-ticket recovery",         amount: 1540,    status: "actual",   note: "Salary advance received 12 Aug." },
   { id: "i4", date: "2026-08-12", name: "Third-ticket profit",           amount: 30,      status: "actual",   note: "Profit received 12 Aug." },
   { id: "i5", date: "2026-08-12", name: "Prior-month salary",            amount: 1430,    status: "actual",   note: "Allocated to rent." },
-  { id: "i6", date: "2026-08-26", name: "Remaining payday cash",         amount: 2906,    status: "estimate", note: "Expected 26 Aug. Never counted as banked until it lands." },
+  { id: "i6", date: "2026-08-26", name: "Remaining payday cash",         amount: 2906,    status: "actual", note: "Landed 26 Aug as expected — banked into FAB 4001." },
 ];
 
 /* Staged exactly as the workbook stages them. Nothing in stage 2 or 3 is
@@ -377,8 +382,10 @@ const SEED_DEBTS = [
 ];
 
 const SEED_DEBT_PAYMENTS = [
-  { id: "d1", debtId: "debt-tabby", date: "2026-09-03", amount: 1314.50, paid: false,
-    paidFrom: null, from: "26 Aug salary", note: "No-fee minimum. Autopay already on." },
+  { id: "d1", debtId: "debt-tabby", date: "2026-09-03", amount: 1314.50, paid: true,
+    paidFrom: "nbdcur", from: "26 Aug salary",
+    note: "No-fee minimum. Paid 26 Aug — eight days early, from NBD Current. NBD's confirmed balance "
+        + "predates this payment and doesn't cover it; refresh that reading." },
   { id: "d2", debtId: "debt-tabby", date: "2026-10-03", amount: 715.33, paid: false,
     paidFrom: null, from: "26 Sep salary", note: "September statement, confirmed." },
   { id: "d3", debtId: "debt-tabby", date: "2026-11-03", amount: 657.53, paid: false,

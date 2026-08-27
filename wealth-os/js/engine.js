@@ -353,16 +353,21 @@ function forecast(s = state, m = metrics(s), opts = {}) {
   };
 
   /* --- income -------------------------------------------------------------
-     A dated one-off estimate always overrides the recurring assumption for
-     that source in that month. August is the case that matters: AED 2,906 is
-     the *remainder* of the August cycle, not an extra salary on top of it,
-     and counting both would invent nearly eight thousand dirhams. */
+     A dated income row — actual or still estimated — always overrides the
+     recurring assumption for that source in that month. August is the case
+     that matters: AED 2,906 is the *remainder* of the August cycle, not an
+     extra salary on top of it, and counting both would invent nearly eight
+     thousand dirhams. The override has to apply regardless of status: once
+     the AED 2,906 is confirmed and marked "actual", it stops being pushed as
+     a future event (it is already sitting in the account balance) — but it
+     must keep suppressing the generic recurring push, or confirming income
+     would paradoxically summon a second, full-salary phantom event. */
   const overridden = new Set();
   for (const i of s.income) {
-    if (i.status === "actual") continue;
+    if (i.sourceId) overridden.add(`${i.sourceId}|${monthKey(i.date)}`);
+    if (i.status === "actual") continue;   // already in the balance; don't project it again
     if (i.date < start || i.date > end) continue;
     push(i.date, i.name, i.amount, "income", i.note || "");
-    if (i.sourceId) overridden.add(`${i.sourceId}|${monthKey(i.date)}`);
   }
   for (let k = monthKey(start); k <= monthKey(end); k = addMonthsKey(k, 1)) {
     for (const src of s.incomeSources) {

@@ -19,7 +19,7 @@ function blankState() {
     holdings: SEED_HOLDINGS.map((h) => ({ ...h })),
     invTx: SEED_INV_TX.map((t) => ({ ...t })),
     sips: SEED_SIPS.map((s) => ({ ...s })),
-    obligations: SEED_OBLIGATIONS.map((o) => ({ ...o, paid: false })),
+    obligations: SEED_OBLIGATIONS.map((o) => ({ paid: false, ...o })),
     debts: SEED_DEBTS.map((d) => ({ ...d })),
     debtPayments: SEED_DEBT_PAYMENTS.map((d) => ({ ...d })),
     budget: SEED_BUDGET.map((b) => ({ ...b })),
