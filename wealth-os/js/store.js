@@ -12,7 +12,7 @@ function blankState() {
     v: SCHEMA,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    asOf: "2026-08-25",
+    asOf: "2026-09-01",
     assumptions: { ...SEED_ASSUMPTIONS, ...SEED_ASSUMPTIONS_EXTRA },
     accounts: SEED_ACCOUNTS.map((a) => ({ ...a })),
     pots: SEED_POTS.map((p) => ({ ...p })),
@@ -153,7 +153,7 @@ function ensureSeedSnapshot() {
   if (state.snapshots.length) return;
   const m = metrics(blankState());
   state.snapshots.push({
-    date: "2026-08-25", netWorth: round2(m.netWorth), assets: round2(m.totalAssets),
+    date: "2026-09-01", netWorth: round2(m.netWorth), assets: round2(m.totalAssets),
     liabilities: round2(m.debtOutstanding), cash: round2(m.liquidCash),
     invested: round2(m.invested), auto: false, note: "Seeded from the workbook",
   });

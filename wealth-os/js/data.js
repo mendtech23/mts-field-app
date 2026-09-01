@@ -12,18 +12,23 @@
    message, statement or bill; "estimate" means it has not happened yet. */
 
 const SEED_ACCOUNTS = [
-  { id: "fab4001", name: "FAB 4001 — spending",   bank: "FAB",   balance: 14.95,   ccy: "AED", kind: "current", locked: false, asOf: "2026-08-26", status: "actual",
-    note: "Card XXXX1599. AED 14.95 confirmed after the Emarat fuel purchase — the only 26 Aug movement "
-        + "on this account. The remaining payday cash landed in NBD Current this time, not here." },
-  { id: "fab4002", name: "FAB 4002 — rent vault", bank: "FAB",   balance: 5940.70, ccy: "AED", kind: "current", locked: true,  asOf: "2026-08-25", status: "actual",
-    note: "The rent vault. AED 150 was moved out for home expenditure. 50.6% of the cheque funded." },
-  { id: "fabemg",  name: "FAB 4003 — emergency",  bank: "FAB",   balance: 7.67,    ccy: "AED", kind: "savings", locked: true,  asOf: "2026-08-11", status: "actual",
-    note: "Ring-fenced. Next milestone AED 1,000." },
-  { id: "nbdcur",  name: "NBD Current",           bank: "NBD",   balance: 138.23,  ccy: "AED", kind: "current", locked: false, asOf: "2026-08-26", status: "actual",
+  { id: "fab4001", name: "FAB 4001 — spending",   bank: "FAB",   balance: 31.39,   ccy: "AED", kind: "current", locked: false, asOf: "2026-09-01", status: "actual",
+    note: "Card XXXX1599. AED 400 moved in from the vault (28 Aug), then a run of personal spending "
+        + "(SMK Street, Team Taste, Mom Store, Alshaya, KFC Sharjah, Asas Al Madina) through 31 Aug, then "
+        + "on 1 Sep: Spicy Falcon, Dubai Duty Free, an AED 50 remittance to card XXXX7801 plus its 0.49 fee, "
+        + "and a new AED 26.25 monthly minimum-balance charge — the same charge pattern seen on this "
+        + "account before. Full chain confirmed by SMS to 1 Sep 23:55; reconciles exactly." },
+  { id: "fab4002", name: "FAB 4002 — rent vault", bank: "FAB",   balance: 5548.76, ccy: "AED", kind: "current", locked: true,  asOf: "2026-08-31", status: "actual",
+    note: "The rent vault. AED 400 moved out to fund FAB 4001 (28 Aug) and AED 8.06 interest credited "
+        + "(31 Aug). 47.2% of the cheque funded." },
+  { id: "fabemg",  name: "FAB 4003 — emergency",  bank: "FAB",   balance: 7.68,    ccy: "AED", kind: "savings", locked: true,  asOf: "2026-08-31", status: "actual",
+    note: "Ring-fenced. AED 0.01 interest credited 31 Aug. Next milestone AED 1,000." },
+  { id: "nbdcur",  name: "NBD Current",           bank: "NBD",   balance: 9.22,    ccy: "AED", kind: "current", locked: false, asOf: "2026-08-30", status: "actual",
     note: "Card 3695. The 26 Aug payday (2,906.70) landed here, then the Tabby monthly fee (49.00), the "
         + "Aug Tabby minimum net of cashback (1,309.65), DEWA (813.28), the SIP funding transfer to ICICI "
-        + "(465.60), Cielo Kabab, Emarat 6192 and Netflix (36.09, not the 35.00 advertised) all cleared — "
-        + "confirmed by SMS end to end. 138.23 is the reconciled balance after every one of those." },
+        + "(465.60), Cielo Kabab, Emarat 6192 and Netflix all cleared the same day, followed by nine more "
+        + "personal purchases through 30 Aug (Spicy Falcon, Real Choice Grocery, Asas Al Madina General, "
+        + "Qashati Al Sham Sweets, Jannat Alfawakih Cafe) — confirmed by SMS end to end, reconciles exactly." },
   { id: "nbdsav",  name: "NBD Plus Saver",        bank: "NBD",   balance: 2.73,    ccy: "AED", kind: "savings", locked: false, asOf: "2026-08-04", status: "actual",
     note: "Includes AED 1.64 of interest." },
   { id: "tabbyc",  name: "Tabby Cash wallet",     bank: "Tabby", balance: 0.89,    ccy: "AED", kind: "wallet",  locked: false, asOf: "2026-08-04", status: "actual",
@@ -66,8 +71,12 @@ const SEED_OBLIGATIONS = [
   { id: "o-eti-oct",   due: "2026-10-15", name: "Etisalat — October",      amount: 323.95,  status: "estimate", recurrence: "Monthly",   priority: "Essential", note: "Baseline." },
   { id: "o-rent",      due: "2026-10-22", name: "RENT CHEQUE",             amount: 11750,   status: "actual",   recurrence: "Quarterly", priority: "Critical",  note: "Clears 22 Oct. Must be fully funded by the 21st — the 26 Oct salary is four days too late." },
   { id: "o-dewa-oct",  due: "2026-10-31", name: "DEWA — October",          amount: 793.42,  status: "estimate", recurrence: "Monthly",   priority: "Essential", note: "Falls after the rent cheque; the 26 Oct salary can fund it." },
-  { id: "o-tabby-nov", due: "2026-11-03", name: "Tabby — October statement", amount: 657.53, status: "estimate", recurrence: "Statement", priority: "Critical", note: "Not yet generated; modelled at the remaining balance. Clears the card." },
+  { id: "o-tabby-nov", due: "2026-11-03", name: "Tabby — October statement", amount: 657.53, status: "actual", recurrence: "Statement", priority: "Critical", note: "Confirmed via Tabby app screenshot — exact match to the prior estimate. Rolls to next month for free once the card closes." },
+  { id: "o-tabby-fee-sep", due: "2026-09-26", name: "Tabby — monthly card fee", amount: 49, status: "actual", recurrence: "Monthly", priority: "Essential", note: "Discovered 26 Aug. Continues monthly until the card closes after the final Tabby payment (~3 Nov)." },
+  { id: "o-tabby-fee-oct", due: "2026-10-26", name: "Tabby — monthly card fee", amount: 49, status: "actual", recurrence: "Monthly", priority: "Essential", note: "Discovered 26 Aug. Continues monthly until the card closes after the final Tabby payment (~3 Nov)." },
   { id: "o-rent-jan",  due: "2027-01-22", name: "RENT CHEQUE — January",   amount: 11750,   status: "estimate", recurrence: "Quarterly", priority: "Critical",  note: "Quarterly cadence confirmed by the owner. Assumed flat — confirm with the landlord." },
+  { id: "o-rent-apr",  due: "2027-04-22", name: "RENT CHEQUE — April",     amount: 11750,   status: "estimate", recurrence: "Quarterly", priority: "Critical",  note: "Confirmed quarterly pattern; flat-rent assumption, same as January." },
+  { id: "o-rent-jul",  due: "2027-07-22", name: "RENT CHEQUE — July",      amount: 11750,   status: "estimate", recurrence: "Quarterly", priority: "Critical",  note: "Confirmed quarterly pattern; flat-rent assumption, same as January." },
 ];
 
 const SEED_BUDGET = [
@@ -235,6 +244,31 @@ const SEED_TX = [
   ["2026-08-26T13:00","NBD","Cielo Kabab Restaurant",20,"Dining","Personal",1,249.37,"Expense"],
   ["2026-08-26T18:00","NBD","Emarat 6192 Nad Al Ham",75.05,"Fuel & Transport","Household",1,174.32,"Expense"],
   ["2026-08-26T20:00","NBD","Netflix.com",36.09,"Lifestyle & Shopping","Personal",1,138.23,"Actual debit 36.09; SMS advertised approx 35.00"],
+  /* 27-30 Aug — nine more personal purchases on NBD before it goes quiet. */
+  ["2026-08-27T12:35","NBD","Spicy Falcon Restaurant",7,"Dining","Personal",1,131.23,"Expense"],
+  ["2026-08-27T18:51","NBD","Real Choice Grocery",15,"Groceries","Personal",1,116.23,"Expense"],
+  ["2026-08-27T19:55","NBD","Asas Al Madina General",6,"Lifestyle & Shopping","Personal",1,110.23,"Expense"],
+  ["2026-08-28T15:14","NBD","Spicy Falcon Restaurant",29.01,"Dining","Personal",1,81.22,"Actual debit 29.01; SMS displayed 29.00"],
+  ["2026-08-28T17:49","NBD","Asas Al Madina General",14,"Lifestyle & Shopping","Personal",1,67.22,"Expense"],
+  ["2026-08-28T20:40","NBD","Qashati Al Sham Sweets",22,"Dining","Personal",1,45.22,"Expense"],
+  ["2026-08-29T17:54","NBD","Asas Al Madina General",14,"Lifestyle & Shopping","Personal",1,31.22,"Expense"],
+  ["2026-08-30T19:30","NBD","Jannat Alfawakih Cafe",8,"Dining","Personal",1,23.22,"Expense"],
+  ["2026-08-30T22:00","NBD","Asas Al Madina General",14,"Lifestyle & Shopping","Personal",1,9.22,"Expense"],
+  /* 28-31 Aug — FAB 4001 picks back up: a vault top-up, then more personal spend. */
+  ["2026-08-28T20:05","FAB 4001","Internal transfer 4002 → 4001",400,"Excluded","Excluded",0,414.95,"Transfer; not income"],
+  ["2026-08-28T22:52","FAB 4001","SMK Street Restaurant",17,"Dining","Personal",1,397.95,"Expense"],
+  ["2026-08-29T15:09","FAB 4001","Team Taste (Paymob)",71,"Dining","Personal",1,326.95,"Expense"],
+  ["2026-08-29T16:08","FAB 4001","Mom Store General Trading",77,"Lifestyle & Shopping","Personal",1,249.95,"Expense"],
+  ["2026-08-29T16:38","FAB 4001","Alshaya Nad J605 3C",24,"Lifestyle & Shopping","Personal",1,225.95,"Expense"],
+  ["2026-08-31T20:07","FAB 4001","KFC (Sharjah)",38.32,"Dining","Personal",1,187.63,"Expense"],
+  ["2026-08-31T21:22","FAB 4001","Asas Al Madina General",37,"Lifestyle & Shopping","Personal",1,150.63,"Expense"],
+  /* 1 Sep — a family remittance, its fee, and a new monthly minimum-balance
+     charge that closes a gap the workbook had previously flagged unreconciled. */
+  ["2026-09-01T13:03","FAB 4001","Spicy Falcon Restaurant",29.5,"Dining","Personal",1,121.13,"Expense"],
+  ["2026-09-01T18:49","FAB 4001","Dubai Duty Free",13,"Lifestyle & Shopping","Personal",1,108.13,"Expense"],
+  ["2026-09-01T23:55","FAB 4001","Remittance to card XXXX7801",50,"Family & Support","Household",1,58.13,"Family support transfer, confirmed by SMS"],
+  ["2026-09-01T23:56","FAB 4001","Outward remittance fee",0.49,"Bank Fees","Household",1,57.64,"Balance-derived fee on the remittance above"],
+  ["2026-09-01T23:57","FAB 4001","FAB monthly minimum balance fee",26.25,"Bank Fees","Household",1,31.39,"New — confirmed by owner. Closes a gap this account had carried as unreconciled."],
 ].map(([date, bank, merchant, amount, category, split, counts, balanceAfter, note], i) => ({
   id: "s" + i, date, bank, merchant, amount, category, split, counts, balanceAfter, note,
   kind: "expense",
@@ -288,10 +322,12 @@ const SEED_GOALS = [
   { id: "g10", stage: 3, name: "January rent cheque", target: 11750, currentRef: "goalFund",
     deadline: "2027-01-22",
     note: "The next quarterly cheque. Assumed flat — confirm with the landlord." },
-  { id: "g11", stage: 3, name: "Maternity provision", target: 18000, currentRef: "goalFund",
+  { id: "g11", stage: 3, name: "Maternity contingency", target: 3000, currentRef: "goalFund",
     deadline: "2027-06-30",
-    note: "Mid-private-range working budget. Her EBP covers a mandated AED 7,000 of a normal "
-        + "delivery with a 10% co-payment; this is the gap plus contingency." },
+    note: "Her Basic/EBP plan covers a normal delivery up to AED 7,000 and a C-section up to AED "
+        + "10,000, both less a 10% co-payment. Out-of-pocket still runs AED 600–8,700 (government) "
+        + "or AED 5,700–23,700 (private) depending on route. This is a working buffer for scans, "
+        + "tests or extras — not the full private-route exposure — plus the separate newborn goal below." },
   { id: "g12", stage: 3, name: "Newborn first year", target: 8000, currentRef: "goalFund",
     deadline: "2027-12-31",
     note: "Crib, car seat, clothing, paediatrician. Insurance covers none of it. Treat as a floor." },
@@ -368,10 +404,10 @@ const SEED_ASSUMPTIONS = {
    they say what a balance is already spoken for, which is the whole reason
    AED 6,090.70 in FAB 4002 is not AED 6,090.70 of spending power. */
 const SEED_POTS = [
-  { id: "p-rent",  name: "Rent vault",     accountId: "fab4002", balance: 5940.70, target: 11750,
+  { id: "p-rent",  name: "Rent vault",     accountId: "fab4002", balance: 5548.76, target: 11750,
     kind: "vault",     earmark: "o-rent",
     note: "The October cheque. The whole FAB 4002 balance is committed to it." },
-  { id: "p-emg",   name: "Emergency fund", accountId: "fabemg",  balance: 7.67,    target: 1000,
+  { id: "p-emg",   name: "Emergency fund", accountId: "fabemg",  balance: 7.68,    target: 1000,
     kind: "emergency", earmark: null,
     note: "First milestone AED 1,000, then six months of essentials." },
 ];
@@ -485,12 +521,13 @@ const SEED_FAMILY = {
         + "minimums; the patient pays 10% of the covered amount up to that limit.",
   },
   maternity: [
-    { label: "Government hospital", low: 6000,  high: 15000, note: "Cash-pay, normal delivery — UAE Open Healthcare Directory, Apr 2026" },
-    { label: "Private hospital",    low: 12000, high: 30000, note: "Package price, normal delivery. A C-section runs materially higher." },
+    { label: "Government hospital — cash-pay", low: 6000,  high: 15000, note: "No insurance applied — UAE Open Healthcare Directory, Apr 2026" },
+    { label: "Private hospital — cash-pay",    low: 12000, high: 30000, note: "No insurance applied. A C-section runs materially higher." },
+    { label: "Government hospital — out of pocket", low: 600,  high: 8700,  note: "After her EBP cover — normal delivery is low end, C-section is high end" },
+    { label: "Private hospital — out of pocket",    low: 5700, high: 23700, note: "After her EBP cover — exceeds the sub-limit either way" },
   ],
-  workingBudget: 18000,
   newbornFirstYear: 8000,
-  contingency: 2000,
+  contingency: 3000,
   home: {
     dubaiMinSalary: 15000,
     dubaiMinSalaryLowest: 10000,

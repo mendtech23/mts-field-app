@@ -1037,7 +1037,46 @@ function renderReports() {
         <tbody>${r.merchants.slice(0, 12).map((x) => `<tr>
           <td>${esc(x.merchant)}</td><td class="num">${money(x.total)}</td>
           <td class="num">${x.count}</td></tr>`).join("")}</tbody>
-      </table></div>`)}`;
+      </table></div>`)}
+
+    ${renderPatterns()}`;
+}
+
+/* Patterns across the whole ledger, not boxed to one month — the habits that
+   only show up once there is enough history to see them. */
+function renderPatterns() {
+  const p = patterns();
+  if (p.txCount < 3) {
+    return card("Patterns in your spending", "", `
+      <div class="note">Log a few more expenses and real patterns will show up here — merchant
+        frequency, which days run highest, whether spending is trending up or down.</div>`);
+  }
+  const rows = [];
+  if (p.topMerchant) {
+    rows.push(`<div class="note">${esc(p.topMerchant.merchant)} is your top merchant by amount —
+      ${money(p.topMerchant.total)} across ${p.topMerchant.count} visit${p.topMerchant.count > 1 ? "s" : ""}.</div>`);
+  }
+  if (p.frequentMerchant && p.frequentMerchant.count > 1
+      && p.frequentMerchant.merchant !== p.topMerchant?.merchant) {
+    rows.push(`<div class="note">${esc(p.frequentMerchant.merchant)} is your most frequent stop —
+      ${p.frequentMerchant.count} visits.</div>`);
+  }
+  if (p.worstWeekday) {
+    rows.push(`<div class="note">${esc(p.worstWeekday.day)} is your highest-spend day on average —
+      ${money(p.worstWeekday.avg)} typically.</div>`);
+  }
+  if (p.trend === "up") {
+    rows.push(`<div class="note warn">The last 3 days (${money(p.last3)}) ran higher than the 3 before
+      (${money(p.prev3)}) — spending is trending up.</div>`);
+  } else if (p.trend === "down") {
+    rows.push(`<div class="note good">The last 3 days (${money(p.last3)}) ran lower than the 3 before
+      (${money(p.prev3)}) — spending is trending down.</div>`);
+  }
+  if (p.topCat) {
+    rows.push(`<div class="note">${esc(p.topCat.cat)} is ${pct(p.topCat.share, 0)} of this week's
+      spending. Cutting it 20% would save ${money(p.potentialSave)}.</div>`);
+  }
+  return card("Patterns in your spending", "", rows.join(""));
 }
 
 /* -------------------------------------------------------------- SIPs --- */
@@ -1482,7 +1521,7 @@ function renderFamily() {
   const F = SEED_FAMILY;
   const ins = F.insurance;
   const covered = ins.normalDelivery * (1 - ins.coPayment);
-  const outOfPocket = Math.max(0, F.workingBudget - covered);
+  const outOfPocketRange = F.maternity.find((x) => x.label === "Private hospital — out of pocket");
   const home = F.home;
   const cashAtClosing = home.examplePrice * home.cashAtClosing;
 
@@ -1492,8 +1531,9 @@ function renderFamily() {
         n: `${m.A.emergencyMonths} months of essentials` },
       { k: "Held today", v: money(m.emergency), tone: "bad",
         n: pct(safeDiv(m.emergency, m.emergencyTarget), 1) + " of target" },
-      { k: "Maternity budget", v: money(F.workingBudget), n: "mid private range" },
-      { k: "Likely out of pocket", v: money(outOfPocket), tone: "warn", n: "after her EBP cover" },
+      { k: "Suggested contingency", v: money(F.contingency), n: "scans, tests, extras" },
+      { k: "Out of pocket, private route", v: `${money(outOfPocketRange.low)}–${money(outOfPocketRange.high)}`,
+        tone: "warn", n: "after her EBP cover" },
     ])}
 
     ${card("The change that has already happened", "Confirmed 14 August", `
@@ -1515,9 +1555,8 @@ function renderFamily() {
       <div class="kv"><span class="k">EBP sub-limit, normal delivery</span><span class="v">${money(ins.normalDelivery)}</span></div>
       <div class="kv"><span class="k">EBP sub-limit, C-section</span><span class="v">${money(ins.cSection)}</span></div>
       <div class="kv"><span class="k">Your co-payment</span><span class="v">${pct(ins.coPayment, 0)}</span></div>
-      <div class="kv"><span class="k">Effectively covered, normal delivery</span><span class="v num-pos">${money(covered)}</span></div>
-      <div class="kv strong-top"><span class="k"><strong>Gap to the working budget</strong></span>
-        <span class="v num-neg">${money(outOfPocket)}</span></div>
+      <div class="kv strong-top"><span class="k"><strong>Effectively covered, normal delivery</strong></span>
+        <span class="v num-pos">${money(covered)}</span></div>
       <div class="scroll-x" style="margin-top:12px"><table class="tbl">
         <thead><tr><th>Route</th><th class="num">Low</th><th class="num">High</th><th>Source</th></tr></thead>
         <tbody>${F.maternity.map((x) => `<tr><td>${esc(x.label)}</td>
@@ -1532,10 +1571,11 @@ function renderFamily() {
     ${card("The newborn year, which insurance does not touch", "", `
       <div class="kv"><span class="k">First-year essentials</span><span class="v">${money(F.newbornFirstYear)}</span></div>
       <div class="kv"><span class="k">Contingency for scans and extras</span><span class="v">${money(F.contingency)}</span></div>
-      <div class="kv strong-top"><span class="k"><strong>Total family provision</strong></span>
-        <span class="v">${money(F.workingBudget + F.newbornFirstYear + F.contingency)}</span></div>
+      <div class="kv strong-top"><span class="k"><strong>Total to prepare for</strong></span>
+        <span class="v">${money(F.newbornFirstYear + F.contingency)}</span></div>
       <div class="note">Crib, car seat, clothing, paediatrician visits, formula and diapers. Insurance
-        covers none of it. Treat the figure as a floor rather than a ceiling.</div>`)}
+        covers none of it. The contingency is a working buffer for scans, tests and extras — not the
+        full private-route exposure shown above. Treat both figures as a floor rather than a ceiling.</div>`)}
 
     ${card("Emergency fund — the real insurance", "Single income, family coming", `
       <div class="bar ${m.emergency >= m.emergencyTarget ? "good" : "bad"}" style="margin-bottom:12px">

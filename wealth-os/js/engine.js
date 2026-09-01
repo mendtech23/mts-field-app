@@ -600,6 +600,56 @@ function monthReport(k, s = state, m = metrics(s)) {
   };
 }
 
+/* Live patterns across the whole ledger — merchant habits, which weekday
+   runs hottest, whether the last few days are trending up or down. Nothing
+   here is month-boxed; a habit doesn't reset on the 1st. */
+function patterns(s = state) {
+  const tx = s.tx.filter((t) => t.counts);
+  const byMerch = {};
+  for (const t of tx) {
+    const key = merchantKey(t.merchant) || t.merchant;
+    byMerch[key] = byMerch[key] || { merchant: t.merchant, total: 0, count: 0 };
+    byMerch[key].total += t.amount;
+    byMerch[key].count++;
+  }
+  const merchants = Object.values(byMerch).sort((a, b) => b.total - a.total);
+  const topMerchant = merchants[0] || null;
+  const frequentMerchant = [...merchants].sort((a, b) => b.count - a.count)[0] || null;
+
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const sums = Array(7).fill(0), counts = Array(7).fill(0);
+  for (const t of tx) {
+    const d = parseDate(t.date).getDay();
+    sums[d] += t.amount; counts[d]++;
+  }
+  const byWeekday = dayNames.map((n, i) => ({
+    day: n, avg: counts[i] ? sums[i] / counts[i] : 0, total: sums[i], count: counts[i],
+  }));
+  const worstWeekday = [...byWeekday].filter((d) => d.count > 1).sort((a, b) => b.avg - a.avg)[0] || null;
+
+  const today = todayISO();
+  const inLast = (t, lo, hi) => { const d = diffDays(t.date.slice(0, 10), today); return d >= lo && d < hi; };
+  const last3 = sum(tx.filter((t) => inLast(t, 0, 3)), (t) => t.amount);
+  const prev3 = sum(tx.filter((t) => inLast(t, 3, 6)), (t) => t.amount);
+  const trend = prev3 <= 0 ? "flat" : last3 > prev3 ? "up" : last3 < prev3 ? "down" : "flat";
+
+  const thisWeek = weekKey(today);
+  const wkByCat = {};
+  let wkSpend = 0;
+  for (const t of tx) {
+    if (weekKey(t.date.slice(0, 10)) !== thisWeek) continue;
+    wkByCat[t.category] = (wkByCat[t.category] || 0) + t.amount;
+    wkSpend += t.amount;
+  }
+  const topCat = Object.entries(wkByCat).sort((a, b) => b[1] - a[1])[0] || null;
+  const topCatShare = topCat ? safeDiv(topCat[1], wkSpend) : 0;
+  const potentialSave = topCat ? topCat[1] * 0.2 : 0;
+
+  return { topMerchant, frequentMerchant, worstWeekday, last3, prev3, trend,
+           topCat: topCat ? { cat: topCat[0], total: topCat[1], share: topCatShare } : null,
+           potentialSave, txCount: tx.length };
+}
+
 function allMonths(s = state) {
   return [...new Set(s.tx.map((t) => monthKey(t.date)))].sort();
 }
