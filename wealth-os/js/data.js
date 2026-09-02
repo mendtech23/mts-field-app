@@ -145,7 +145,7 @@ const SEED_TX = [
   ["2026-08-05T15:23","NBD","Raya Al Talal Supermarket",10.25,"Groceries","Household",1,15.7,"Expense"],
   ["2026-08-05T15:49","FAB","Asas Al Madina General",14,"Lifestyle & Shopping","Personal",1,2521.86,"Expense"],
   ["2026-08-06T16:43","FAB","Asas Al Madina General",20,"Groceries","Household",1,2501.86,"Expense"],
-  ["2026-08-06T20:56","FAB","August salary received early",3740,"Excluded","Excluded",0,6501.86,"Salary timing; not income again at payday"],
+  ["2026-08-06T20:56","FAB","Ticket reimbursement (KHESKANI + SATYANI)",3740,"Excluded","Excluded",0,6501.86,"Ticket-dealing income, not salary — corrected 2 Sep; counted against the 26 Aug payday cash flow either way"],
   ["2026-08-06T20:57","FAB","Two-ticket profit",260,"Excluded","Excluded",0,6501.86,"Side income"],
   ["2026-08-07T06:00","FAB","e& Money medical support",100,"Family & Support","Household",1,2401.86,"Expense"],
   ["2026-08-07T06:01","FAB","Duplicate e& Money transfer",100,"Excluded","Excluded",0,2301.86,"Receivable; refunded 11 Aug"],
@@ -279,12 +279,20 @@ const SEED_TX = [
 }));
 
 const SEED_INCOME = [
-  { id: "i1", date: "2026-08-06", name: "August salary (early portion)", amount: 3740,    status: "actual",   note: "Two-ticket salary recovery; already in cash." },
-  { id: "i2", date: "2026-08-06", name: "Two-ticket profit",             amount: 260,     status: "actual",   note: "AED 4,000 received less AED 3,740 recovery." },
-  { id: "i3", date: "2026-08-12", name: "Third-ticket recovery",         amount: 1540,    status: "actual",   note: "Salary advance received 12 Aug." },
+  { id: "i1", date: "2026-08-06", name: "Ticket reimbursement (KHESKANI + SATYANI)", amount: 3740, status: "actual",
+    note: "Two concessional tickets, AED 1,870 cost each — ticket-dealing income, not a salary advance. "
+        + "Corrected 2 Sep; previously mislabelled as an early portion of salary." },
+  { id: "i2", date: "2026-08-06", name: "Two-ticket profit",             amount: 260,     status: "actual",   note: "AED 4,000 received less AED 3,740 reimbursement." },
+  { id: "i3", date: "2026-08-12", name: "Ticket reimbursement (DACOSTA)", amount: 1540, status: "actual",
+    note: "One concessional ticket, AED 1,540 cost — ticket-dealing income, not a salary advance. "
+        + "Corrected 2 Sep; previously mislabelled as a salary advance." },
   { id: "i4", date: "2026-08-12", name: "Third-ticket profit",           amount: 30,      status: "actual",   note: "Profit received 12 Aug." },
   { id: "i5", date: "2026-08-12", name: "Prior-month salary",            amount: 1430,    status: "actual",   note: "Allocated to rent." },
-  { id: "i6", date: "2026-08-26", name: "Remaining payday cash",         amount: 2906.70, status: "actual", note: "Landed 26 Aug as expected — confirmed by SMS into NBD Current, not FAB 4001 as in prior months." },
+  { id: "i6", date: "2026-08-26", name: "Remaining payday cash",         amount: 2906.70, status: "actual",
+    note: "Landed 26 Aug as expected — confirmed by SMS into NBD Current, not FAB 4001 as in prior months. "
+        + "Matches the Emirates payslip exactly: gross 8,216.70 (Accommodation 3,420 + Basic 4,365 + "
+        + "Overtime 431.70) less 5,310.00 in deductions (3 concessional tickets 5,280 + staff card 30) "
+        + "= net pay 2,906.70." },
 ];
 
 /* Staged exactly as the workbook stages them. Nothing in stage 2 or 3 is
@@ -354,7 +362,12 @@ const SEED_ASSUMPTIONS = {
   scenarioAdj: 0,
 
   /* Income and housing */
-  salary: 7914.88,
+  /* Was 7,914.88 — that figure mixed in two ticket-dealing reimbursements
+     that were never actually salary. The Aug payslip (Emirates, net pay
+     2,906.70 after 3 concessional-ticket deductions) confirmed the real
+     mechanics; Johnny separately confirmed 7,900 as his September
+     expectation with no ticket deductions this cycle. Re-check monthly. */
+  salary: 7900,
   salaryDay: 26,
   salaryIncrement: 0.04,
   rentCheque: 11750,
@@ -415,8 +428,9 @@ const SEED_POTS = [
 /* ------------------------------------------------------- income --------- */
 const SEED_INCOME_SOURCES = [
   { id: "src-salary", name: "Salary — main employer", type: "Salary",
-    expectedMonthly: 7914.88, dayOfMonth: 26, ccy: "AED", active: true,
-    note: "Paid on the 26th. The July figure is the baseline." },
+    expectedMonthly: 7900, dayOfMonth: 26, ccy: "AED", active: true,
+    note: "Paid on the 26th. Johnny's own confirmed expectation for September (no concessional "
+        + "ticket deductions this cycle) — treated as the baseline until each month proves otherwise." },
   { id: "src-tickets", name: "Ticket dealing", type: "Side income",
     expectedMonthly: 0, dayOfMonth: 0, ccy: "AED", active: true,
     note: "Irregular, and deliberately not built into the plan — a plan that needs a side "
