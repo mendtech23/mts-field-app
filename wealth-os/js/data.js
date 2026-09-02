@@ -266,7 +266,7 @@ const SEED_TX = [
      charge that closes a gap the workbook had previously flagged unreconciled. */
   ["2026-09-01T13:03","FAB 4001","Spicy Falcon Restaurant",29.5,"Dining","Personal",1,121.13,"Expense"],
   ["2026-09-01T18:49","FAB 4001","Dubai Duty Free",13,"Lifestyle & Shopping","Personal",1,108.13,"Expense"],
-  ["2026-09-01T23:55","FAB 4001","Remittance to card XXXX7801",50,"Family & Support","Household",1,58.13,"Family support transfer, confirmed by SMS"],
+  ["2026-09-01T23:55","FAB 4001","Remittance to card XXXX7801",50,"Excluded","Excluded",0,58.13,"Transfer, not spend, per the workbook's own classification — real balance effect only, confirmed by SMS"],
   ["2026-09-01T23:56","FAB 4001","Outward remittance fee",0.49,"Bank Fees","Household",1,57.64,"Balance-derived fee on the remittance above"],
   ["2026-09-01T23:57","FAB 4001","FAB monthly minimum balance fee",26.25,"Bank Fees","Household",1,31.39,"New — confirmed by owner. Closes a gap this account had carried as unreconciled."],
 ].map(([date, bank, merchant, amount, category, split, counts, balanceAfter, note], i) => ({
