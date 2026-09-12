@@ -12,16 +12,16 @@
    message, statement or bill; "estimate" means it has not happened yet. */
 
 const SEED_ACCOUNTS = [
-  { id: "fab4001", name: "FAB 4001 — spending",   bank: "FAB",   balance: 2920.55, ccy: "AED", kind: "current", locked: false, asOf: "2026-09-12", status: "actual",
-    note: "Card XXXX1599. Live app screenshot, 12 Sep. The AED 3,082.80 Amana liquidation landed here on "
-        + "11 Sep, which is the only reason this balance looks healthy — it is sold investment capital, "
-        + "not earnings. Before it arrived the account was running on AED 20–140 and being topped up from "
-        + "the rent vault every second day." },
-  { id: "fab4002", name: "FAB 4002 — rent vault", bank: "FAB",   balance: 3678.76, ccy: "AED", kind: "current", locked: true,  asOf: "2026-09-12", status: "actual",
-    note: "The rent vault. DOWN from 5,548.76: roughly AED 1,870 was drawn out between 1–10 Sep — six "
-        + "transfers to FAB 4001 for daily spending (1,320) plus an AED 550 car payment taken straight "
-        + "out of the vault. 31.3% of the cheque funded, down from 47.2%. This is the single most "
-        + "important number on this page moving the wrong way." },
+  { id: "fab4001", name: "FAB 4001 — spending",   bank: "FAB",   balance: 20.55,   ccy: "AED", kind: "current", locked: false, asOf: "2026-09-12", status: "actual",
+    note: "Card XXXX1599. The AED 3,082.80 Amana liquidation landed here 11 Sep, and on 12 Sep at 13:23 "
+        + "AED 2,900 of it was sent straight back to the rent vault — confirmed by bank SMS. That's the "
+        + "right call: it was sold capital sitting in a spending account, not earnings, and putting most "
+        + "of it back where it does the most good closes a real chunk of the rent gap." },
+  { id: "fab4002", name: "FAB 4002 — rent vault", bank: "FAB",   balance: 6578.76, ccy: "AED", kind: "current", locked: true,  asOf: "2026-09-12", status: "actual",
+    note: "The rent vault. Drew down to 3,678.76 between 1–10 Sep (six transfers out for daily spending "
+        + "plus an AED 550 car payment), then AED 2,900 was put back on 12 Sep — confirmed by bank SMS at "
+        + "13:23, part of the Amana liquidation proceeds. Net effect: 56.0% of the cheque now funded, "
+        + "up from 31.3% before the repayment and back above the 47.2% level it was at before the raid." },
   { id: "fabemg",  name: "FAB 4003 — emergency",  bank: "FAB",   balance: 7.68,    ccy: "AED", kind: "savings", locked: true,  asOf: "2026-08-31", status: "actual",
     note: "Ring-fenced. AED 0.01 interest credited 31 Aug. Next milestone AED 1,000." },
   { id: "nbdcur",  name: "NBD Current",           bank: "NBD",   balance: 13.17,   ccy: "AED", kind: "current", locked: false, asOf: "2026-09-12", status: "actual",
@@ -347,6 +347,8 @@ const SEED_TX = [
   ["2026-09-11T12:00","FAB 4001","Fund Transfer Charges (Abhijith Within UAE transfer)",0.49,"Bank Fees","Household",1,2920.55,"Inferred from the confirmed 0.49 Within-UAE transfer fee pattern (Abdel Samy, Abhijith) -- closes the final AED 0.49 gap exactly."],
   ["2026-09-11T12:00","NBD","Nad Al Hamar Baker",10,"Lifestyle & Shopping","Personal",1,26.67,"Confirmed via SMS chain, 12 Sep"],
   ["2026-09-12T12:00","NBD","ENOC Site 39",13.5,"Fuel & Transport","Household",1,13.17,"Confirmed via SMS chain, 12 Sep"],
+  ["2026-09-12T13:23","FAB 4001","Transfer to FAB 4002 (rent vault repayment)",2900,"Excluded","Excluded",0,20.55,"CONFIRMED via FAB SMS: funds transfer request processed 12/09/2026 13:23 — putting most of the Amana liquidation back into the rent vault, exactly as advised"],
+  ["2026-09-12T13:23","FAB 4002","Transfer from FAB 4001 (rent vault repayment)",2900,"Excluded","Excluded",0,6578.76,"CONFIRMED via FAB SMS: funds transfer request processed 12/09/2026 13:23 — restores most of what was drawn down 1-10 Sep"],
 ].map(([date, bank, merchant, amount, category, split, counts, balanceAfter, note], i) => ({
   id: "s" + i, date, bank, merchant, amount, category, split, counts, balanceAfter, note,
   kind: "expense",
@@ -507,10 +509,10 @@ const SEED_ASSUMPTIONS = {
    they say what a balance is already spoken for, which is the whole reason
    AED 6,090.70 in FAB 4002 is not AED 6,090.70 of spending power. */
 const SEED_POTS = [
-  { id: "p-rent",  name: "Rent vault",     accountId: "fab4002", balance: 3678.76, target: 11750,
+  { id: "p-rent",  name: "Rent vault",     accountId: "fab4002", balance: 6578.76, target: 11750,
     kind: "vault",     earmark: "o-rent",
-    note: "The October cheque. The whole FAB 4002 balance is committed to it — and roughly AED 1,870 "
-        + "of it was spent on living costs and a car repair between 1 and 10 September." },
+    note: "The October cheque. Drew down by about AED 1,870 between 1–10 September, then AED 2,900 of "
+        + "the Amana sale proceeds was put back on 12 Sep — a real, deliberate step toward closing the gap." },
   { id: "p-emg",   name: "Emergency fund", accountId: "fabemg",  balance: 7.68,    target: 1000,
     kind: "emergency", earmark: null,
     note: "First milestone AED 1,000, then six months of essentials." },
