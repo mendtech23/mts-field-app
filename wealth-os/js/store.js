@@ -12,7 +12,7 @@ function blankState() {
     v: SCHEMA,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    asOf: "2026-09-01",
+    asOf: "2026-09-12",
     assumptions: { ...SEED_ASSUMPTIONS, ...SEED_ASSUMPTIONS_EXTRA },
     accounts: SEED_ACCOUNTS.map((a) => ({ ...a })),
     pots: SEED_POTS.map((p) => ({ ...p })),
@@ -24,7 +24,8 @@ function blankState() {
     debtPayments: SEED_DEBT_PAYMENTS.map((d) => ({ ...d })),
     budget: SEED_BUDGET.map((b) => ({ ...b })),
     tx: SEED_TX.map((t) => ({ ...t })),
-    income: SEED_INCOME.map((i) => ({ ...i, sourceId: i.id === "i6" ? "src-salary" : "src-tickets" })),
+    /* An explicit sourceId on the seed row wins; the rest are ticket dealing. */
+    income: SEED_INCOME.map((i) => ({ sourceId: "src-tickets", ...i })),
     incomeSources: SEED_INCOME_SOURCES.map((s) => ({ ...s })),
     goals: SEED_GOALS.map((g) => ({ ...g })),
     rules: SEED_RULES.map((r) => ({ ...r })),

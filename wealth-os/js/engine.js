@@ -107,10 +107,14 @@ function metrics(s = state) {
     .map((m) => ({ ...m, avg: m.total / m.count }))
     .sort((a, b) => b.total - a.total);
 
+  /* The daily-living cap measures what willpower can actually change, so the
+     lines that are committed the moment the month starts sit outside it. */
+  const NOT_LIVING = ["Travel", "Utilities & Telecom", "Debt repayment", "Savings & Investments"];
   const oneOff = byCat["Travel"] || 0;
   const utilities = byCat["Utilities & Telecom"] || 0;
   const debtRepay = byCat["Debt repayment"] || 0;
-  const livingSpend = totalSpend - oneOff - utilities - debtRepay;
+  const invested_ = byCat["Savings & Investments"] || 0;
+  const livingSpend = totalSpend - oneOff - utilities - debtRepay - invested_;
   const dailyBurn = livingSpend / days;
   const monthlyRunRate = totalSpend * runRate;
   const personalShare = safeDiv(
@@ -124,8 +128,7 @@ function metrics(s = state) {
   }
   const livingByDay = {};
   for (const t of spend) {
-    if (t.category === "Travel" || t.category === "Utilities & Telecom"
-     || t.category === "Debt repayment") continue;
+    if (NOT_LIVING.includes(t.category)) continue;
     const d = t.date.slice(0, 10);
     livingByDay[d] = (livingByDay[d] || 0) + t.amount;
   }
@@ -396,8 +399,15 @@ function forecast(s = state, m = metrics(s), opts = {}) {
     claimed.add(claimKey(d.date, d.amount));
   }
 
-  /* --- SIP instalments ---------------------------------------------------- */
+  /* --- SIP instalments ----------------------------------------------------
+     A dated obligation may stand in for a month's SIP even when it falls on a
+     different day — the rupee auto-debit lands on the 10th, but the dirhams
+     leave on payday to pre-fund it. Such an obligation declares the month it
+     covers, and the generated instalment for that month is skipped, or the
+     same money would leave the account twice. */
+  const sipCovered = new Set(s.obligations.filter((o) => o.covers).map((o) => o.covers));
   for (let k = monthKey(start); k <= monthKey(end); k = addMonthsKey(k, 1)) {
+    if (sipCovered.has(k)) continue;
     const activeSips = s.sips.filter((x) => x.active);
     if (!activeSips.length) continue;
     const day = activeSips[0].dayOfMonth || 10;
