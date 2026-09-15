@@ -101,10 +101,26 @@ function migrate(s) {
   return out;
 }
 
+/* Fields that are genuinely this device's own — history and preferences the
+   app has built up locally — and should survive a reseed untouched. Every
+   other field is the bank-confirmed ledger: whenever a newer build ships
+   with a later `asOf`, that ledger wins over whatever is cached here, so a
+   browser that hasn't been opened in weeks never shows stale months. */
+const LOCAL_ONLY_FIELDS = ["createdAt", "snapshots", "dismissed", "theme", "recurring"];
+
 function loadState() {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    return raw ? migrate(JSON.parse(raw)) : blankState();
+    if (!raw) return blankState();
+    const cached = migrate(JSON.parse(raw));
+    const fresh = blankState();
+    if (cached.asOf === fresh.asOf) return cached;
+    // A newer reconciled snapshot has shipped since this device last saved —
+    // take the fresh ledger, keep this device's own history and settings.
+    const merged = { ...fresh };
+    for (const key of LOCAL_ONLY_FIELDS) merged[key] = cached[key];
+    merged.settings = { ...fresh.settings, ...(cached.settings || {}) };
+    return merged;
   } catch (e) {
     console.warn("Saved state unreadable; starting from the workbook seed.", e);
     return blankState();
