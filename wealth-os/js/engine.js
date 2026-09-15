@@ -521,6 +521,33 @@ function forecast(s = state, m = metrics(s), opts = {}) {
   };
 }
 
+/* ---------------------------------------------------- 13-week cash flow */
+/* The standard CFO liquidity tool: the same forecast, read week by week
+   instead of day by day, so a thin week thirteen weeks out is visible now
+   rather than discovered when it arrives. */
+function weeklyCashFlow(s = state, m = metrics(s)) {
+  const fc = forecast(s, m, { days: 13 * 7 });
+  const weeks = [];
+  for (let w = 0; w < 13; w++) {
+    const days = fc.series.slice(w * 7, w * 7 + 7);
+    if (!days.length) break;
+    const opening = w === 0 ? fc.opening : weeks[w - 1].closing;
+    const inflow = round2(sum(days.flatMap((d) => d.events), (e) => Math.max(0, e.amount)));
+    const outflow = round2(-sum(days.flatMap((d) => d.events), (e) => Math.min(0, e.amount)));
+    const burn = round2(sum(days, (d) => d.burn));
+    const closing = round2(days[days.length - 1].balance);
+    const lowest = round2(Math.min(...days.map((d) => d.balance)));
+    const events = days.flatMap((d) => d.events);
+    weeks.push({
+      index: w + 1, start: days[0].date, end: days[days.length - 1].date,
+      opening: round2(opening), inflow, outflow, burn, closing, lowest, events,
+      negative: lowest < 0,
+    });
+  }
+  return { weeks, minBalance: fc.minBalance, minDate: fc.minDate,
+           firstNegative: fc.firstNegative, closing: fc.closing };
+}
+
 /* ==================================================== recurring detection = */
 /* Two or more charges from the same merchant at a regular interval is a
    subscription whether or not anyone called it one. Detection is deliberately

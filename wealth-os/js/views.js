@@ -554,6 +554,8 @@ function renderPlan() {
       + (!m.yearsToFI ? `<div class="note warn">The base plan does not reach independence inside
           ${A.horizonYears} years. The fix is the contribution lever, not a better fund — try the scenarios above.</div>` : ""))}
 
+    ${renderSinkingFunds(goals)}
+
     ${[1, 2, 3].map((stage) => card(
       ["", "Stage 1 — close the rent gap", "Stage 2 — rebuild the floor", "Stage 3 — family, goals and compounding"][stage],
       ["", "Nothing below moves until this is done",
@@ -566,10 +568,50 @@ function renderPlan() {
             <div class="row-sub">${money(g.current)} of ${money(g.target)} · by ${longDate(g.deadline)}</div>
             <div class="bar ${g.progress >= 1 ? "good" : g.progress >= 0.5 ? "warn" : "bad"}" style="margin-top:7px">
               <i style="width:${(g.progress * 100).toFixed(0)}%"></i></div>
+            ${g.monthlyPace > 0 ? `<div class="row-sub" style="margin-top:6px">
+              <strong>${money(g.monthlyPace)}/month</strong> from now keeps this a sinking fund, not a scramble</div>` : ""}
             <div class="row-sub wrap" style="margin-top:6px;white-space:normal">${esc(g.note)}</div>
           </div>
           <div class="row-val">${pct(g.progress, 0)}<span class="small">${g.gap > 0 ? money0(g.gap) + " to go" : "done"}</span></div>
         </div>`).join(""))).join("")}`;
+}
+
+/* Every future cost that has a date, side by side, with what it actually
+   costs a month to be ready for it — the sinking-fund view of the goals
+   above, so nothing lands as a surprise the week it's due. */
+function renderSinkingFunds(goals) {
+  /* Not every goal belongs in this total. Stage 3 is explicitly not funded
+     until Stage 1 and 2 clear, so it has no place in "start saving this
+     today." netWorth/invested targets compound rather than accumulate
+     linearly, so a straight-line pace for them is meaningless (a 2046 FI
+     target divided into equal monthly deposits ignores investment growth
+     entirely, and produces a number nobody should ever save toward). And the
+     rent vault shows up under more than one goal (the netted gap, the raw
+     cheque, the one-year buffer) — they are the same account, so only the
+     properly netted rentGap figure counts, and only the nearest deadline
+     survives when the same pot funds more than one milestone. */
+  const seen = new Set();
+  const funded = goals
+    .filter((g) => g.stage <= 2 && g.monthlyPace > 0
+      && g.currentRef !== "rentHeld" && g.currentRef !== "netWorth" && g.currentRef !== "invested")
+    .sort((a, b) => a.deadline.localeCompare(b.deadline))
+    .filter((g) => { if (seen.has(g.currentRef)) return false; seen.add(g.currentRef); return true; });
+  if (!funded.length) return "";
+  const total = round2(sum(funded, (g) => g.monthlyPace));
+  return card("Sinking funds", "Every dated cost ahead, converted into one monthly number", `
+    <div class="scroll-x"><table class="tbl wide">
+      <thead><tr><th>What</th><th>By</th><th class="num">Still needed</th><th class="num">Per month</th></tr></thead>
+      <tbody>${funded.map((g) => `<tr>
+        <td>${esc(g.name)}</td><td>${shortDate(g.deadline)}</td>
+        <td class="num">${money0(g.gap)}</td><td class="num">${money0(g.monthlyPace)}</td></tr>`).join("")}</tbody>
+      <tfoot><tr><td colspan="3">Combined, every month, starting now</td>
+        <td class="num"><strong>${money(total)}</strong></td></tr></tfoot>
+    </table></div>
+    <div class="note">Stage 1 and 2 only — what you are actually pursuing right now, one line per commitment, the
+      rent vault counted once. Stage 3 (the trip, maternity, the newborn year, net worth, financial independence)
+      is deliberately left out: it isn't funded until the stages above clear, and the compounding goals don't
+      have a sensible monthly figure to begin with — a 2046 target divided evenly ignores that money invested
+      today grows, which is the entire point of investing it.</div>`);
 }
 
 function goalRows(m) {
@@ -589,12 +631,27 @@ function goalRows(m) {
       goalFund: m.rentGap > 0 ? 0 : Math.max(0, m.livingPool),
       rentGapClosed: Math.max(0, m.rentGap === 0 ? 1 : 0),
     }[g.currentRef] || 0;
+    /* Sinking-fund pace: what has to be set aside each month, from today, to
+       land the target on the deadline — the actual question a sinking fund
+       answers. No deadline means no pace to report, not a zero one. And a
+       compounding target (net worth, financial independence) has no honest
+       linear pace at all — dividing a 2046 number by the months until then
+       ignores that invested money grows, which defeats the point of a
+       straight cash comparison; the wealth-projection table above already
+       answers that question properly. */
+    const pace = (gap, deadline) => {
+      if (!deadline || g.currentRef === "netWorth" || g.currentRef === "invested") return null;
+      const monthsLeft = Math.max(diffDays(todayISO(), deadline), 0) / 30.44;
+      return monthsLeft > 0 ? round2(gap / monthsLeft) : gap;
+    };
     if (g.rentGap) {
       return { ...g, target: m.rentGap, current: 0, gap: m.rentGap,
-               progress: m.rentGap > 0 ? 0 : 1 };
+               progress: m.rentGap > 0 ? 0 : 1, monthlyPace: pace(m.rentGap, g.deadline) };
     }
-    return { ...g, target, current, gap: Math.max(0, target - current),
-             progress: target ? clamp(current / target, 0, 1) : 1 };
+    const gap = Math.max(0, target - current);
+    return { ...g, target, current, gap,
+             progress: target ? clamp(current / target, 0, 1) : 1,
+             monthlyPace: pace(gap, g.deadline) };
   });
 }
 
@@ -769,7 +826,32 @@ function renderFlow() {
         </tr>`).join("")).join("") || `<tr><td colspan="4" class="empty">Nothing dated in this window</td></tr>`}</tbody>
       </table></div>
       <div class="note">Living costs are spread evenly across every day rather than shown as events — they are the
-        slope of the line, not a step in it.</div>`)}`;
+        slope of the line, not a step in it.</div>`)}
+
+    ${render13Week(m)}`;
+}
+
+/* --------------------------------------------------- 13-week cash flow -- */
+function render13Week(m) {
+  const wf = weeklyCashFlow(state, m);
+  const worst = wf.weeks.filter((w) => w.negative).length;
+  return card("13-week cash flow", "The same forecast, week by week, so a thin week is visible now",
+    `<div class="scroll-x"><table class="tbl wide">
+      <thead><tr><th>Week</th><th>Ending</th><th class="num">Opening</th><th class="num">In</th>
+        <th class="num">Out</th><th class="num">Closing</th><th class="num">Lowest</th></tr></thead>
+      <tbody>${wf.weeks.map((w) => `<tr class="${w.negative ? "edge-bad" : ""}">
+        <td>${w.index}</td><td>${shortDate(w.end)}</td>
+        <td class="num">${money0(w.opening)}</td>
+        <td class="num num-pos">${w.inflow ? "+" + money0(w.inflow) : "—"}</td>
+        <td class="num num-neg">${(w.outflow + w.burn) ? "−" + money0(w.outflow + w.burn) : "—"}</td>
+        <td class="num ${w.closing < 0 ? "num-neg" : ""}">${money0(w.closing)}</td>
+        <td class="num ${w.negative ? "num-neg" : "muted"}">${money0(w.lowest)}</td></tr>`).join("")}</tbody>
+    </table></div>
+    <div class="note ${worst ? "bad" : "good"}">${worst
+      ? `${worst} of the next 13 weeks dip below zero at some point, the worst on ${longDate(wf.minDate)} at
+         ${money(wf.minBalance)}. That week needs a plan before it arrives, not while it's happening.`
+      : `Every one of the next 13 weeks stays positive at its lowest point — the nearest real risk is further out
+         than this window reaches.`}</div>`);
 }
 
 /* ---------------------------------------------------------- calendar --- */
