@@ -224,14 +224,53 @@ function metrics(s = state) {
   const safeDailyLimit = Math.max(0, dailyLimitToRent);
 
   /* ------------------------------------------- near-term funding gap --- */
-  /* DEWA and the Aug Tabby statement cleared 26 Aug, so only du and Etisalat
-     (both due 15 Sep) remain unpaid before this deadline; the Sep SIP is
-     added separately below. looseCash already carries the 26 Aug salary —
-     it landed in the account balances directly — so it is not added twice. */
-  const nearBills = 590.98 + 323.95;
+  /* What's still genuinely owed, in cash, before the next payday — read
+     live off the obligations list rather than two merchant names hardcoded
+     on a date that has since passed. Once a bill is marked paid it drops
+     out on its own; nothing here goes stale the way a fixed figure would. */
+  const salarySrc = s.incomeSources.find((x) => x.id === "src-salary" && x.active);
+  const nextPayday = salarySrc
+    ? (dayOfMonthISO(monthKey(todayISO()), salarySrc.dayOfMonth) > todayISO()
+        ? dayOfMonthISO(monthKey(todayISO()), salarySrc.dayOfMonth)
+        : dayOfMonthISO(addMonthsKey(monthKey(todayISO()), 1), salarySrc.dayOfMonth))
+    : null;
+  const nearBills = nextPayday
+    ? sum(s.obligations.filter((o) => !o.paid && o.due <= nextPayday && o.id !== "o-rent"), (o) => o.amount)
+    : 0;
   const availableToSep = looseCash;
   const billsGap = Math.max(0, nearBills - availableToSep);
-  const extraCashNeeded = billsGap + A.sipAed;
+  const extraCashNeeded = billsGap;
+
+  /* --------------------------------------------------- salary plan ----- */
+  /* Give every dirham of the next payday a job before it lands: what has
+     to leave for bills already due in that cycle, what should go straight
+     to the rent vault, and what is genuinely safe to spend until the
+     payday after that. */
+  let salaryPlan = null;
+  if (salarySrc && nextPayday) {
+    const cycleEnd = dayOfMonthISO(addMonthsKey(monthKey(nextPayday), 1), salarySrc.dayOfMonth);
+    const items = s.obligations
+      .filter((o) => !o.paid && o.due > todayISO() && o.due <= cycleEnd && o.id !== "o-rent")
+      .sort((a, b) => a.due.localeCompare(b.due))
+      .map((o) => ({ id: o.id, name: o.name, amount: o.amount, due: o.due,
+                     kind: o.priority === "Critical" ? "debt" : "bill" }));
+    const committed = round2(sum(items, (i) => i.amount));
+    const afterBills = round2(salarySrc.expectedMonthly - committed);
+    const stillToFund = rentToFundRaw(A, rentHeld);
+    /* Living costs for the cycle are reserved before anything is sent to the
+       vault — a plan that leaves nothing to live on for a month isn't a plan,
+       it's a promise that gets broken by the second week. */
+    const cycleDays = Math.max(1, diffDays(nextPayday, cycleEnd));
+    const livingReserve = round2(cycleDays * A.dailyCap);
+    const availableForRent = Math.max(0, round2(afterBills - livingReserve));
+    const towardRent = round2(Math.min(availableForRent, stillToFund));
+    const leftover = round2(afterBills - towardRent);
+    salaryPlan = {
+      date: nextPayday, amount: salarySrc.expectedMonthly, cycleEnd, items,
+      committed, afterBills, livingReserve, towardRent, leftover,
+      short: afterBills < livingReserve,
+    };
+  }
 
   /* ------------------------------------------------------ coverage ----- */
   /* From 15 September the grocery bill moves onto this household. The
@@ -301,7 +340,7 @@ function metrics(s = state) {
     incomeRows, incomeActual, incomeExpected, bySource, incomeTotal, incomeConcentration,
     budget, essential, lifestyle, wealthOut, lifestyleRate, income, totalOutflow,
     surplus, savingsRate, sipPlan, emgPlan,
-    nearBills, availableToSep, billsGap, extraCashNeeded,
+    nearBills, availableToSep, billsGap, extraCashNeeded, nextPayday, salaryPlan,
     foreignCash, rentDeadline, daysToRentDeadline, inflowsBeforeDeadline,
     committedBeforeDeadline, autopayCommitted, safetyBuffer, spendableNow,
     livingPool, minLivingNeed, rentGap, earnPerDay, earnPerWeek,

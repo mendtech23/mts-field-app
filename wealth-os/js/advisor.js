@@ -225,7 +225,9 @@ function advice(m = metrics(), s = state) {
 
   add({
     id: "grocery-transfer", group: "Structure",
-    title: "Plan for the grocery bill moving across on 15 September",
+    title: todayISO() >= A.partnerLastWorkingDay
+      ? "The grocery bill has moved across — plan the household budget for it"
+      : "Plan for the grocery bill moving across on 15 September",
     open: true, impact: A.groceryTransfer, effort: "Medium", by: A.partnerLastWorkingDay,
     status: todayISO() >= A.partnerLastWorkingDay ? "IN EFFECT" : "COMING",
     why: `Her last working day is ${longDate(A.partnerLastWorkingDay)}, and about `
@@ -289,8 +291,9 @@ function verdict(m) {
   return `Health score ${m.health.toFixed(0)} out of 100, grade ${m.grade}. Net worth is ${money(m.netWorth)}, of `
        + `which ${money(m.invested)} actually compounds. The balance sheet is not the problem — the calendar is. `
        + `${money(m.rentToFund)} of rent still has to be found before 21 October, ${money(m.extraCashNeeded)} before `
-       + `15 September, and free cash outside rent and emergency stands at ${money(m.looseCash)}. Do four things in `
-       + `order: hold the rent ring-fence, close the September gap by earning or by pausing the SIP, let the Tabby `
-       + `minimums run to zero by 3 November without ever paying a fee, and start accruing rent monthly so October `
-       + `2027 is a transfer instead of a crisis. Then, and only then, raise the SIP.`;
+       + `${m.nextPayday ? longDate(m.nextPayday) : "the next payday"}, and free cash outside rent and emergency `
+       + `stands at ${money(m.looseCash)}. Do four things in order: hold the rent ring-fence, close the gap by `
+       + `earning or by pausing the SIP, let the Tabby minimums run to zero by 3 November without ever paying a `
+       + `fee, and start accruing rent monthly so the next renewal is a transfer instead of a crisis. Then, and `
+       + `only then, raise the SIP.`;
 }

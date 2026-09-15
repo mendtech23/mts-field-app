@@ -66,6 +66,8 @@ function renderHome() {
       </div>
     </div>
 
+    ${renderSalaryPlan(m)}
+
     <div class="card ${m.todaySpend > cap ? "edge-bad" : "edge-good"}">
       <div class="card-head">
         <div><h2>Today</h2><div class="sub">${longDate(todayISO())} · cap ${money(cap)} a day</div></div>
@@ -419,6 +421,42 @@ function renderInvest() {
       </table></div>`)}`;
 }
 
+/* Give every dirham of the next payday a job before it lands — the exact
+   answer to "where does my salary go." Nothing here is advisory language;
+   every figure is a real allocation that sums back to the salary itself. */
+function renderSalaryPlan(m) {
+  const p = m.salaryPlan;
+  if (!p) return "";
+  const kind = { bill: ["Bill", "warn"], debt: ["Debt", "bad"] };
+  return `<div class="card">
+    <div class="card-head">
+      <div><h2>Where your next payday goes</h2>
+        <div class="sub">${money(p.amount)} lands ${longDate(p.date)}</div></div>
+      ${pill(p.short ? "SHORT" : "COVERS ITS CYCLE", p.short ? "bad" : "good")}
+    </div>
+    <div class="kv"><span class="k">Salary</span><span class="v mono">${money(p.amount)}</span></div>
+    ${p.items.length ? p.items.map((i) => {
+      const [label, tone] = kind[i.kind] || ["Bill", "warn"];
+      return `<div class="kv"><span class="k">${pill(label, tone)} ${esc(i.name)} · ${shortDate(i.due)}</span>
+        <span class="v mono num-neg">−${fmt(i.amount)}</span></div>`;
+    }).join("") : `<div class="note">Nothing else is due before the following payday — a rare clean cycle.</div>`}
+    <div class="kv strong-top"><span class="k"><strong>Left after bills and debt</strong></span>
+      <span class="v mono ${p.afterBills >= 0 ? "" : "num-neg"}">${money(p.afterBills)}</span></div>
+    ${p.towardRent > 0 ? `<div class="kv"><span class="k">${pill("Rent vault", "good")} straight to FAB 4002</span>
+      <span class="v mono num-neg">−${fmt(p.towardRent)}</span></div>` : ""}
+    <div class="kv strong-top"><span class="k"><strong>Safe to spend until ${shortDate(p.cycleEnd)}</strong></span>
+      <span class="v mono ${p.leftover >= 0 ? "num-pos" : "num-neg"}">${money(p.leftover)}</span></div>
+    <div class="note">${p.short
+      ? `This payday alone does not cover everything due before the next one — the shortfall has to come from
+         somewhere else, or a bill slips. Do not send anything to the rent vault this cycle until that gap closes.`
+      : p.towardRent >= (m.rentToFund || 0) && m.rentToFund > 0
+        ? `This is enough on its own to fully fund the rent cheque, with ${money(p.leftover)} left to live on until
+           the next payday.`
+        : `Bills and debt come out first, the rest goes straight to the rent vault, and whatever remains is the
+           real number to live on until the next payday — not a guess.`}</div>
+  </div>`;
+}
+
 /* ================================================================ PLAN == */
 function renderPlan() {
   const m = metrics();
@@ -451,7 +489,7 @@ function renderPlan() {
       + `<div class="kv strong-top"><span class="k"><strong>Net worth</strong></span>
           <span class="v">${money(m.netWorth)}</span></div>`
       + kv("Rent still to fund", `−${fmt(m.rentToFund)}`, "num-neg")
-      + kv("Needed before 15 Sep", `−${fmt(m.extraCashNeeded)}`, "num-neg")
+      + kv(`Needed before ${m.nextPayday ? shortDate(m.nextPayday) : "payday"}`, `−${fmt(m.extraCashNeeded)}`, "num-neg")
       + kv("<strong>Free after commitments</strong>",
            money(m.netWorth - m.rentToFund - m.extraCashNeeded),
            m.netWorth - m.rentToFund - m.extraCashNeeded >= 0 ? "" : "num-neg")
