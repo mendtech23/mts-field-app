@@ -12,7 +12,7 @@ function blankState() {
     v: SCHEMA,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    asOf: "2026-09-12",
+    asOf: "2026-09-15",
     assumptions: { ...SEED_ASSUMPTIONS, ...SEED_ASSUMPTIONS_EXTRA },
     accounts: SEED_ACCOUNTS.map((a) => ({ ...a })),
     pots: SEED_POTS.map((p) => ({ ...p })),

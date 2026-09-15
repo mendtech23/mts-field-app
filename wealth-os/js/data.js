@@ -12,22 +12,20 @@
    message, statement or bill; "estimate" means it has not happened yet. */
 
 const SEED_ACCOUNTS = [
-  { id: "fab4001", name: "FAB 4001 — spending",   bank: "FAB",   balance: 20.55,   ccy: "AED", kind: "current", locked: false, asOf: "2026-09-12", status: "actual",
-    note: "Card XXXX1599. The AED 3,082.80 Amana liquidation landed here 11 Sep, and on 12 Sep at 13:23 "
-        + "AED 2,900 of it was sent straight back to the rent vault — confirmed by bank SMS. That's the "
-        + "right call: it was sold capital sitting in a spending account, not earnings, and putting most "
-        + "of it back where it does the most good closes a real chunk of the rent gap." },
-  { id: "fab4002", name: "FAB 4002 — rent vault", bank: "FAB",   balance: 6578.76, ccy: "AED", kind: "current", locked: true,  asOf: "2026-09-12", status: "actual",
-    note: "The rent vault. Drew down to 3,678.76 between 1–10 Sep (six transfers out for daily spending "
-        + "plus an AED 550 car payment), then AED 2,900 was put back on 12 Sep — confirmed by bank SMS at "
-        + "13:23, part of the Amana liquidation proceeds. Net effect: 56.0% of the cheque now funded, "
-        + "up from 31.3% before the repayment and back above the 47.2% level it was at before the raid." },
-  { id: "fabemg",  name: "FAB 4003 — emergency",  bank: "FAB",   balance: 7.68,    ccy: "AED", kind: "savings", locked: true,  asOf: "2026-08-31", status: "actual",
-    note: "Ring-fenced. AED 0.01 interest credited 31 Aug. Next milestone AED 1,000." },
-  { id: "nbdcur",  name: "NBD Current",           bank: "NBD",   balance: 13.17,   ccy: "AED", kind: "current", locked: false, asOf: "2026-09-12", status: "actual",
-    note: "Card 3695. Rebuilt from the authenticated Emirates NBD statement covering 1 Aug – 10 Sep, "
-        + "which replaced the earlier SMS-derived history and moved several August dates by a day or two. "
-        + "Confirmed to 12 Sep 06:30 (ENOC Site 39). An AED 31.95 LULU dividend landed 10 Sep." },
+  { id: "fab4001", name: "FAB 4001 — spending",   bank: "FAB",   balance: 245.31,  ccy: "AED", kind: "current", locked: false, asOf: "2026-09-15", status: "actual",
+    note: "Card XXXX1599. The final leg of the Amana withdrawal (USD 75, AED 275.25) landed here 14 Sep, "
+        + "closing that account out completely. Confirmed via the FAB app 15 Sep — unaffected by this "
+        + "month's du and Etisalat bills, which cleared from the vault instead." },
+  { id: "fab4002", name: "FAB 4002 — rent vault", bank: "FAB",   balance: 5591.49, ccy: "AED", kind: "current", locked: true,  asOf: "2026-09-15", status: "actual",
+    note: "The rent vault. Confirmed via the FAB app 15 Sep: du (613.32) and Etisalat (323.95) were paid "
+        + "directly from here, not from FAB 4001 as budgeted — a small draw on top of the 12 Sep repayment. "
+        + "47.6% of the cheque funded." },
+  { id: "fabemg",  name: "FAB 4003 — emergency",  bank: "FAB",   balance: 224.87,  ccy: "AED", kind: "savings", locked: true,  asOf: "2026-09-14", status: "actual",
+    note: "Ring-fenced. A Binance withdrawal (AED 217.19) landed here 14 Sep — confirmed by SMS — on top "
+        + "of the AED 7.68 already held. Next milestone AED 1,000." },
+  { id: "nbdcur",  name: "NBD Current",           bank: "NBD",   balance: 0.17,    ccy: "AED", kind: "current", locked: false, asOf: "2026-09-13", status: "actual",
+    note: "Card 3695. Confirmed via SMS chain to 13 Sep 18:36 (Dubai Duty Free). Running close to empty — "
+        + "day-to-day spending has largely shifted to FAB 4001." },
   { id: "nbdsav",  name: "NBD Plus Saver",        bank: "NBD",   balance: 2.73,    ccy: "AED", kind: "savings", locked: false, asOf: "2026-08-04", status: "actual",
     note: "Includes AED 1.64 of interest." },
   { id: "tabbyc",  name: "Tabby Cash wallet",     bank: "Tabby", balance: 0.89,    ccy: "AED", kind: "wallet",  locked: false, asOf: "2026-08-04", status: "actual",
@@ -47,8 +45,8 @@ const SEED_HOLDINGS = [
   { id: "h4", name: "Nippon Small Cap",      house: "Nippon",        cls: "Indian small cap", units: 203.959, cost: 38968,    value: 42729.41, nav: 209.50,   ccy: "INR", sip: "Active",    note: "Repriced 11 Sep. Best performer of the active SIPs at about 9.7%." },
   { id: "h5", name: "Nippon Silver ETF FoF", house: "Nippon",        cls: "Commodity",        units: 115.191, cost: 2971.14,  value: 3977.55,  nav: 34.53,    ccy: "INR", sip: "Cancelled", note: "SIP cancelled; the holding remains. Still the best performer in the portfolio at about 33.9%." },
   { id: "h6", name: "Motilal Oswal Midcap",  house: "Motilal Oswal", cls: "Indian mid cap",   units: 93.721,  cost: 11000,    value: 11347.74, nav: 121.08,   ccy: "INR", sip: "Paused",    note: "Repriced 11 Sep. SIP still at zero." },
-  { id: "h7", name: "Amana trading account", house: "Amana Capital", cls: "Global equity",    units: 1,       cost: 852.11,   value: 5.44,     nav: 0,        ccy: "USD", sip: "Manual",    note: "LIQUIDATED. A USD 840 withdrawal was approved and paid out, arriving as the AED 3,082.80 that landed in FAB 4001 on 11 Sep. One open position remains (QQQ, opened 11 Sep) and a further USD 75 withdrawal is still processing." },
-  { id: "h8", name: "Binance — spot crypto", house: "Binance",       cls: "Crypto",           units: 15,      cost: 231.63,   value: 231.63,   nav: 0,        ccy: "AED", sip: "Manual",    note: "15 coins, confirmed by app screenshot 2 Sep. The earlier AED 191.80 was a placeholder." },
+  { id: "h7", name: "Amana trading account", house: "Amana Capital", cls: "Global equity",    units: 1,       cost: 852.11,   value: 5.44,     nav: 0,        ccy: "USD", sip: "Manual",    note: "LIQUIDATED. Both withdrawals are now fully landed as cash: USD 840 arrived as AED 3,082.80 on 11 Sep, and the final USD 75 leg arrived as AED 275.25 on 14 Sep. One open position remains (QQQ, opened 11 Sep)." },
+  { id: "h8", name: "Binance — spot crypto", house: "Binance",       cls: "Crypto",           units: 13,      cost: 10.10,    value: 10.10,    nav: 0,        ccy: "AED", sip: "Manual",    note: "DOWN sharply — a withdrawal of AED 217.19 landed in the emergency fund on 14 Sep, most of the prior 231.63 balance. 13 coins remain, TRX and BTC still the largest at about 29% combined." },
   { id: "h9", name: "LULU — Lulu Retail",    house: "ADX",           cls: "Global equity",    units: 1065,    cost: 1001.10,  value: 1001.10,  nav: 0,        ccy: "AED", sip: "Manual",    note: "1,065 shares on the Abu Dhabi exchange — PREVIOUSLY UNTRACKED, discovered 12 Sep. Paid an AED 31.95 cash dividend on 10 Sep. Cost basis unknown, so it is carried at market value. Not counted toward the rent gap unless sold." },
 ];
 
@@ -64,8 +62,8 @@ const SEED_OBLIGATIONS = [
      the two views differ on purpose, and the advisor says so. */
   { id: "o-tabby-sep", due: "2026-09-03", name: "Tabby — no-fee minimum", amount: 1309.65, status: "actual",   recurrence: "Statement", priority: "Critical", autopayCommitted: true, paid: true, note: "Paid 26 Aug, eight days early, from NBD Current — 1,309.65 net of a 4.85 cashback against the 1,314.50 statement minimum. The separate 49.00 monthly card fee is logged on its own in the transaction ledger, not folded into this figure." },
   { id: "o-sip-sep",   due: "2026-09-10", name: "Nippon SIP — September",  amount: 462.40,  status: "actual", paid: true, covers: "2026-09", recurrence: "Monthly",   priority: "Wealth",    note: "Already funded — the AED side went out 26 Aug (NBD Current → ICICI DirectRemit, AED 465.60, same day as the salary and Tabby payment) to pre-fund this SIP. 10 Sep is only the INR-side auto-debit inside ICICI; no further AED leaves this household. Was briefly double-counted as a pending bill; corrected 2 Sep." },
-  { id: "o-du-sep",    due: "2026-09-15", name: "du — September",          amount: 613.62,  status: "actual", recurrence: "Monthly",   priority: "Essential", note: "Real bill, confirmed in the bill-pay app 12 Sep — AED 613.62, up AED 22.64 on the 590.98 baseline. Due in three days." },
-  { id: "o-eti-sep",   due: "2026-09-15", name: "Etisalat — September",    amount: 323.95,  status: "actual", recurrence: "Monthly",   priority: "Essential", note: "Confirmed at the baseline figure. Due in three days." },
+  { id: "o-du-sep",    due: "2026-09-15", name: "du — September",          amount: 613.32,  status: "actual", paid: true, recurrence: "Monthly",   priority: "Essential", note: "Paid 15 Sep 20:36, AED 613.32 (the bill-pay app's 613.62 estimate was AED 0.30 high) — and from the rent vault, not FAB 4001 as budgeted. Confirmed via FAB app and SMS." },
+  { id: "o-eti-sep",   due: "2026-09-15", name: "Etisalat — September",    amount: 323.95,  status: "actual", paid: true, recurrence: "Monthly",   priority: "Essential", note: "Paid 15 Sep 20:36 from the rent vault, not FAB 4001 as budgeted. Confirmed via FAB app and SMS." },
   { id: "o-dewa-sep",  due: "2026-09-30", name: "DEWA — September",        amount: 793.42,  status: "estimate", recurrence: "Monthly",   priority: "Essential", note: "Last confirmed bill used as the baseline." },
   { id: "o-tabby-oct", due: "2026-10-03", name: "Tabby — September statement", amount: 1044.11, status: "actual", recurrence: "Statement", priority: "Critical", note: "Confirmed in the Tabby app 12 Sep and UP sharply: AED 1,044.11, not the 715.33 instalment alone. The extra AED 328.78 is new spending put on the card this cycle (partner stores 14.00 + non-partner 314.78) — the card was supposed to be frozen." },
   { id: "o-sip-oct",   due: "2026-09-26", name: "Nippon SIP — October",    amount: 462.40,  status: "estimate", covers: "2026-10", recurrence: "Monthly",   priority: "Wealth",    note: "Re-dated 2 Sep from 10 Oct to 26 Sep — the AED side actually remits on payday to pre-fund ICICI, matching the pattern just confirmed for September; the INR auto-debit itself follows on the 10th but moves no further AED out of the household. The last SIP before the rent cheque clears." },
@@ -347,8 +345,22 @@ const SEED_TX = [
   ["2026-09-11T12:00","FAB 4001","Fund Transfer Charges (Abhijith Within UAE transfer)",0.49,"Bank Fees","Household",1,2920.55,"Inferred from the confirmed 0.49 Within-UAE transfer fee pattern (Abdel Samy, Abhijith) -- closes the final AED 0.49 gap exactly."],
   ["2026-09-11T12:00","NBD","Nad Al Hamar Baker",10,"Lifestyle & Shopping","Personal",1,26.67,"Confirmed via SMS chain, 12 Sep"],
   ["2026-09-12T12:00","NBD","ENOC Site 39",13.5,"Fuel & Transport","Household",1,13.17,"Confirmed via SMS chain, 12 Sep"],
-  ["2026-09-12T13:23","FAB 4001","Transfer to FAB 4002 (rent vault repayment)",2900,"Excluded","Excluded",0,20.55,"CONFIRMED via FAB SMS: funds transfer request processed 12/09/2026 13:23 — putting most of the Amana liquidation back into the rent vault, exactly as advised"],
-  ["2026-09-12T13:23","FAB 4002","Transfer from FAB 4001 (rent vault repayment)",2900,"Excluded","Excluded",0,6578.76,"CONFIRMED via FAB SMS: funds transfer request processed 12/09/2026 13:23 — restores most of what was drawn down 1-10 Sep"],
+  ["2026-09-12T12:00","FAB 4001","To FAB 4002 (vault top-up)",2900,"Excluded","Excluded",0,20.55,"Confirmed via FAB SMS, 12 Sep 13:23"],
+  ["2026-09-12T12:00","FAB 4002","From FAB 4001 (vault top-up)",2900,"Excluded","Excluded",0,6578.76,"Confirmed via FAB SMS, 12 Sep 13:23"],
+  ["2026-09-13T12:00","FAB 4001","Asas Al Madina General",16,"Groceries","Household",1,4.55,"Confirmed via FAB/NBD SMS chain, 14 Sep"],
+  ["2026-09-13T12:00","FAB 4001","From FAB 4002",50,"Excluded","Excluded",0,54.55,"Confirmed via FAB/NBD SMS chain, 14 Sep"],
+  ["2026-09-13T12:00","FAB 4002","To FAB 4001",50,"Excluded","Excluded",0,6528.76,"Confirmed via FAB/NBD SMS chain, 14 Sep"],
+  ["2026-09-13T12:00","FAB 4001","Spicy Falcon Restaurant",29,"Dining","Personal",1,25.55,"Confirmed via FAB/NBD SMS chain, 14 Sep"],
+  ["2026-09-13T12:00","NBD","Dubai Duty Free",13,"Lifestyle & Shopping","Personal",1,0.17,"Confirmed via FAB/NBD SMS chain, 14 Sep"],
+  ["2026-09-14T12:00","FAB 4001","Personal expense (to XXXX7801)",20,"Family & Support","Household",1,5.55,"Categorized as personal expense per Johnny, 14 Sep"],
+  ["2026-09-14T12:00","FAB 4001","Fund Transfer Charges",0.49,"Bank Fees","Household",1,5.06,"Confirmed via FAB/NBD SMS chain, 14 Sep"],
+  ["2026-09-14T12:00","FAB 4003","Inward Remittance -- Binance withdrawal proceeds",217.19,"Excluded","Excluded",0,224.87,"Confirmed via FAB/NBD SMS chain, 14 Sep"],
+  ["2026-09-14T12:00","FAB 4001","Inward Remittance -- Amana $75 withdrawal, final leg landed",275.25,"Excluded","Excluded",0,280.31,"Confirmed via FAB SMS, 14 Sep: balance 5.06 -> 280.31"],
+  ["2026-09-14T12:00","FAB 4001","Spicy Falcon Restaurant",12,"Dining","Personal",1,268.31,"Confirmed via FAB SMS, 14 Sep 15:20"],
+  ["2026-09-15T12:00","FAB 4001","Dubai Duty Free",13,"Groceries","Household",1,255.31,"Confirmed via FAB SMS, 15 Sep"],
+  ["2026-09-15T12:00","FAB 4001","Nad Al Hamar Baker",10,"Groceries","Household",1,245.31,"Confirmed via FAB SMS, 15 Sep"],
+  ["2026-09-15T12:00","FAB 4002","Utility Bill Payment, consumer 0559927666",613.32,"Utilities & Telecom","Household",1,5915.44,"Confirmed via FAB app + SMS, 15 Sep 20:36 -- paid FROM the vault (FAB 4002), not FAB 4001"],
+  ["2026-09-15T12:00","FAB 4002","ETISALAT FIXED, consumer 043861653",323.95,"Utilities & Telecom","Household",1,5591.49,"Confirmed via FAB app + SMS, 15 Sep 20:36 -- paid FROM the vault (FAB 4002), not FAB 4001"],
 ].map(([date, bank, merchant, amount, category, split, counts, balanceAfter, note], i) => ({
   id: "s" + i, date, bank, merchant, amount, category, split, counts, balanceAfter, note,
   kind: "expense",
@@ -384,7 +396,14 @@ const SEED_INCOME = [
   { id: "i8", date: "2026-09-11", name: "Amana liquidation proceeds",    amount: 3082.80, status: "actual", sourceId: "src-invest",
     note: "A USD 840 withdrawal from the Amana brokerage, landing in FAB 4001 on 11 Sep. This is sold "
         + "investment capital, not earnings — it moves money from the investment column to the cash "
-        + "column and does not improve net worth. A further USD 75 is still processing." },
+        + "column and does not improve net worth." },
+  { id: "i11", date: "2026-09-14", name: "Binance withdrawal proceeds",  amount: 217.19,  status: "actual", sourceId: "src-invest",
+    note: "Landed straight in the emergency fund (FAB 4003), not a spending account — a deliberate "
+        + "conversion of crypto into the shock-absorber it was always meant to be. Sold capital, not "
+        + "earnings; net worth is unchanged, just less exposed to crypto." },
+  { id: "i12", date: "2026-09-14", name: "Amana final withdrawal (USD 75 leg)", amount: 275.25, status: "actual", sourceId: "src-invest",
+    note: "The last piece of the Amana liquidation, landing in FAB 4001. Amana is now fully closed out "
+        + "bar one open position (QQQ)." },
 ];
 
 /* Staged exactly as the workbook stages them. Nothing in stage 2 or 3 is
@@ -509,13 +528,15 @@ const SEED_ASSUMPTIONS = {
    they say what a balance is already spoken for, which is the whole reason
    AED 6,090.70 in FAB 4002 is not AED 6,090.70 of spending power. */
 const SEED_POTS = [
-  { id: "p-rent",  name: "Rent vault",     accountId: "fab4002", balance: 6578.76, target: 11750,
+  { id: "p-rent",  name: "Rent vault",     accountId: "fab4002", balance: 5591.49, target: 11750,
     kind: "vault",     earmark: "o-rent",
-    note: "The October cheque. Drew down by about AED 1,870 between 1–10 September, then AED 2,900 of "
-        + "the Amana sale proceeds was put back on 12 Sep — a real, deliberate step toward closing the gap." },
-  { id: "p-emg",   name: "Emergency fund", accountId: "fabemg",  balance: 7.68,    target: 1000,
+    note: "The October cheque. AED 2,900 of the Amana sale proceeds was put back on 12 Sep, then du and "
+        + "Etisalat cleared straight from here on 15 Sep — a small, correct draw for a real committed bill, "
+        + "not a raid. 47.6% funded." },
+  { id: "p-emg",   name: "Emergency fund", accountId: "fabemg",  balance: 224.87,  target: 1000,
     kind: "emergency", earmark: null,
-    note: "First milestone AED 1,000, then six months of essentials." },
+    note: "A Binance withdrawal (217.19) landed here 14 Sep, on top of the AED 7.68 already held — the "
+        + "first real progress toward the AED 1,000 milestone. 22.5% of the way there." },
 ];
 
 /* ------------------------------------------------------- income --------- */
