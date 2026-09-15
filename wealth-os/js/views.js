@@ -1738,7 +1738,7 @@ function renderFamily() {
         <span class="v num-neg">+${fmt(F.partner.groceryTransfer)} a month</span></div>
       <div class="kv"><span class="k">Essentials before the change</span>
         <span class="v">${money(m.essential)}</span></div>
-      <div class="kv"><span class="k">Essentials after 15 September</span>
+      <div class="kv"><span class="k">Essentials after ${shortDate(F.partner.lastWorkingDay)}</span>
         <span class="v num-neg">${money(m.essentialForward)}</span></div>
       <div class="note warn">This is the single most important change on this page, because it is
         certain, it is recurring, and it lands before the rent cheque. The emergency-fund target below

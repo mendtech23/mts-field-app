@@ -14,8 +14,9 @@
 const SEED_ACCOUNTS = [
   { id: "fab4001", name: "FAB 4001 — spending",   bank: "FAB",   balance: 245.31,  ccy: "AED", kind: "current", locked: false, asOf: "2026-09-15", status: "actual",
     note: "Card XXXX1599. The final leg of the Amana withdrawal (USD 75, AED 275.25) landed here 14 Sep, "
-        + "closing that account out completely. Confirmed via the FAB app 15 Sep — unaffected by this "
-        + "month's du and Etisalat bills, which cleared from the vault instead." },
+        + "completing both withdrawals as cash — Amana itself still holds one open position (QQQ). "
+        + "Confirmed via the FAB app 15 Sep — unaffected by this month's du and Etisalat bills, which "
+        + "cleared from the vault instead." },
   { id: "fab4002", name: "FAB 4002 — rent vault", bank: "FAB",   balance: 5591.49, ccy: "AED", kind: "current", locked: true,  asOf: "2026-09-15", status: "actual",
     note: "The rent vault. Confirmed via the FAB app 15 Sep: du (613.32) and Etisalat (323.95) were paid "
         + "directly from here, not from FAB 4001 as budgeted — a small draw on top of the 12 Sep repayment. "
