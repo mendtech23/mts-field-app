@@ -476,6 +476,15 @@ function forecast(s = state, m = metrics(s), opts = {}) {
     push(o.due, o.name, -due, o.priority === "Critical" ? "critical" : "bill", note);
   }
 
+  /* --- your own planned expenses -----------------------------------------
+     Whatever is already saved toward it is netted off, same treatment as a
+     pot against a bill — only the shortfall has to be found by the date. */
+  for (const p of s.plannedExpenses || []) {
+    const due = Math.max(0, round2(p.amount - (p.saved || 0)));
+    if (due <= 0) continue;
+    push(p.date, p.name, -due, "planned", p.note || "");
+  }
+
   /* --- confirmed recurring bills not already covered by an obligation -- */
   const obligationNames = new Set(s.obligations.map((o) => merchantKey(o.name)));
   for (const r of s.recurring) {

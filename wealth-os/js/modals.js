@@ -475,6 +475,50 @@ function dayModal(day) {
     () => {}, { noSubmit: true, cancel: "Close" });
 }
 
+function expenseModal(id, prefillDate) {
+  const p = id ? state.plannedExpenses.find((x) => x.id === id) : null;
+  openModal(p ? p.name : "New planned expense", `
+    ${field("name", "What is it", p ? p.name : "", "text", "required")}
+    <div class="grid2">
+      ${field("amount", "Amount (AED)", p ? p.amount : "", "number", "step='0.01' required")}
+      ${field("date", "Date", p ? p.date : (prefillDate || todayISO()), "date", "required")}
+    </div>
+    ${field("saved", "Already saved toward it (AED)", p ? (p.saved || 0) : 0, "number", "step='0.01'")}
+    ${field("note", "Note", p ? p.note : "")}
+    <div class="note">This lands on the calendar and in the cash-flow forecast, and the app works out what to
+      save each week to have it covered by then.</div>`,
+    (d) => mutate(p ? "edit planned expense" : "add planned expense", () => {
+      const rec = { id: p ? p.id : uid(), name: d.name, amount: Number(d.amount) || 0,
+                    date: d.date, saved: Number(d.saved) || 0, note: d.note || "" };
+      if (p) state.plannedExpenses = state.plannedExpenses.map((x) => (x.id === p.id ? rec : x));
+      else state.plannedExpenses.push(rec);
+      toast(p ? "Updated" : "Added to the calendar", undoAction());
+    }),
+    p ? { danger: () => mutate("delete planned expense", () => {
+      state.plannedExpenses = state.plannedExpenses.filter((x) => x.id !== id);
+      toast("Removed", undoAction());
+    }) } : {});
+}
+
+function calDayModal(date) {
+  const bills = state.obligations.filter((o) => !o.paid && o.due === date);
+  const expenses = state.plannedExpenses.filter((p) => p.date === date);
+  const rows = bills.map((o) => `<div class="row tap flat" data-obligation="${esc(o.id)}">
+      <div class="row-main"><div class="row-title">${esc(o.name)}</div>
+        <div class="row-sub">${esc(o.priority)} bill${o.status === "estimate" ? " · estimated" : ""}</div></div>
+      <div class="row-val">${money(o.amount)}</div></div>`)
+    .concat(expenses.map((p) => `<div class="row tap flat" data-expense="${esc(p.id)}">
+      <div class="row-main"><div class="row-title">${esc(p.name)}</div>
+        <div class="row-sub">Planned expense${p.note ? " · " + esc(p.note) : ""}</div></div>
+      <div class="row-val">${money(p.amount)}</div></div>`)).join("");
+  openModal(longDate(date), `
+    <div class="modal-rows">${rows || emptyState("Nothing dated here yet.")}</div>
+    <div class="btn-row" style="margin-top:14px">
+      <button type="button" class="btn btn-accent" data-newexpense="${esc(date)}">＋ Add an expense on this day</button>
+    </div>`,
+    () => {}, { noSubmit: true, cancel: "Close" });
+}
+
 
 /* A negative free balance means a payment has eaten into money a pot had
    already claimed. That is worth saying out loud rather than leaving as a

@@ -32,6 +32,7 @@ function blankState() {
     recurring: [],          // filled by detection, then confirmed or dismissed
     snapshots: [],          // net-worth history; the first is written on boot
     dismissed: [],
+    plannedExpenses: [],    // your own future-dated expenses and important dates
     theme: "dark",
     settings: {
       displayCcy: "AED",
@@ -88,7 +89,7 @@ function migrate(s) {
     settings: { ...base.settings, ...(s.settings || {}) },
   };
   for (const key of ["pots", "debts", "sips", "invTx", "rules", "recurring",
-                     "snapshots", "incomeSources"]) {
+                     "snapshots", "incomeSources", "plannedExpenses"]) {
     if (!Array.isArray(out[key]) || (!out[key].length && base[key].length)) {
       out[key] = base[key];
     }
@@ -106,7 +107,7 @@ function migrate(s) {
    other field is the bank-confirmed ledger: whenever a newer build ships
    with a later `asOf`, that ledger wins over whatever is cached here, so a
    browser that hasn't been opened in weeks never shows stale months. */
-const LOCAL_ONLY_FIELDS = ["createdAt", "snapshots", "dismissed", "theme", "recurring"];
+const LOCAL_ONLY_FIELDS = ["createdAt", "snapshots", "dismissed", "theme", "recurring", "plannedExpenses"];
 
 function loadState() {
   try {

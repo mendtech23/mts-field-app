@@ -114,10 +114,21 @@ document.addEventListener("click", (e) => {
                 ["[data-pot]", "pot", potModal], ["[data-debt]", "debt", debtPaymentModal],
                 ["[data-sip]", "sip", sipModal], ["[data-income]", "income", incomeModal],
                 ["[data-source]", "source", sourceModal], ["[data-rule]", "rule", ruleModal],
-                ["[data-obligation]", "obligation", obligationModal], ["[data-day]", "day", dayModal]];
+                ["[data-obligation]", "obligation", obligationModal], ["[data-day]", "day", dayModal],
+                ["[data-expense]", "expense", expenseModal], ["[data-caldate]", "caldate", calDayModal]];
   for (const [sel, key, fn] of rows) {
     const el = near(sel);
     if (el) return fn(el.dataset[key]);
+  }
+
+  if (t.id === "calAdd") return expenseModal(null);
+  const newExp = near("[data-newexpense]");
+  if (newExp) { closeModal(); return expenseModal(null, newExp.dataset.newexpense); }
+  const calNav = near("[data-calnav]");
+  if (calNav) {
+    state._calMonth = addMonthsKey(state._calMonth || monthKey(todayISO()),
+                                    calNav.dataset.calnav === "next" ? 1 : -1);
+    return render();
   }
 
   if (t.id === "iAdd") {

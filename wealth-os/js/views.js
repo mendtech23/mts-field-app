@@ -854,6 +854,69 @@ function render13Week(m) {
          than this window reaches.`}</div>`);
 }
 
+/* -------------------------------------------------- planned expenses --- */
+/* Your own future-dated expenses and important dates — a gift, a renewal, a
+   trip — each converted into the weekly and monthly pace that gets it fully
+   saved by the date it lands, net of whatever is already set aside. */
+function plannedExpenseRows(m) {
+  return (state.plannedExpenses || []).slice()
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((p) => {
+      const remaining = Math.max(0, round2(p.amount - (p.saved || 0)));
+      const daysLeft = diffDays(todayISO(), p.date);
+      const weeksLeft = daysLeft / 7, monthsLeft = daysLeft / 30.44;
+      return {
+        ...p, remaining, daysLeft, overdue: daysLeft < 0,
+        weeklyPace: weeksLeft > 0 ? round2(remaining / weeksLeft) : remaining,
+        monthlyPace: monthsLeft > 0 ? round2(remaining / monthsLeft) : remaining,
+      };
+    });
+}
+
+/* A real month grid — Monday first, so it lines up with the heatmap below —
+   with a dot on any day carrying an unpaid bill or a planned expense. Tap a
+   day to see what's on it and add to it. */
+function calMonthGrid() {
+  const monthK = state._calMonth || monthKey(todayISO());
+  const totalDays = daysInMonth(monthK);
+  const lead = (parseDate(startOfMonth(monthK)).getDay() + 6) % 7;
+  const cells = Array(lead).fill(null)
+    .concat(Array.from({ length: totalDays }, (_, i) => dayOfMonthISO(monthK, i + 1)));
+  const today = todayISO();
+  const dow = ["M", "T", "W", "T", "F", "S", "S"];
+
+  const itemsOn = (d) => ({
+    bills: state.obligations.filter((o) => !o.paid && o.due === d),
+    expenses: (state.plannedExpenses || []).filter((p) => p.date === d),
+  });
+
+  return `
+    <div class="cal-nav">
+      <button type="button" class="icon-btn" data-calnav="prev" aria-label="Previous month">‹</button>
+      <span class="cal-month-label">${monthLabel(monthK)}</span>
+      <button type="button" class="icon-btn" data-calnav="next" aria-label="Next month">›</button>
+    </div>
+    <div class="cal-grid">
+      ${dow.map((l) => `<div class="cal-dow">${l}</div>`).join("")}
+      ${cells.map((d) => {
+        if (!d) return `<div class="cal-cell cal-pad"></div>`;
+        const { bills, expenses } = itemsOn(d);
+        const count = bills.length + expenses.length;
+        const critical = bills.some((o) => o.priority === "Critical");
+        return `<div class="cal-cell ${d === today ? "cal-today" : ""} ${count ? "cal-has tap" : ""}"
+            data-caldate="${d}">
+          <span>${Number(d.slice(8))}</span>
+          ${count ? `<span class="cal-dots">${Array.from({ length: Math.min(count, 3) })
+            .map(() => `<span class="cal-dot ${critical ? "bad" : ""}"></span>`).join("")}</span>` : ""}
+        </div>`;
+      }).join("")}
+    </div>
+    <div class="legend" style="margin-top:10px">
+      <span class="li"><span class="sw" style="background:var(--accent)"></span>planned</span>
+      <span class="li"><span class="sw" style="background:var(--bad)"></span>critical bill</span>
+    </div>`;
+}
+
 /* ---------------------------------------------------------- calendar --- */
 function renderCalendar() {
   const m = metrics();
@@ -864,15 +927,25 @@ function renderCalendar() {
   const overCap = dayList.filter((d) => (m.capSeries[d] || 0) > cap).length;
   const zero = dayList.filter((d) => !(m.capSeries[d] || 0)).length;
   const worst = dayList.slice().sort((a, b) => (m.capSeries[b] || 0) - (m.capSeries[a] || 0)).slice(0, 5);
+  const planned = plannedExpenseRows(m).filter((p) => !p.overdue);
+  const plannedMonthlyTotal = sum(planned, (p) => p.monthlyPace);
 
   return `${subHeader("calendar")}
-    ${statBlock([
-      { k: "Days covered", v: String(dayList.length), n: `${longDate(from)} – ${longDate(to)}` },
-      { k: "Days over cap", v: String(overCap), tone: overCap > dayList.length / 2 ? "bad" : "warn",
-        n: `of ${dayList.length}` },
-      { k: "No-spend days", v: String(zero), tone: zero > 0 ? "good" : "bad", n: "the cheapest kind" },
-      { k: "Worst day", v: money(m.capSeries[worst[0]] || 0), tone: "bad", n: longDate(worst[0]) },
-    ])}
+    ${card("Planner", "Put a date on anything ahead — a gift, a renewal, a trip — and see it here",
+      calMonthGrid(), `<button class="btn btn-sm btn-accent" id="calAdd">＋ Add</button>`)}
+
+    ${planned.length ? card("What it takes to be ready",
+      `${money(plannedMonthlyTotal)} a month, combined, covers every item below by its date`,
+      planned.map((p) => `<div class="row tap flat" data-expense="${esc(p.id)}">
+        <div class="row-main">
+          <div class="row-title">${esc(p.name)}</div>
+          <div class="row-sub">${longDate(p.date)} · ${relativeDays(p.daysLeft)}
+            ${p.saved > 0 ? ` · ${money(p.saved)} saved already` : ""}</div>
+        </div>
+        <div class="row-val">${money(p.remaining)}
+          <span class="small">${money0(p.weeklyPace)}/wk to be ready</span></div>
+      </div>`).join("")) : card("What it takes to be ready", "Nothing planned yet",
+      emptyState("Add a future expense from the planner above and this works out the savings pace for you."))}
 
     ${card("Daily spending", `Colour steps: green within the ${money(cap)} cap, red on the worst days`,
       heatmap(m.capSeries, from, to, cap))}

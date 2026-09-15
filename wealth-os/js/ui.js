@@ -10,7 +10,7 @@
 const TABS = ["home", "money", "budget", "invest", "plan", "advisor", "more"];
 const SUBPAGES = {
   flow:      { title: "Cashflow forecast",   parent: "home" },
-  calendar:  { title: "Spending calendar",   parent: "money" },
+  calendar:  { title: "Planner & calendar",  parent: "money" },
   recurring: { title: "Recurring & subscriptions", parent: "money" },
   import:    { title: "Import",              parent: "money" },
   income:    { title: "Income",              parent: "money" },
