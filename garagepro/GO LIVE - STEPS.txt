@@ -1,0 +1,30 @@
+GaragePro v3 — MendTech Mobile — LIVE BUILD
+===========================================
+
+Publish this ONLY after you have tested the preview and are happy.
+It is the same app as the preview, but uses your real data and cloud sync.
+
+1. BACKUP (1 min)
+   Live app > Settings > Backup & data > Download backup.
+
+2. PUBLISH (2 min)
+   app.netlify.com > mendtechauto > Deploys > drag THIS folder (GaragePro-v3-Live) onto the upload box.
+   Open https://mendtechauto.netlify.app on the office PC and phones (close & reopen once to load v3).
+   Your data and settings stay. Everything you had before works the same.
+
+3. SET UP MOBILE (5 min)
+   Settings > Mobile & booking: hours, zones & call-out fees, surcharges, van name/plate, services.
+   Settings > Technicians: add your driver / mobile technician.
+   Settings > Staff & security: link each login to their Technicians entry (for "My jobs").
+
+4. CONNECT THE ONLINE BOOKING PAGE (5 min, once)
+   a) Settings > Mobile & booking > "Copy SQL" > Supabase > SQL Editor > paste > Run.
+   b) Same screen: "Download config.js" (cloud sync must be signed in).
+   c) Put that config.js into this folder's "js" folder (replace the existing one).
+   d) Drag this folder onto Netlify Deploys again.
+   Your booking page: https://mendtechauto.netlify.app/book.html
+   Print the QR poster from Settings > Mobile & booking.
+
+UNDO
+   Netlify > Deploys > click the previous deploy > "Publish deploy". Data is not affected.
+   The office PC offline copy (C:\Users\S445696\GaragePro) keeps the previous version until you replace it.
