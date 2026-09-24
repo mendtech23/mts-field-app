@@ -26,6 +26,22 @@ function edSet(k, v, redraw) {
   if (redraw) render(); else edTotals();
 }
 
+/* Discounts above the limit need the Owner's PIN (Settings → Staff & security) */
+async function edDiscount(k, v) {
+  if (ownerApprove.pending()) return;   // an approval box is already open for this field
+  const d = ED.doc;
+  if (ED.kind === 'invoice' && guardClosed(d.date, 'This invoice')) return render();
+  const pct = discountPct({ ...d, [k]: v });
+  if (pct > discountLimit() + 0.001 && pct > num(d.discountApproved) + 0.001) {
+    const label = (KINDS[ED.kind] || { label: 'Package' }).label;
+    const ok = await ownerApprove(`Discount of ${pct}% on ${label.toLowerCase()} ${d.number || d.name || ''} (limit without approval: ${discountLimit()}%)`);
+    if (!ok) { toast('Discount not changed — needs Owner approval', 'err'); return render(); }
+    d.discountApproved = pct; d.discountApprovedBy = ok.by;
+  }
+  edSet(k, v);
+}
+const discountFields = src => ({ discountApproved: src.discountApproved || 0, discountApprovedBy: src.discountApprovedBy || '' });
+
 /* ---------- vehicle picker ---------- */
 function pickVehicle(onPick, title = 'Select vehicle') {
   pickFrom({
@@ -139,8 +155,8 @@ function docShell({ kind, title, status, actions, header, main, side, before = '
     </div>
     <div>
       <div class="card mb"><div class="card-head"><h3>Totals</h3></div><div class="card-pad">
-        <div class="row mb"><div class="field grow"><label>Discount</label><input class="inp" type="number" step="any" value="${esc(d.discount || '')}" oninput="edSet('discount',this.value)"></div>
-          <div class="field"><label>&nbsp;</label><select class="inp" onchange="edSet('discountType',this.value)"><option value="pct" ${d.discountType !== 'amt' ? 'selected' : ''}>%</option><option value="amt" ${d.discountType === 'amt' ? 'selected' : ''}>${esc(S.settings.currency)}</option></select></div>
+        <div class="row mb"><div class="field grow"><label>Discount</label><input class="inp" type="number" step="any" value="${esc(d.discount || '')}" onchange="edDiscount('discount',this.value)"></div>
+          <div class="field"><label>&nbsp;</label><select class="inp" onchange="edDiscount('discountType',this.value)"><option value="pct" ${d.discountType !== 'amt' ? 'selected' : ''}>%</option><option value="amt" ${d.discountType === 'amt' ? 'selected' : ''}>${esc(S.settings.currency)}</option></select></div>
           <div class="field" style="width:80px"><label>VAT %</label><input class="inp" type="number" step="any" value="${esc(d.vatRate ?? S.settings.vatRate)}" oninput="edSet('vatRate',this.value)"></div></div>
         <div class="totals" style="width:100%" id="edTotals">${edTotalsHTML()}</div></div></div>
       ${side || ''}
@@ -209,7 +225,7 @@ async function convertQuote() {
   } else {
     job = await save('jobs', {
       number: await nextNo('job'), date: today(), vehicleId: q.vehicleId, customerId: q.customerId, odometer: q.odometer, items: structuredClone(q.items || []),
-      discount: q.discount, discountType: q.discountType, vatRate: q.vatRate, status: 'Booked', type: S.settings.lists.jobType[0], complaint: q.description || '', quoteId: q.id, promised: addDays(today(), 1),
+      discount: q.discount, discountType: q.discountType, ...discountFields(q), vatRate: q.vatRate, status: 'Booked', type: S.settings.lists.jobType[0], complaint: q.description || '', quoteId: q.id, promised: addDays(today(), 1),
     });
   }
   q.status = 'Converted'; q.jobId = job.id; await save('quotes', q);
@@ -233,6 +249,7 @@ async function deleteDoc(kind) {
   if (kind === 'invoice' && S.payments.some(p => p.invoiceId === d.id)) return toast('This invoice has payments — void it instead.', 'err');
   if (kind === 'invoice' && guardClosed(d.date, 'This invoice')) return;
   if (!(await confirmBox(`Delete ${KINDS[kind].label.toLowerCase()} ${d.number}? This cannot be undone.`, 'Delete', true))) return;
+  if (kind === 'invoice' && !(await ownerApprove(`Delete invoice ${d.number} (${money(calcDoc(d).total)})`, { level: 'alert' }))) return;
   clearTimeout(ED.timer); ED.timer = null;
   if (kind === 'invoice' && d.jobId) { const j = get('jobs', d.jobId); if (j) { j.invoiceId = ''; await save('jobs', j); } }
   if (kind === 'job') S.quotes.filter(q => q.jobId === d.id).forEach(q => { q.jobId = ''; q.status = 'Approved'; save('quotes', q); });
@@ -328,7 +345,7 @@ async function makeInvoiceFromJob(j) {
   if (isMobile(j)) applyCalloutRules(j);
   const inv = await save('invoices', {
     number: await nextNo('invoice'), date: today(), jobId: j.id, vehicleId: j.vehicleId, customerId: j.customerId, odometer: j.odometer, line: j.line || 'auto',
-    items: structuredClone(j.items || []), discount: j.discount, discountType: j.discountType, vatRate: j.vatRate ?? S.settings.vatRate,
+    items: structuredClone(j.items || []), discount: j.discount, discountType: j.discountType, ...discountFields(j), vatRate: j.vatRate ?? S.settings.vatRate,
     workDone: j.diagnosis || (isMobile(j) ? (j.mobile || {}).problem || '' : ''), lpo: j.lpo || '', dueDate: addDays(today(), num(S.settings.invoiceDueDays)),
   });
   j.invoiceId = inv.id; await save('jobs', j);
@@ -346,7 +363,7 @@ async function syncInvoiceFromJob() {
   await edFlush();
   const j = ED.doc, inv = jobInvoice(j);
   if (!(await confirmBox(`Replace the items on ${inv.number} with the current items on this job card?`))) return;
-  Object.assign(inv, { items: structuredClone(j.items || []), discount: j.discount, discountType: j.discountType, vatRate: j.vatRate, workDone: j.diagnosis || inv.workDone, odometer: j.odometer });
+  Object.assign(inv, { items: structuredClone(j.items || []), discount: j.discount, discountType: j.discountType, ...discountFields(j), vatRate: j.vatRate, workDone: j.diagnosis || inv.workDone, odometer: j.odometer });
   await save('invoices', inv); toast('Invoice updated', 'ok'); render();
 }
 
@@ -431,7 +448,7 @@ PAGES.invoice = id => {
         ${s.balance > 0 && !inv.void && payLinkFor(inv) ? `<button class="btn" onclick="showPayQR(ED.doc)">▦ Pay QR</button>` : ''}
         ${s.balance > 0 && !inv.void ? `<button class="btn primary" onclick="recordPayment('${inv.id}')">💳 Record payment</button>` : ''}`,
       header: `<div class="grid g4">${field('Invoice date', inpDate('date', inv.date))}${field('Due date', inpDate('dueDate', inv.dueDate))}${field('Odometer (km)', inpNum('odometer', inv.odometer))}${field('Customer ref / LPO', inpText('lpo', inv.lpo))}
-        ${field('Payment link for this invoice (optional)', inpText('payLink', inv.payLink, S.settings.payStripeLink ? 'Blank = your default Stripe link' : 'Paste a Stripe / WIO payment link'), 'spanall')}
+        ${field('Payment link for this invoice (optional — changing it needs the Owner PIN)', `<input value="${esc(inv.payLink || '')}" placeholder="${S.settings.payStripeLink ? 'Blank = your default Stripe link' : 'Paste a Stripe / WIO payment link'}" onchange="edPayLink(this)">`, 'spanall')}
         ${field('Work carried out (printed)', `<textarea oninput="edSet('workDone',this.value)">${esc(inv.workDone || '')}</textarea>`, 'spanall')}</div>
         ${job ? `<div class="small muted mt-s">From job card <a onclick="go('#/job/${job.id}')">${esc(job.number)}</a> (${esc(job.status)})</div>` : ''}
         ${pays.length ? `<div class="small amber mt-s">⚠ Payments have been recorded against this invoice — editing items changes the balance.</div>` : ''}`,
@@ -449,7 +466,17 @@ PAGES.invoice = id => {
 async function voidInvoice(on) {
   if (guardClosed(ED.doc.date, 'This invoice')) return;
   if (on && !(await confirmBox(`Void invoice ${ED.doc.number}? It stays on record (numbering is kept) but is excluded from revenue and balances.`, 'Void invoice', true))) return;
+  if (on && !(await ownerApprove(`Void invoice ${ED.doc.number} (${money(calcDoc(ED.doc).total)})`, { level: 'alert' }))) return;
+  if (!on) secLog('unvoid', `Invoice ${ED.doc.number} restored from void`, 'warn');
   ED.doc.void = on; await save('invoices', ED.doc); render();
+}
+/* The payment link decides where the customer's money goes — changing it needs the Owner PIN */
+async function edPayLink(el) {
+  const d = ED.doc, v = el.value.trim();
+  if (v === (d.payLink || '')) return;
+  if (guardClosed(d.date, 'This invoice')) { el.value = d.payLink || ''; return; }
+  if (!(await ownerApprove(`Change the payment link on invoice ${d.number} to: ${v || '(blank — default link)'}`, { level: 'alert' }))) { el.value = d.payLink || ''; return; }
+  edSet('payLink', v);
 }
 
 /* =================== PAYMENTS =================== */
@@ -484,6 +511,8 @@ async function deletePayment(pid) {
   const p = get('payments', pid);
   if (guardClosed(p.date, 'This payment')) return;
   if (!(await confirmBox(`Delete payment ${p.number} of ${money(p.amount)}?`, 'Delete', true))) return;
+  const inv = get('invoices', p.invoiceId);
+  if (!(await ownerApprove(`Delete payment ${p.number} of ${money(p.amount)} (${p.method || ''}${inv ? ', invoice ' + inv.number : ''})`, { level: 'alert' }))) return;
   await remove('payments', pid); toast('Payment deleted'); render();
 }
 PAGES.payments = () => {

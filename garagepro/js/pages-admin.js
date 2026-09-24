@@ -218,8 +218,8 @@ PAGES.settings = () => {
   if (tab === 'data') {
     const counts = COLLECTIONS.map(c => `${c}: ${S[c].length}`).join(' · ');
     body = `<div class="grid g2">
-      <div class="card card-pad"><h3>💾 Backup</h3><p class="muted">Your data lives in this browser on this computer. <b>Download a backup file regularly</b> (weekly at least) and keep a copy on a USB / Google Drive. ${st.lastBackup ? 'Last backup: ' + fmtDate(st.lastBackup) : '<span class="red">No backup taken yet.</span>'}</p>
-        <div class="row"><button class="btn primary" onclick="downloadBackup()">⬇ Download backup</button><label class="btn">⬆ Restore from backup<input type="file" accept=".json" hidden onchange="restoreBackup(this.files[0])"></label></div>
+      <div class="card card-pad"><h3>💾 Backup</h3><p class="muted">Your data lives in this browser on this computer. <b>Download a backup file regularly</b> (weekly at least) and keep a copy on a USB / Google Drive. Backups are locked with a password you choose. ${st.lastBackup ? 'Last backup: ' + fmtDate(st.lastBackup) : '<span class="red">No backup taken yet.</span>'}</p>
+        <div class="row"><button class="btn primary" onclick="downloadBackup()">⬇ Download backup</button><label class="btn">⬆ Restore from backup<input type="file" accept=".json" hidden onchange="restoreBackup(this.files[0]);this.value=''"></label></div>
         <p class="small faint">${counts}</p></div>
       <div class="card card-pad"><h3>📊 Excel</h3><p class="muted">Export everything to an Excel workbook, or import customers, vehicles, parts, labour, suppliers and technicians from your <b>Auto_Garage_Management_System.xlsx</b> template.</p>
         <div class="row"><button class="btn" onclick="exportExcel()">⬇ Export to Excel</button><label class="btn">⬆ Import from Excel template<input type="file" accept=".xlsx,.xls" hidden onchange="importExcel(this.files[0])"></label></div>
@@ -229,11 +229,18 @@ PAGES.settings = () => {
       <div class="card card-pad" style="border-color:#fecaca"><h3 class="red">⚠ Erase all data</h3><p class="muted">Deletes every record from this computer. Download a backup first.</p><button class="btn danger" onclick="eraseAll()">Erase everything…</button></div></div>`;
   }
   view().innerHTML = pageHead('Settings & Backup') + `<div class="tabs">${tabs.map(([k, l]) => `<div class="tab ${tab === k ? 'active' : ''}" onclick="setFilter('settings','tab','${k}')">${l}</div>`).join('')}</div>${body}`;
+  if (tab === 'staff') checkSecurityHeaders();
 };
 Object.assign(TEMPLATE_LABELS, { booking: 'Booking confirmation', bookingReminder: 'Booking reminder (day before)', mobileReceived: 'Mobile — request received', mobileOnWay: 'Mobile — on the way', mobileArrived: 'Mobile — arrived', mobileCompleted: 'Mobile — completed + payment', needsWorkshop: 'Mobile — needs workshop', requestDeclined: 'Online request declined' });
 const LIST_LABELS = { jobType: 'Job types', fuel: 'Fuel types', transmission: 'Transmissions', drive: 'Drive types', emirate: 'Emirates / regions', customerType: 'Customer types', paymentMethod: 'Payment methods', partCategory: 'Part categories', expenseCategory: 'Expense categories', trade: 'Technician trades' };
+const PAY_KEYS = { bankDetails: 'pasted bank details', payStripeLink: 'Stripe payment link', wioName: 'WIO account name', wioBank: 'bank name', wioIban: 'IBAN', wioLink: 'WIO payment link' };
 async function saveSettingsForm(keys) {
-  for (const k of keys) { const el = $('#s_' + k); if (el) S.settings[k] = el.type === 'number' ? num(el.value) : el.value.trim(); }
+  const vals = {};
+  for (const k of keys) { const el = $('#s_' + k); if (el) vals[k] = el.type === 'number' ? num(el.value) : el.value.trim(); }
+  // where customers send money: always needs the Owner PIN, even when the Owner is signed in
+  const payChanged = Object.keys(vals).filter(k => PAY_KEYS[k] && String(vals[k] ?? '') !== String((k === 'bankDetails' ? pastedBankDetails() : S.settings[k]) ?? ''));
+  if (payChanged.length && !(await ownerApprove(`Change payment details: ${payChanged.map(k => PAY_KEYS[k]).join(', ')}`, { always: true, level: 'alert' }))) return toast('Nothing saved — payment details need the Owner PIN', 'err');
+  Object.assign(S.settings, vals);
   await saveSettings(); toast('Settings saved', 'ok'); render();
 }
 async function saveDocSettings() {
@@ -268,26 +275,41 @@ function uploadLogo(file) {
 
 /* ---------- backup / restore ---------- */
 async function downloadBackup() {
+  const pw = await askPassword({
+    title: 'Protect this backup with a password', confirm: true, okLabel: 'Download backup',
+    text: 'The backup holds every customer, phone number, invoice and your bank details. It is locked with this password — <b>without it the file cannot be opened, not even by us</b>. Write it down and keep it away from the backup file.',
+  });
+  if (!pw) return;
+  toast('Preparing backup…');
   const data = { app: 'GaragePro', version: APP_VERSION, exportedAt: new Date().toISOString(), settings: S.settings };
   COLLECTIONS.forEach(c => data[c] = S[c]);
   data.photos = await DB.all('photos');
-  S.settings.lastBackup = new Date().toISOString();
+  S.settings.lastBackup = new Date().toISOString(); S.settings.lastBackupEncrypted = true;
   data.settings = S.settings;
+  const file = await encryptBackup(data, pw);
   await saveSettings();
-  downloadBlob(new Blob([JSON.stringify(data)], { type: 'application/json' }), `GaragePro_backup_${today()}.json`);
-  toast('Backup downloaded — keep it somewhere safe', 'ok'); renderNav();
+  downloadBlob(new Blob([JSON.stringify(file)], { type: 'application/json' }), `GaragePro_backup_${today()}.json`);
+  secLog('backup', 'Password-protected backup downloaded', 'info');
+  toast('Backup downloaded — keep it somewhere safe', 'ok'); render();
 }
 async function restoreBackup(file) {
   if (!file) return;
   try {
-    const data = JSON.parse(await file.text());
+    let data = JSON.parse(await file.text());
     if (data.app !== 'GaragePro') throw new Error('This is not a GaragePro backup file');
     if (!(await confirmBox(`Restore backup from ${fmtDate((data.exportedAt || '').slice(0, 10))}?\n\nThis REPLACES all current data on this computer.`, 'Replace & restore', true))) return;
-    for (const c of COLLECTIONS) { await DB.clear(c); S[c] = data[c] || []; if (S[c].length) await DB.putMany(c, S[c]); }
+    if (!(await ownerApprove(`Restore backup from ${fmtDate((data.exportedAt || '').slice(0, 10))} (replaces all data)`, { always: true, level: 'alert' }))) return;
+    if (data.format === 'encrypted') {
+      const pw = await askPassword({ title: 'Backup password', text: 'This backup is password-protected. Enter the password used when it was downloaded.', okLabel: 'Unlock & restore' });
+      if (!pw) return;
+      data = await decryptBackup(data, pw);
+    }
+    for (const c of COLLECTIONS) { if (c === 'secLog') continue; await DB.clear(c); S[c] = data[c] || []; if (S[c].length) await DB.putMany(c, S[c]); }   // the security log is kept, not replaced
     await DB.clear('photos'); if ((data.photos || []).length) await DB.putMany('photos', data.photos);
     S.settings = mergeDeep(structuredClone(DEFAULT_SETTINGS), data.settings || {}); await saveSettings();
     const syncMeta = (await DB.all('meta')).find(x => x.id === 'sync'); if (syncMeta) { syncMeta.lastPush = ''; await DB.put('meta', syncMeta); }   // upload the restored data again
     await migrateSettings();
+    secLog('restore', `Backup from ${fmtDate((data.exportedAt || '').slice(0, 10))} restored — all data replaced`, 'alert');
     toast('Backup restored', 'ok'); go('#/dashboard'); if (typeof Sync !== 'undefined') Sync.markDirty();
   } catch (e) { toast('Restore failed: ' + e.message, 'err'); }
 }
@@ -299,7 +321,9 @@ async function eraseAll() {
   m.el.querySelector('[data-close2]').onclick = m.close;
   m.el.querySelector('[data-go]').onclick = async () => {
     if (m.el.querySelector('#er_c').value !== 'ERASE') return toast('Type ERASE to confirm', 'err');
-    await wipeCollections(COLLECTIONS.filter(c => c !== 'staff'));
+    if (!(await ownerApprove('Erase all data', { always: true, level: 'alert' }))) return;
+    await wipeCollections(COLLECTIONS.filter(c => c !== 'staff' && c !== 'secLog'));
+    secLog('erase', 'All data erased', 'alert');
     Object.keys(S.settings.counters).forEach(k => S.settings.counters[k] = 0); await saveSettings();
     m.close(); toast('All data erased'); go('#/dashboard');
   };

@@ -18,7 +18,39 @@ create policy "garage reads" on public.requests for select to authenticated usin
 drop policy if exists "garage updates" on public.requests;
 create policy "garage updates" on public.requests for update to authenticated using (garage = auth.uid());
 drop policy if exists "garage deletes" on public.requests;
-create policy "garage deletes" on public.requests for delete to authenticated using (garage = auth.uid());`;
+create policy "garage deletes" on public.requests for delete to authenticated using (garage = auth.uid());
+
+-- v3.1 security: rate limit for the public booking page (safe to run again)
+-- max 3 requests per 10 minutes from one internet address, max 30 per hour for the garage
+create table if not exists public.request_hits (
+  ip text not null,
+  garage uuid not null,
+  at timestamptz not null default now()
+);
+create index if not exists request_hits_ip_at on public.request_hits (ip, at);
+alter table public.request_hits enable row level security;   -- no policies: only the trigger below can use it
+create or replace function public.requests_guard() returns trigger
+  language plpgsql security definer set search_path = public as $$
+declare
+  v_ip text := coalesce(nullif(trim(split_part(coalesce(current_setting('request.headers', true), '{}')::json->>'x-forwarded-for', ',', 1)), ''), 'unknown');
+begin
+  if auth.role() = 'anon' then
+    delete from public.request_hits where at < now() - interval '1 day';
+    if (select count(*) from public.request_hits h where h.ip = v_ip and h.at > now() - interval '10 minutes') >= 3 then
+      raise exception 'RATE_LIMIT: Too many requests from this connection. Please wait 10 minutes or WhatsApp us.';
+    end if;
+    if (select count(*) from public.requests r where r.garage = new.garage and r.created_at > now() - interval '1 hour') >= 30 then
+      raise exception 'RATE_LIMIT: We are receiving a lot of requests right now. Please WhatsApp us instead.';
+    end if;
+    insert into public.request_hits (ip, garage) values (v_ip, new.garage);
+  end if;
+  new.status := 'new';
+  new.created_at := now();
+  return new;
+end $$;
+drop trigger if exists requests_guard on public.requests;
+create trigger requests_guard before insert on public.requests
+  for each row execute function public.requests_guard();`;
 
 /* ---------- alert sound ---------- */
 function playAlert() {

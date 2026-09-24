@@ -1,19 +1,19 @@
 /* GaragePro — core: storage, data model, calculations */
 'use strict';
 
-const APP_VERSION = '3.0.1';
+const APP_VERSION = '3.1.0';
 const CFG = Object.assign({ mode: 'live', dbName: 'garagepro', supabaseUrl: '', supabaseKey: '', garageId: '' }, window.GP_CONFIG || {});
 const IS_PREVIEW = CFG.mode === 'preview';
 const COLLECTIONS = ['customers', 'vehicles', 'quotes', 'jobs', 'invoices', 'payments', 'parts',
   'purchaseOrders', 'suppliers', 'labour', 'technicians', 'expenses', 'messages', 'stockAdjustments',
-  'bookings', 'packages', 'staff', 'requests'];
+  'bookings', 'packages', 'staff', 'requests', 'secLog'];
 
 /* ---------- IndexedDB wrapper ---------- */
 const DB = {
   db: null,
   open() {
     return new Promise((resolve, reject) => {
-      const req = indexedDB.open(CFG.dbName, 4);
+      const req = indexedDB.open(CFG.dbName, 5);   // v5: secLog store
       req.onupgradeneeded = () => {
         const d = req.result;
         for (const c of [...COLLECTIONS, 'meta']) if (!d.objectStoreNames.contains(c)) d.createObjectStore(c, { keyPath: 'id' });
@@ -22,8 +22,13 @@ const DB = {
           ps.createIndex('jobId', 'jobId'); ps.createIndex('vehicleId', 'vehicleId');
         }
       };
-      req.onsuccess = () => { DB.db = req.result; resolve(); };
+      req.onsuccess = () => {
+        DB.db = req.result;
+        DB.db.onversionchange = () => { DB.db.close(); location.reload(); };   // a newer GaragePro opened in another tab
+        resolve();
+      };
       req.onerror = () => reject(req.error);
+      req.onblocked = () => { const v = document.getElementById('view'); if (v) v.innerHTML = '<div class="card card-pad" style="margin:20px">GaragePro is being updated. <b>Close every other GaragePro tab or window</b> on this computer — this page continues by itself.</div>'; };
     });
   },
   _tx(store, mode, fn) {
@@ -156,6 +161,9 @@ const DEFAULT_SETTINGS = {
   lastBackup: null,
   closedMonths: {},
   autoLockMinutes: 0,
+  security: { discountLimit: 10 },   // % discount staff may give without the Owner PIN
+  secSeenAt: '',                     // security alerts read up to this time
+  lastBackupEncrypted: false,
 };
 
 const JOB_STATUSES = ['Booked', 'In Progress', 'Awaiting Parts', 'Awaiting Approval', 'Ready', 'Delivered', 'Cancelled'];
@@ -534,6 +542,9 @@ async function migrateSettings() {
     if (!st.phone || st.phone === '04-000 0000') st.phone = '+971 55 957 4148';
     if (!st.whatsapp) st.whatsapp = '+971 52 233 8499';
     st.schema = 31; changed = true;
+  }
+  if (st.schema < 32) {   // v3.1: Security Level 1 (defaults come from DEFAULT_SETTINGS; nothing to convert)
+    st.schema = 32; changed = true;
   }
   if (changed) await saveSettings();
 }

@@ -97,7 +97,9 @@ async function resetToOneDemo() {
   m.el.querySelector('[data-c]').onclick = m.close;
   m.el.querySelector('[data-ok]').onclick = async () => {
     if (m.el.querySelector('#rs_c').value.trim().toUpperCase() !== 'RESET') return toast('Type RESET to confirm', 'err');
-    await wipeCollections(COLLECTIONS.filter(c => c !== 'staff'));
+    if (!(await ownerApprove('Delete all records and load the demo examples', { always: true, level: 'alert' }))) return;
+    await wipeCollections(COLLECTIONS.filter(c => c !== 'staff' && c !== 'secLog'));
+    secLog('erase', 'All records deleted — demo examples loaded', 'alert');
     Object.keys(S.settings.counters).forEach(k => S.settings.counters[k] = 0); await saveSettings();
     m.close(); await loadDemoData(true);
   };

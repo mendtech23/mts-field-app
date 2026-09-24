@@ -1,30 +1,53 @@
-GaragePro v3 — MendTech Mobile — LIVE BUILD
-===========================================
+GaragePro v3.1.0 — SECURITY LEVEL 1 — LIVE BUILD
+=================================================
 
 Publish this ONLY after you have tested the preview and are happy.
 It is the same app as the preview, but uses your real data and cloud sync.
+
+WHAT'S NEW IN 3.1
+  - PINs are now 6-8 digits, stored with strong hashing. 5 wrong PINs lock that login
+    for 15 minutes (longer if it continues). Everyone chooses a new 6-digit PIN the first
+    time they sign in to 3.1 with their old PIN.
+  - Owner PIN needed when staff: give a discount above 10% (limit set in Settings > Staff & security),
+    void or delete an invoice, delete a payment, change an invoice's payment link, reopen a closed month.
+  - Owner PIN always needed (even for the Owner) to change bank / Stripe / WIO details,
+    restore a backup, erase data.
+  - Backups are locked with a password you choose. Without it the file cannot be opened.
+  - Website security headers (the "_headers" file - keep it in the folder).
+  - Booking page: max 3 requests per 10 minutes per connection, 30 per hour in total.
+  - Security alerts: Settings > Staff & security (Owner only). The sidebar shows a red
+    "security alert" line when there is something new.
 
 1. BACKUP (1 min)
    Live app > Settings > Backup & data > Download backup.
 
 2. PUBLISH (2 min)
-   app.netlify.com > mendtechauto > Deploys > drag THIS folder (GaragePro-v3-Live) onto the upload box.
-   Open https://mendtechauto.netlify.app on the office PC and phones (close & reopen once to load v3).
-   Your data and settings stay. Everything you had before works the same.
+   Close GaragePro on every PC and phone first (an old copy left open holds up the update).
+   app.netlify.com > mendtechauto > Deploys > drag THIS folder (GaragePro-v3.1-Live) onto the upload box.
+   Open https://mendtechauto.netlify.app on the office PC and phones (close & reopen once to load v3.1).
+   Your data and settings stay.
+   Office PC offline copy: double-click "INSTALL ON THIS PC.bat" in this folder too.
+   IMPORTANT: every device must be on 3.1 before anyone sets a new PIN - the new PINs
+   do not work in 3.0.1, so an old copy left running would lock everyone out on that device.
 
-3. SET UP MOBILE (5 min)
-   Settings > Mobile & booking: hours, zones & call-out fees, surcharges, van name/plate, services.
-   Settings > Technicians: add your driver / mobile technician.
-   Settings > Staff & security: link each login to their Technicians entry (for "My jobs").
+3. NEW PINS (1 min each person)
+   Each person signs in with their old PIN once and is asked for a new 6-8 digit PIN.
+   Settings > Staff & security shows who still has an old PIN.
 
-4. CONNECT THE ONLINE BOOKING PAGE (5 min, once)
-   a) Settings > Mobile & booking > "Copy SQL" > Supabase > SQL Editor > paste > Run.
-   b) Same screen: "Download config.js" (cloud sync must be signed in).
-   c) Put that config.js into this folder's "js" folder (replace the existing one).
-   d) Drag this folder onto Netlify Deploys again.
-   Your booking page: https://mendtechauto.netlify.app/book.html
-   Print the QR poster from Settings > Mobile & booking.
+4. BOOKING PAGE RATE LIMIT (2 min, once)
+   Settings > Mobile & booking > "Copy SQL" > Supabase > SQL Editor > paste > Run.
+   (Same script as before with the rate limit added. Safe to run again.)
+
+5. NEW PROTECTED BACKUP (1 min)
+   Settings > Backup & data > Download backup > choose a password (write it down, keep it
+   away from the file). Then delete the old unprotected backup files from Downloads / USB / Drive.
+
+6. CHECK
+   Settings > Staff & security: every line in "Security check" should be green,
+   including "Website security headers are active".
 
 UNDO
-   Netlify > Deploys > click the previous deploy > "Publish deploy". Data is not affected.
+   Netlify > Deploys > click the previous deploy > "Publish deploy".
+   Note: after 3.1 has opened on a device, go back to 3.0.1 only if you really have to:
+   new 6-digit PINs will not work in 3.0.1 (restore the backup from step 1 instead).
    The office PC offline copy (C:\Users\S445696\GaragePro) keeps the previous version until you replace it.

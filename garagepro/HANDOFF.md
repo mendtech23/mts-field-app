@@ -11,7 +11,8 @@ Open `index.html` in Chrome, or use the live site.
 - Customer booking page: https://mendtechauto.netlify.app/book.html
 - Cloud data: Supabase (owner's personal account). Table `records` (all data, row-level security per garage account) + `requests` (booking-page inbox, public insert only).
 - WhatsApp for all enquiries/app messages: +971 52 233 8499. Calls: +971 55 957 4148.
-- Version in this folder: 3.0.1 (MendTech Auto + MendTech Mobile).
+- Version in this folder: 3.1.0 (MendTech Auto + MendTech Mobile + Security Level 1).
+- Source of truth is now git: repo `mendtech23/mts-field-app`, folder `garagepro/` (live config). The preview build = same folder with `js/config.js` set to mode 'preview', dbName 'garagepro-preview', no Supabase keys.
 
 ## Folder / file map
 - `js/config.js` — mode: 'live' (real data, DB 'garagepro') or 'preview' (test DB 'garagepro-preview', sync off). Settings → Mobile & booking → "Download config.js" adds Supabase URL/anon key/garageId for the booking page.
@@ -24,17 +25,23 @@ Open `index.html` in Chrome, or use the live site.
 - `js/mobile.js` MendTech Mobile (request form, dispatch, crew "My jobs", status flow, van stock)
 - `js/requests.js` online requests inbox, booking settings, Auto-vs-Mobile report
 - `js/documents.js` HTML + PDF documents (jsPDF) · `js/share.js` WhatsApp/email/SMS, QR
+- `js/security.js` PBKDF2 PIN hashing + lockout (`PinGuard`), `ownerApprove()`, security log (`secLog()`, synced collection `secLog`), encrypted backups, headers check
+- `_headers` Netlify security headers (CSP needs 'unsafe-inline' because the UI uses inline onclick handlers)
 - `js/photos.js`, `js/prints.js`, `js/finance.js` (month-end), `js/pro.js` (bookings, packages, signatures), `js/auth.js` (staff PIN + roles), `js/sync.js` (Supabase sync), `js/app.js` (boot + demo data)
 - `book.html` + `js/book.js` public booking page · `sw.js` offline cache (bump CACHE name on every release) · `lib/` bundled jsPDF, xlsx, supabase, qrcode
 
 Gotchas: mobile service settings live in `S.settings.mob` (NOT `.mobile`, that's a phone field). `render()` closes modals synchronously before any await. Deletions must go through `remove()` / `wipeCollections()` so cloud tombstones sync.
+
+## Status (24 Sep 2026, later)
+- v3.1.0 built = Security Level 1 (item 1 below), tested in a browser, waiting for the owner to test the preview and publish.
+- IndexedDB version is now 5 (new `secLog` store). Settings schema 32.
 
 ## Status (24 Sep 2026)
 - v3.0.1 is ready to go live / going live today (see "GO LIVE - STEPS.txt" and the Go-Live & Security Guide).
 - Guides (claude.ai docs): User Manual, Team Briefing & Trial Guide, Go-Live & Security Guide.
 
 ## Agreed next work (not built yet)
-1. **Security Level 1** (free): 6-digit PINs with stronger hashing + lockout after 5 tries; Owner-PIN approval for discount > 10%, void/delete invoice, delete payment, reopen month, changing bank/Stripe details; password-protected backups; Netlify `_headers` security headers; booking-page rate limit via SQL trigger; in-app security alerts.
+1. **DONE in v3.1.0 — Security Level 1** (free): 6-digit PINs with stronger hashing + lockout after 5 tries; Owner-PIN approval for discount > 10%, void/delete invoice, delete payment, reopen month, changing bank/Stripe details; password-protected backups; Netlify `_headers` security headers; booking-page rate limit via SQL trigger; in-app security alerts.
 2. **Security Level 2** (free): owner keeps email+password + 2FA (Supabase TOTP) as master; staff get individual logins (recommended: username + password created by owner via a Supabase Edge Function using the service role; SMS OTP is paid in UAE) with designation set by the owner; roles enforced by Supabase RLS (members table: garage_id, user_id, role, active); drivers only get their own jobs; device list + remote revoke; append-only audit log by trigger. Keep the old shared garage login working until all staff migrate.
    Waiting for owner: staff login choice (A username/password recommended) + staff list (name + designation) + "go".
 3. **Phase 0/1 revenue features** (preview mock-up approved in chat): tap-to-approve quotes, campaigns + follow-ups of work not done, Google review request, referral credits (AED 50/50), free 20-point health check, pre-purchase inspection report, RTA renewal help tracker, at-home tyre fitting, tyre storage, partner extras.

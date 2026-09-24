@@ -8,13 +8,7 @@ const ROLES = {
   driver: { label: 'Driver', pages: ['myjobs', 'job', 'vehicle', 'lookup', 'search', 'van'], finance: false, home: 'myjobs' },
 };
 
-async function hashPin(pin) {
-  const txt = 'garagepro:' + pin;
-  try {
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
-    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
-  } catch (e) { let h = 0; for (const ch of txt) h = (h * 31 + ch.charCodeAt(0)) | 0; return 'x' + h; }
-}
+/* PIN hashing, lockout and approvals live in security.js */
 
 const Auth = {
   user: null, idle: null,
@@ -34,20 +28,32 @@ const Auth = {
       <div class="brand-logo" style="width:64px;height:64px;margin:0 auto 10px;font-size:22px">${st.logo ? `<img src="${st.logo}" alt="">` : esc((st.garageName || 'GP').slice(0, 2).toUpperCase())}</div>
       <h2 style="text-align:center">${esc(st.garageName)}</h2><p class="muted center" style="margin:4px 0 16px">Who's working?</p>
       <div class="lock-users">${staff.map(s => `<button class="lock-user" data-id="${s.id}"><span class="av">${esc(s.name.slice(0, 1).toUpperCase())}</span>${esc(s.name)}<span class="small faint">${esc((ROLES[s.role] || {}).label || '')}</span></button>`).join('')}</div>
-      <div id="pinBox" style="display:none;margin-top:14px"><input id="pinIn" class="inp center" type="password" inputmode="numeric" maxlength="8" placeholder="Enter PIN" style="font-size:22px;letter-spacing:.3em">
+      <div id="pinBox" style="display:none;margin-top:14px"><input id="pinIn" class="inp center" type="password" inputmode="numeric" maxlength="8" placeholder="Enter PIN" autocomplete="off" style="font-size:22px;letter-spacing:.3em">
+        <div id="pinErr" class="small center" style="color:#fecaca;min-height:18px;margin-top:6px"></div>
         <div class="row mt-s" style="justify-content:center"><button class="btn" id="pinBack">Back</button><button class="btn primary" id="pinGo">Unlock</button></div></div>
       <p class="small faint center" style="margin-top:16px">GaragePro v${APP_VERSION}</p></div>`;
     let chosen = null;
-    el.querySelectorAll('.lock-user').forEach(b => b.onclick = () => { chosen = get('staff', b.dataset.id); el.querySelector('.lock-users').style.display = 'none'; el.querySelector('#pinBox').style.display = ''; el.querySelector('#pinIn').focus(); });
-    el.querySelector('#pinBack').onclick = () => { el.querySelector('.lock-users').style.display = ''; el.querySelector('#pinBox').style.display = 'none'; el.querySelector('#pinIn').value = ''; };
+    const pinErr = t => { el.querySelector('#pinErr').textContent = t || ''; };
+    el.querySelectorAll('.lock-user').forEach(b => b.onclick = () => {
+      chosen = get('staff', b.dataset.id); el.querySelector('.lock-users').style.display = 'none'; el.querySelector('#pinBox').style.display = '';
+      const wait = PinGuard.lockedFor(chosen.id); pinErr(wait ? `Locked after too many wrong PINs — try again in ${fmtMins(wait)}` : '');
+      el.querySelector('#pinIn').focus();
+    });
+    el.querySelector('#pinBack').onclick = () => { el.querySelector('.lock-users').style.display = ''; el.querySelector('#pinBox').style.display = 'none'; el.querySelector('#pinIn').value = ''; pinErr(''); };
+    let busy = false;
     const tryPin = async () => {
+      if (busy || !chosen) return; busy = true;
       const pin = el.querySelector('#pinIn').value;
-      if (chosen && (await hashPin(pin)) === chosen.pinHash) {
+      try {
+        const r = await PinGuard.check(chosen, pin);
+        if (!r.ok) { pinErr(r.msg); el.querySelector('#pinIn').value = ''; return; }
+        if (!isStrongPinHash(chosen.pinHash)) await askNewPin(chosen);   // old 4-digit PIN from v3.0
         this.user = chosen; try { sessionStorage.setItem('gp_user', chosen.id); } catch (e) { }
         el.remove(); document.body.classList.remove('locked-screen'); this.armIdle();
         if (!this.canPage(currentRoute()[0] || 'dashboard')) location.hash = '#/' + (this.role().home || 'dashboard');
         render(); toast(`Welcome, ${chosen.name}`, 'ok');
-      } else { toast('Wrong PIN', 'err'); el.querySelector('#pinIn').value = ''; }
+        if (chosen.role === 'owner' && secUnread()) setTimeout(() => toast(`🚨 ${secUnread()} new security alert(s) — Settings → Staff & security`, 'err'), 800);
+      } finally { busy = false; }
     };
     el.querySelector('#pinGo').onclick = tryPin;
     el.querySelector('#pinIn').onkeydown = e => { if (e.key === 'Enter') tryPin(); };
@@ -70,8 +76,15 @@ function staffSettingsHTML() {
     [num(st.autoLockMinutes) > 0, num(st.autoLockMinutes) > 0 ? `Auto-lock after ${st.autoLockMinutes} minutes` : 'Auto-lock is off — set 5–10 minutes below'],
     [IS_PREVIEW || !!(typeof Sync !== 'undefined' && Sync.user), IS_PREVIEW ? 'Preview copy — not connected to the cloud (by design)' : (typeof Sync !== 'undefined' && Sync.user) ? `Cloud backup on — signed in as ${Sync.user.email}` : 'Cloud sync is not signed in on this device'],
     [lb != null && lb <= 31, lb == null ? 'No backup file downloaded yet' : `Last backup file ${lb} day(s) ago`],
+    ...(lb == null ? [] : [[!!st.lastBackupEncrypted, st.lastBackupEncrypted ? 'Backup files are password-protected' : 'Last backup file was not password-protected — download a new one']]),
+    ...(() => { const weak = S.staff.filter(s => s.active !== false && !isStrongPinHash(s.pinHash)); return weak.length ? [[false, `${weak.length} login(s) still on an old 4-digit PIN (${weak.map(s => s.name).join(', ')}) — they must choose a 6-digit PIN at next sign-in`]] : S.staff.length ? [[true, 'All PINs are 6+ digits with strong hashing; 5 wrong tries lock the login']] : []; })(),
   ];
-  return `<div class="card mb"><div class="card-head"><h3>🛡 Security check</h3></div>${checks.map(([ok, t]) => `<div class="alert-row"><div class="alert-ico" style="background:${ok ? 'var(--greenSoft)' : 'var(--redSoft)'}">${ok ? '✔' : '⚠'}</div><div class="grow">${esc(t)}</div></div>`).join('')}</div>
+  return `<div class="card mb"><div class="card-head"><h3>🛡 Security check</h3></div>${checks.map(([ok, t]) => secCheckRow(ok, t)).join('')}<div id="secHeaders"></div></div>
+    ${secAlertsHTML()}
+    <div class="card mb"><div class="card-head"><h3>🔑 Owner approval</h3></div>
+      <div class="card-pad muted small" style="padding-bottom:0">Staff need the Owner's PIN to: give a discount above the limit below, void or delete an invoice, delete a payment, change an invoice's payment link, or reopen a closed month. Changing bank / Stripe details, restoring a backup and erasing data always ask for the Owner PIN again.</div>
+      <div class="card-pad row"><div class="field"><label>Discount limit without approval (%)</label><input class="inp" type="number" id="s_discountLimit" value="${esc(discountLimit())}" style="width:120px"></div>
+        <button class="btn" style="align-self:flex-end" onclick="saveDiscountLimit()">Save</button></div></div>
     <div class="card"><div class="card-head"><h3>👥 Staff logins</h3><div class="actions"><button class="btn sm primary" onclick="editStaff()">＋ Add staff</button></div></div>
     <div class="card-pad muted small" style="padding-bottom:0">Once you add staff, the app asks “Who's working?” and a PIN every time it opens. Everything created is stamped with the person's name.
       <b>Owner</b> sees everything. <b>Service Advisor</b>: front desk, MendTech Mobile dispatch, quotes, jobs, invoices, payments, stock — no profit reports, expenses, closing or settings. <b>Technician</b>: job cards, My jobs, dispatch, vehicles, stock, bookings. <b>Driver</b>: My jobs and van stock only, no prices.</div>
@@ -86,25 +99,42 @@ function editStaff(id) {
   openForm({
     title: s ? 'Edit staff login' : 'New staff login', size: 'narrow', cols: 1,
     fields: [{ k: 'name', label: 'Name', req: true }, { k: 'role', label: 'Role', type: 'select', options: Object.entries(ROLES).map(([k, r]) => [k, r.label]), def: S.staff.length ? 'technician' : 'owner', blank: false },
-      { k: 'pin', label: s ? 'New PIN (leave blank to keep)' : 'PIN (4–8 digits)', type: 'password', req: !s },
+      { k: 'pin', label: s ? 'New PIN (6–8 digits, leave blank to keep)' : 'PIN (6–8 digits)', type: 'password', req: !s },
       { k: 'techId', label: 'Same person in Technicians (shows their jobs in “My jobs”)', type: 'select', options: () => S.technicians.map(t => [t.id, t.name]) },
       { k: 'active', label: 'Active', type: 'checkbox', def: true }],
     data: s ? { name: s.name, role: s.role, active: s.active !== false, techId: s.techId } : { active: true },
     onSave: async vals => {
-      if (vals.pin && !/^\d{4,8}$/.test(vals.pin)) throw new Error('PIN must be 4–8 digits');
+      if (vals.pin && pinProblem(vals.pin)) throw new Error(pinProblem(vals.pin));
       const o = s || {};
+      const before = s ? { role: s.role, active: s.active !== false } : null;
       const owners = S.staff.filter(x => x.role === 'owner' && x.active !== false && x.id !== o.id).length;
       if ((vals.role !== 'owner' || !vals.active) && !owners) throw new Error('Keep at least one active Owner login');
       Object.assign(o, { name: vals.name, role: vals.role, active: vals.active, techId: vals.techId || '' });
-      if (vals.pin) o.pinHash = await hashPin(vals.pin);
+      if (vals.pin) o.pinHash = await hashPinStrong(vals.pin);
       await save('staff', o);
+      if (o.id) PinGuard.clear(o.id);   // saving a login also lifts a lockout on this device
+      const rl = r => (ROLES[r] || {}).label || r;
+      if (!before) secLog('staff', `New login: ${o.name} (${rl(o.role)})`, 'warn');
+      else {
+        if (before.role !== o.role) secLog('staff', `${o.name}'s role changed: ${rl(before.role)} → ${rl(o.role)}`, 'warn');
+        if (before.active !== o.active) secLog('staff', `${o.name}'s login ${o.active ? 're-activated' : 'deactivated'}`, 'warn');
+        if (vals.pin) secLog('pin-change', `${o.name}'s PIN was changed`, 'info');
+      }
       if (!Auth.user) { Auth.user = o; try { sessionStorage.setItem('gp_user', o.id); } catch (e) { } }
       toast('Staff saved', 'ok'); render();
     },
     onDelete: s ? async () => {
       if (s.role === 'owner' && S.staff.filter(x => x.role === 'owner' && x.active !== false).length <= 1) { toast('This is the only Owner login', 'err'); return false; }
       if (!(await confirmBox(`Delete login for ${s.name}?`, 'Delete', true))) return false;
-      await remove('staff', s.id); render(); return true;
+      await remove('staff', s.id); secLog('staff', `Login deleted: ${s.name}`, 'warn'); render(); return true;
     } : null,
   });
+}
+async function saveDiscountLimit() {
+  const v = num($('#s_discountLimit').value);
+  if (v < 0 || v > 100) return toast('Enter 0–100', 'err');
+  if (v === discountLimit()) return toast('No change');
+  if (!(await ownerApprove(`Change the discount limit from ${discountLimit()}% to ${v}%`, { always: true }))) return;
+  S.settings.security = Object.assign({}, S.settings.security, { discountLimit: v });
+  await saveSettings(); toast('Saved', 'ok'); render();
 }

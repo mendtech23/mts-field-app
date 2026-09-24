@@ -90,7 +90,11 @@
       method: 'POST', headers: { apikey: CFG.supabaseKey, Authorization: 'Bearer ' + CFG.supabaseKey, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
       body: JSON.stringify({ garage: CFG.garageId, data }),
     });
-    if (!r.ok) throw new Error('Could not send (' + r.status + '). Please try again or contact us on WhatsApp.');
+    if (!r.ok) {
+      let msg = ''; try { msg = (await r.json()).message || ''; } catch (x) { }
+      if (msg.startsWith('RATE_LIMIT: ')) throw new Error(msg.slice(12));
+      throw new Error('Could not send (' + r.status + '). Please try again or contact us on WhatsApp.');
+    }
   }
   function sendPreview(data) {
     return new Promise((resolve, reject) => {

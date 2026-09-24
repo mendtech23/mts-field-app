@@ -1,5 +1,5 @@
-GaragePro v2 — Workshop Manager
-===============================
+GaragePro v3.1 — Workshop Manager
+=================================
 
 START
   Windows Start menu -> type "GaragePro"  (or double-click "Open GaragePro.bat" in this folder).
@@ -8,7 +8,7 @@ START
 
 FIRST-TIME SETUP
   1. Settings > Garage details: name, logo, TRN, VAT %, labour rate, bank details.
-  2. Settings > Staff & security: add yourself as Owner with a PIN, then your staff
+  2. Settings > Staff & security: add yourself as Owner with a 6-8 digit PIN, then your staff
      (Service Advisor / Technician). From then on the app asks "Who's working?" + PIN.
   3. Technicians, Labour Catalogue, Parts & Stock, Service Packages (Minor/Major service…)
      — or Settings > Backup & data > "Import from Excel template".
@@ -42,6 +42,13 @@ MONTH END — Finance > Month-end closing (checklist, P&L, VAT, cash-up, aging, 
 
 PRINT — every screen has 🖨 Print (choose "Save as PDF" for a file).
 
+SECURITY (v3.1)
+  5 wrong PINs lock a login for 15 minutes. Staff need the Owner's PIN for big discounts
+  (over 10%), voiding / deleting invoices, deleting payments, changing an invoice's payment link
+  and reopening a closed month. Bank / Stripe details, restore and erase always ask for the Owner PIN.
+  Alerts: Settings > Staff & security.
+
 !! BACKUP !!
   Without cloud sync: Settings > Backup & data > "Download backup" every week (includes photos).
+  Each backup is locked with a password you choose — keep it written down, away from the file.
   With cloud sync: data is also kept in your Supabase project; still take a monthly backup.

@@ -75,6 +75,7 @@ function renderNav() {
   $('#backupHint').innerHTML = `<div class="row" style="justify-content:space-between"><div id="syncBadge"></div><button class="theme-btn" onclick="Theme.cycle()" title="Light / dark mode">${ic(tm === 'dark' ? 'moon' : tm === 'light' ? 'sun' : 'sun-moon')}${tm === 'auto' ? 'Auto' : tm === 'dark' ? 'Dark' : 'Light'}</button></div>` +
     (typeof Auth !== 'undefined' && Auth.user ? `<div class="side-user"><span class="av">${esc(Auth.user.name.slice(0, 1).toUpperCase())}</span><span class="grow">${esc(Auth.user.name)}<br><span class="faint">${esc(Auth.role().label)}</span></span><button class="btn sm dark" onclick="Auth.lock()" title="Lock / switch user">🔒</button></div>` : '') +
     (typeof Install !== 'undefined' && Install.prompt ? `<div><a class="warn" onclick="Install.run()">⬇ Install as app</a></div>` : '') +
+    (typeof secUnread === 'function' && secCanSee() && secUnread() ? `<div><a class="warn" onclick="setFilter('settings','tab','staff');go('#/settings')">🚨 ${secUnread()} security alert${secUnread() > 1 ? 's' : ''} — click</a></div>` : '') +
     (!hasData || cloudOk ? `<div>v${APP_VERSION}</div>` :
       (lb == null || lb >= 7) ? `<span class="warn" onclick="setFilter('settings','tab','data');go('#/settings')">⚠ Backup ${lb == null ? 'never taken' : lb + ' days old'} — click</span>` :
         `Last backup: ${fmtDate(st.lastBackup)}`);
@@ -90,15 +91,15 @@ function toast(msg, type = '') {
 }
 
 /* ---------- Modal ---------- */
-function openModal({ title, body, foot = '', size = '', onOpen }) {
+function openModal({ title, body, foot = '', size = '', onOpen, sticky = false }) {
   const back = document.createElement('div');
-  back.className = 'modal-back';
+  back.className = 'modal-back' + (sticky ? ' sticky' : '');
   back.innerHTML = `<div class="modal ${size}" role="dialog"><div class="modal-head"><h3>${title}</h3><button class="icon-btn" data-close aria-label="Close">✕</button></div>
     <div class="modal-body">${body}</div>${foot ? `<div class="modal-foot">${foot}</div>` : ''}</div>`;
   const close = () => back.remove();
   back.querySelector('[data-close]').onclick = close;
   back.addEventListener('mousedown', e => { if (e.target === back) back._downOnBack = true; });
-  back.addEventListener('mouseup', e => { if (e.target === back && back._downOnBack) close(); back._downOnBack = false; });
+  back.addEventListener('mouseup', e => { if (e.target === back && back._downOnBack && !sticky) close(); back._downOnBack = false; });
   back._close = close;
   $('#modalRoot').appendChild(back);
   const first = back.querySelector('input:not([type=hidden]):not([readonly]),select,textarea');
@@ -106,7 +107,7 @@ function openModal({ title, body, foot = '', size = '', onOpen }) {
   if (onOpen) onOpen(back);
   return { el: back, close };
 }
-function closeTopModal() { const all = document.querySelectorAll('.modal-back'); if (all.length) all[all.length - 1].remove(); }
+function closeTopModal() { const all = document.querySelectorAll('.modal-back'); if (all.length && !all[all.length - 1].classList.contains('sticky')) all[all.length - 1].remove(); }
 function closeAllModals() { document.querySelectorAll('.modal-back').forEach(m => m.remove()); }
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeTopModal();
