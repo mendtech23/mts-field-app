@@ -10,10 +10,21 @@ function docMessageCtx(kind, doc, extra = {}) {
   } else {
     const t = calcDoc(doc);
     Object.assign(ctx, { amount: money(t.total), items: itemsSummary(doc.items), validUntil: fmtDate(doc.validUntil) });
+    if (kind === 'quote') ctx.approveLine = approveLineFor(doc);
     if (kind === 'invoice') { const s = invoiceState(doc); ctx.paid = money(s.paid); ctx.balance = money(s.balance); ctx.payInfo = s.balance > 0 ? payInfoText(doc, money(s.balance)) : ''; ctx.payLink = payLinkFor(doc); }
     if (kind === 'job') { const jt = jobTotals(doc); ctx.balance = money(jt.status === 'Not invoiced' ? jt.total : jt.balance); }
   }
   return ctx;
+}
+/* tap-to-approve: a private link for this quotation (Security Level 2 cloud needed) */
+const quoteLinksOn = () => typeof Cloud !== 'undefined' && Cloud.level2 && !!Sync.user && /^https?:$/.test(location.protocol) && !(IS_PREVIEW && !CFG.previewCloud);
+function quoteLink(q) {
+  if (!q.shareToken) { const b = crypto.getRandomValues(new Uint8Array(24)); q.shareToken = btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); save('quotes', q); }
+  return location.origin + location.pathname.replace(/[^/]*$/, '') + 'approve.html#' + q.shareToken;
+}
+function approveLineFor(q) {
+  if (!quoteLinksOn() || ['Approved', 'Declined', 'Converted'].includes(q.status)) return 'Reply YES to approve and we will start the work.';
+  return `Tap here to approve or decline:\n${quoteLink(q)}\n\nOr simply reply YES to approve.`;
 }
 function docTemplateKey(kind, doc) {
   if (kind === 'job') return doc.status === 'Ready' ? 'ready' : 'jobUpdate';

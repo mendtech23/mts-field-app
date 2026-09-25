@@ -139,7 +139,7 @@ const DEFAULT_SETTINGS = {
     ['Body & Interior', 'Windscreen & glass'], ['Body & Interior', 'Body damage / scratches'], ['Body & Interior', 'Seat belts'], ['Body & Interior', 'Exhaust system'],
   ],
   templates: {
-    quote: 'Dear {customer},\n\nPlease find your quotation {number} for {vehicle} ({plate}).\nTotal: {amount} (incl. VAT)\nValid until: {validUntil}\n\n{items}\n\nReply YES to approve and we will start the work.\n\n{garage}\n{garagePhone}',
+    quote: 'Dear {customer},\n\nPlease find your quotation {number} for {vehicle} ({plate}).\nTotal: {amount} (incl. VAT)\nValid until: {validUntil}\n\n{items}\n\n{approveLine}\n\n{garage}\n{garagePhone}',
     invoice: 'Dear {customer},\n\nYour invoice {number} for {vehicle} ({plate}) is ready.\nTotal: {amount}\nPaid: {paid}\nBalance due: {balance}\n\n{payInfo}\n\nThank you for choosing {garage}.\n{garagePhone}',
     receipt: 'Dear {customer},\n\nWe have received your payment of {amount} ({method}) against invoice {number}. Receipt no. {receipt}.\nRemaining balance: {balance}\n\nThank you!\n{garage}',
     ready: 'Dear {customer},\n\nGood news! Your {vehicle} ({plate}) is ready for collection.\nAmount due: {balance}\n\nOpening hours: 8am - 7pm.\n{garage}\n{garagePhone}',
@@ -567,6 +567,11 @@ async function migrateSettings() {
   if (st.schema < 35) {   // v3.3: partner payments are recorded as expenses
     if (!st.lists.expenseCategory.includes('Partner payments')) st.lists.expenseCategory.splice(Math.max(0, st.lists.expenseCategory.indexOf('Other')), 0, 'Partner payments');
     st.schema = 35; changed = true;
+  }
+  if (st.schema < 36) {   // v3.4: quotation message carries the tap-to-approve link
+    const t = st.templates && st.templates.quote;
+    if (t && !t.includes('{approveLine}') && t.includes('Reply YES to approve and we will start the work.')) st.templates.quote = t.replace('Reply YES to approve and we will start the work.', '{approveLine}');
+    st.schema = 36; changed = true;
   }
   if (changed) await saveSettings();
 }

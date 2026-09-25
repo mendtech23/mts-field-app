@@ -205,7 +205,8 @@ PAGES.quote = id => {
     header: `<div class="grid g4">
       ${field('Date', inpDate('date', q.date))}${field('Valid until', inpDate('validUntil', q.validUntil))}${field('Odometer (km)', inpNum('odometer', q.odometer))}
       ${field('Status', selectHTML('status', QUOTE_STATUSES.filter(s => s !== 'Expired'), q.status, true))}
-      ${field('Work description / customer request', `<textarea oninput="edSet('description',this.value)">${esc(q.description || '')}</textarea>`, 'spanall')}</div>`,
+      ${field('Work description / customer request', `<textarea oninput="edSet('description',this.value)">${esc(q.description || '')}</textarea>`, 'spanall')}
+      ${q.approval && q.approval.via === 'link' ? `<div class="spanall alert-row" style="border-radius:10px;background:${q.approval.decision === 'approve' ? 'var(--greenSoft, #dcfce7)' : 'var(--redSoft)'}"><div class="grow"><b>${q.approval.decision === 'approve' ? '✓ Approved' : '✗ Declined'} online by ${esc(q.approval.name)}</b> · ${esc(new Date(q.approval.at).toLocaleString('en-GB'))}${q.approval.note ? `<div class="small">“${esc(q.approval.note)}”</div>` : ''}</div></div>` : ''}</div>`,
     main: '',
     side: `<div class="card"><div class="card-head"><h3>More</h3></div><div class="card-pad row">
       <button class="btn" onclick="duplicateDoc('quote')">Duplicate</button>

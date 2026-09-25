@@ -166,6 +166,8 @@ const Sync = {
       S[coll] = S[coll].filter(x => x.id !== id); await DB.del(coll, id); return true;
     }
     if (local && (local.updatedAt || '') >= (data.updatedAt || '')) return false;
+    if (coll === 'quotes' && local && data.approval && data.approval.via === 'link' && local.status !== data.status)
+      setTimeout(() => toast(`Quotation ${data.number} ${data.status === 'Approved' ? 'APPROVED' : 'declined'} by ${data.approval.name} (online)`, data.status === 'Approved' ? 'ok' : 'err'), 300);
     const i = S[coll].findIndex(x => x.id === id);
     if (i >= 0) S[coll][i] = data; else S[coll].push(data);
     await DB.put(coll, data); return true;
