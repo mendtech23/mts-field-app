@@ -21,7 +21,9 @@ const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&
 const dubai = (d: string | Date) => new Date(d).toLocaleString('en-GB', { timeZone: 'Asia/Dubai', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 const DOT: Record<string, string> = { alert: '#C62828', warn: '#D97A2B', info: '#6C7488' };
 const COLL: Record<string, string> = { invoices: 'Invoices', quotes: 'Quotations', jobs: 'Jobs', payments: 'Payments', customers: 'Customers', vehicles: 'Vehicles',
-  expenses: 'Expenses', parts: 'Stock', settings: 'Settings', photos: 'Photos', staff: 'Staff', technicians: 'Technicians', renewals: 'Renewals', partners: 'Partners', campaigns: 'Campaigns' };
+  expenses: 'Expenses', parts: 'Parts', settings: 'Settings', photos: 'Photos', staff: 'PIN logins', technicians: 'Technicians', renewals: 'Renewals', partners: 'Partners', campaigns: 'Campaigns',
+  stockAdjustments: 'Stock movements', labour: 'Labour items', packages: 'Service packages', bookings: 'Bookings', suppliers: 'Suppliers', purchaseOrders: 'Purchase orders', messages: 'Messages', secLog: 'Security log' };
+const ACT: Record<string, string> = { create: 'added', update: 'changed', delete: 'deleted' };
 
 function frame(title: string, inner: string) {
   return `<!doctype html><html><body style="margin:0;background:#F3F5F8;font-family:Inter,Segoe UI,Arial,sans-serif;color:#122036">
@@ -78,7 +80,7 @@ Deno.serve(async (req) => {
                 <td style="padding:5px 0"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${DOT[a.level] || '#6C7488'};margin-right:6px"></span>${esc(a.text)}</td></tr>`).join('')}</table>` : ''}
           ${changes.length ? `<h3 style="font-size:14px;margin:18px 0 6px">Who changed what</h3><table style="width:100%;border-collapse:collapse;font-size:13px">${Object.entries(byWho).map(([who, cs]) => `
             <tr><td style="padding:6px 8px 6px 0;vertical-align:top;font-weight:600;white-space:nowrap">${esc(who)}</td>
-                <td style="padding:6px 0;color:#4B5265">${cs.map((c: any) => `${esc(COLL[c.coll] || c.coll)} ${esc(c.action)} ×${esc(c.n)}`).join(' · ')}</td></tr>`).join('')}</table>` : ''}`;
+                <td style="padding:6px 0;color:#4B5265">${cs.map((c: any) => `${esc(COLL[c.coll] || c.coll)} ${esc(ACT[c.action] || c.action)} ×${esc(c.n)}`).join(' · ')}</td></tr>`).join('')}</table>` : ''}`;
         await send(g.email, `${serious ? '🔴 ' : ''}mendtech. daily summary — ${new Date(g.to).toLocaleDateString('en-GB', { timeZone: 'Asia/Dubai', day: 'numeric', month: 'short', year: 'numeric' })}`,
           frame('Daily summary', inner));
         sent++;
