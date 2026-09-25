@@ -38,7 +38,7 @@ What you need open:
 **Database → Extensions**: turn on **pg_net** (instant alert e-mails) and **pg_cron** (the daily summary at 20:00).
 
 ### A4. Database scripts (5 min)
-In the **SQL Editor**, paste each script below and press **Run**, in this order:
+Easiest: open **`sql/all-in-one.sql`** from this folder, select all, copy, paste into the **SQL Editor** and press **Run** — it contains all three scripts below. Or paste each script separately, in this order:
 1. The **cloud table** script. In the app: Settings → Cloud & devices → "Copy SQL script".
 2. The **booking inbox** script. In the app: Settings → Mobile & booking → "Copy SQL".
 3. **`sql/level2.sql`** from this folder. Open it in Notepad, select all, copy, paste, Run.
