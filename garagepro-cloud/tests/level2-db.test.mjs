@@ -52,9 +52,9 @@ r = await upsert(O, [
   rec('jobs', 'j3', { number: 'J-3', vehicleId: 'v2', customerId: 'c2', line: 'mobile', mobile: { driverId: 'd1', status: 'Assigned' }, status: 'Booked', items }),
   rec('invoices', 'i1', { number: 'INV-1', customerId: 'c1', items, discount: 0 }), rec('invoices', 'i2', { number: 'INV-2', customerId: 'c1', items, discount: 0 }),
   rec('payments', 'p1', { number: 'PAY-1', amount: 1050, invoiceId: 'i1' }), rec('quotes', 'q1', { number: 'Q-1', vehicleId: 'v1', customerId: 'c1', items, discount: 0, status: 'Sent', shareToken: token, validUntil: '2099-01-01' }),
-  rec('quotes', 'q2', { number: 'Q-2', items, discount: 0 }), rec('expenses', 'e1', { amount: 50, category: 'Rent' }), rec('staff', 's1', { name: 'Ravi', pinHash: 'x' }), rec('secLog', 'x1', { text: 'hi' }),
+  rec('quotes', 'q2', { number: 'Q-2', items, discount: 0 }), rec('expenses', 'e1', { amount: 50, category: 'Rent' }), rec('incomes', 'o1', { amount: 400, category: 'Scrap sale' }), rec('staff', 's1', { name: 'Ravi', pinHash: 'x' }), rec('secLog', 'x1', { text: 'hi' }),
   rec('technicians', 't1', { name: 'Ravi', trade: 'Mechanic', active: true }), rec('photos', 'ph1', { jobId: 'j1', data: 'img1' }), rec('photos', 'ph2', { jobId: 'j2', data: 'img2' })]);
-ok(r.status === 200 && r.data.length === 19 && r.data.every(x => x.owner === G), 'owner uploads 19 records into its own garage', r.data);
+ok(r.status === 200 && r.data.length === 20 && r.data.every(x => x.owner === G), 'owner uploads 20 records into its own garage', r.data);
 
 console.log('\n2. Staff logins');
 const mk = async (u, role, tech) => { const email = `${u}-${run}@g.test.local`; const id = await adminUser(email, 'Staff#12345');
@@ -68,6 +68,7 @@ const colls = async t => [...new Set((await read(t)).data.map(x => x.coll))].sor
 let c = await colls(O); ok(c.includes('staff') && c.includes('secLog') && c.includes('expenses'), 'owner sees everything', c);
 c = await colls(M.t); ok(!c.includes('staff') && !c.includes('secLog') && c.includes('expenses') && c.includes('invoices'), 'manager: all but staff logins & security log', c);
 c = await colls(A.t); ok(!c.includes('staff') && !c.includes('secLog') && !c.includes('expenses') && c.includes('invoices'), 'advisor: no expenses / staff / security log', c);
+ok(!c.includes('incomes') && (await colls(M.t)).includes('incomes'), 'other income: manager yes, advisor no');
 r = await read(T.t); ok(r.status === 200 && r.data.length === 0, 'technician reads nothing directly', r.data.length);
 r = await read(D.t); ok(r.data.length === 0, 'driver reads nothing directly');
 r = await read(null); ok(r.data.length === 0, 'anonymous reads nothing');

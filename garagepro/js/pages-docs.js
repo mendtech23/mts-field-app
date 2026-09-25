@@ -208,7 +208,9 @@ PAGES.quote = id => {
       ${field('Work description / customer request', `<textarea oninput="edSet('description',this.value)">${esc(q.description || '')}</textarea>`, 'spanall')}
       ${q.approval && q.approval.via === 'link' ? `<div class="spanall alert-row" style="border-radius:10px;background:${q.approval.decision === 'approve' ? 'var(--greenSoft, #dcfce7)' : 'var(--redSoft)'}"><div class="grow"><b>${q.approval.decision === 'approve' ? '✓ Approved' : '✗ Declined'} online by ${esc(q.approval.name)}</b> · ${esc(new Date(q.approval.at).toLocaleString('en-GB'))}${q.approval.note ? `<div class="small">“${esc(q.approval.note)}”</div>` : ''}</div></div>` : ''}</div>`,
     main: '',
-    side: `<div class="card"><div class="card-head"><h3>More</h3></div><div class="card-pad row">
+    side: `<div class="card mb"><div class="card-pad"><label class="row small" style="align-items:flex-start;gap:8px;cursor:pointer"><input type="checkbox" id="plain_quote" style="width:auto;margin-top:3px" ${ED.doc.plain ? 'checked' : ''} onchange="edSet('plain', this.checked, true)">
+        <span><b>Plain document</b> — no company name, logo, TRN, bank or contact details on the print / PDF</span></label>${ED.doc.plain ? `<div class="small muted mt-s">${ED.kind === 'invoice' ? 'Printed as “INVOICE” (not a tax invoice — no TRN).' : 'The customer link shows no company details either.'}</div>` : ''}</div></div>
+      <div class="card"><div class="card-head"><h3>More</h3></div><div class="card-pad row">
       <button class="btn" onclick="duplicateDoc('quote')">Duplicate</button>
       <button class="btn danger" onclick="deleteDoc('quote')">Delete</button></div></div>`,
   });
@@ -459,7 +461,9 @@ PAGES.invoice = id => {
       side: `<div class="card mb"><div class="card-head"><h3>Payments</h3>${s.balance > 0 && !inv.void ? `<div class="actions"><button class="btn sm primary" onclick="recordPayment('${inv.id}')">＋ Add</button></div>` : ''}</div>
         ${pays.length ? pays.map(p => `<div class="alert-row"><div class="grow"><b>${money(p.amount)}</b> <span class="muted small">${esc(p.method)}</span><div class="small faint">${esc(p.number)} · ${fmtDate(p.date)}${p.reference ? ' · ' + esc(p.reference) : ''}</div></div>
           <button class="btn sm ghost" title="Receipt" onclick="receiptActions('${p.id}')">🧾</button><button class="btn sm ghost" title="Delete" onclick="deletePayment('${p.id}')">✕</button></div>`).join('') : '<div class="empty" style="padding:18px">No payments yet</div>'}</div>
-        <div class="card"><div class="card-head"><h3>More</h3></div><div class="card-pad row">
+        <div class="card mb"><div class="card-pad"><label class="row small" style="align-items:flex-start;gap:8px;cursor:pointer"><input type="checkbox" id="plain_invoice" style="width:auto;margin-top:3px" ${ED.doc.plain ? 'checked' : ''} onchange="edSet('plain', this.checked, true)">
+        <span><b>Plain document</b> — no company name, logo, TRN, bank or contact details on the print / PDF</span></label>${ED.doc.plain ? `<div class="small muted mt-s">${ED.kind === 'invoice' ? 'Printed as “INVOICE” (not a tax invoice — no TRN).' : 'The customer link shows no company details either.'}</div>` : ''}</div></div>
+      <div class="card"><div class="card-head"><h3>More</h3></div><div class="card-pad row">
           ${s.balance > 0 && !inv.void ? `<button class="btn" onclick="edFlush().then(()=>openMessageDialog({vehicle:vehicleOf(ED.doc),customer:customerOf(ED.doc),type:'payment',text:fillTemplate(S.settings.templates.payment,docMessageCtx('invoice',ED.doc))}))">Payment reminder</button>` : ''}
           <button class="btn" onclick="duplicateDoc('invoice')">Duplicate</button>
           ${inv.void ? '' : `<button class="btn danger" onclick="voidInvoice(true)">Void</button>`}

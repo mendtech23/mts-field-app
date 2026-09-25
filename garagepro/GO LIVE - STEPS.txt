@@ -1,5 +1,5 @@
-mendtech. v3.4.0 — SECURITY LEVEL 2 — LIVE BUILD
-================================================
+mendtech. v3.5.0 — SECURITY LEVEL 2 — LIVE BUILD
+==================================================
 
 Publish this ONLY after you have tested the preview (garagepro-cloud/SETUP-GUIDE.md, Part A)
 and are happy. The full live steps are in SETUP-GUIDE.md, Part B. Short version:
@@ -17,6 +17,10 @@ WHAT'S NEW IN 3.4 (on top of 3.1 security, 3.2 branding, 3.3 revenue features)
   - Alerts by e-mail to mendtech23@gmail.com (instant for important things, summary at 20:00)
     and in the app (Settings > Staff & security).
   - Customers approve quotations from a link in the WhatsApp message.
+
+NEW IN 3.5
+  - Finance > Other income (scrap, car sales, used parts...) - counted in P&L, VAT, month-end.
+  - "Plain document" tick on quotations and invoices: no company name, logo or contact details.
 
 BEFORE: backup (Settings > Backup & data > Download backup).
 1. Live Supabase: sign-ups off, TOTP on, extensions pg_net + pg_cron, run level2.sql,

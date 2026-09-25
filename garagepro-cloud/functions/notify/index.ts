@@ -21,7 +21,7 @@ const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&
 const dubai = (d: string | Date) => new Date(d).toLocaleString('en-GB', { timeZone: 'Asia/Dubai', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 const DOT: Record<string, string> = { alert: '#C62828', warn: '#D97A2B', info: '#6C7488' };
 const COLL: Record<string, string> = { invoices: 'Invoices', quotes: 'Quotations', jobs: 'Jobs', payments: 'Payments', customers: 'Customers', vehicles: 'Vehicles',
-  expenses: 'Expenses', parts: 'Parts', settings: 'Settings', photos: 'Photos', staff: 'PIN logins', technicians: 'Technicians', renewals: 'Renewals', partners: 'Partners', campaigns: 'Campaigns',
+  expenses: 'Expenses', incomes: 'Other income', parts: 'Parts', settings: 'Settings', photos: 'Photos', staff: 'PIN logins', technicians: 'Technicians', renewals: 'Renewals', partners: 'Partners', campaigns: 'Campaigns',
   stockAdjustments: 'Stock movements', labour: 'Labour items', packages: 'Service packages', bookings: 'Bookings', suppliers: 'Suppliers', purchaseOrders: 'Purchase orders', messages: 'Messages', secLog: 'Security log' };
 const ACT: Record<string, string> = { create: 'added', update: 'changed', delete: 'deleted' };
 

@@ -106,7 +106,7 @@ begin
   if r is null or not app.session_ok() then return false; end if;
   if r = 'owner' then return app.mfa_ok(); end if;
   if r = 'manager' then return p_coll not in ('staff', 'secLog'); end if;
-  if r = 'advisor' then return p_coll not in ('staff', 'secLog', 'expenses'); end if;
+  if r = 'advisor' then return p_coll not in ('staff', 'secLog', 'expenses', 'incomes'); end if;
   return false;
 end $$;
 
@@ -583,6 +583,7 @@ begin
   return jsonb_build_object(
     'number', q.data->>'number', 'date', q.data->>'date', 'validUntil', q.data->>'validUntil', 'status', q.data->>'status', 'description', q.data->>'description',
     'items', (select coalesce(jsonb_agg(jsonb_build_object('desc', i->>'desc', 'qty', i->'qty', 'rate', i->'rate', 'type', i->>'type')), '[]'::jsonb) from jsonb_array_elements(coalesce(q.data->'items', '[]')) i),
+    'plain', coalesce((q.data->>'plain')::boolean, false),
     'discount', q.data->'discount', 'discountType', q.data->'discountType', 'vatRate', coalesce(q.data->'vatRate', s->'vatRate'), 'approval', q.data->'approval',
     'customer', split_part(coalesce(c->>'name', ''), ' ', 1),
     'vehicle', jsonb_build_object('plate', v->>'plate', 'make', v->>'make', 'model', v->>'model', 'year', v->>'year'),

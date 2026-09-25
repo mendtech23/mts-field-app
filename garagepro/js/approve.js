@@ -39,6 +39,8 @@
     const decided = ['Approved', 'Declined', 'Converted'].includes(q.status);
     const ap = q.approval || {};
     const terms = String(g.terms || '').replace(/\{validDays\}/g, g.validDays || 7);
+    const plain = !!q.plain;   // plain quotation: no company name or contact details
+    document.querySelector('header').style.display = plain ? 'none' : '';
     let action;
     if (decided) {
       const yes = q.status !== 'Declined';
@@ -56,7 +58,7 @@
         <p class="muted" style="margin:10px 0 0">By approving you agree to the work and prices above. We will contact you to book the car in.</p>`;
     }
     app.innerHTML = `<div class="card">
-        <h1>Quotation ${esc(q.number)}</h1><div class="sub" style="margin:4px 0 12px">${q.customer ? `Hi ${esc(q.customer)}, here` : 'Here'} is your quotation from ${esc(g.name || 'mendtech.')}.</div>
+        <h1>Quotation ${esc(q.number)}</h1><div class="sub" style="margin:4px 0 12px">${q.customer ? `Hi ${esc(q.customer)}, here` : 'Here'} is your quotation${plain ? '' : ` from ${esc(g.name || 'mendtech.')}`}.</div>
         <dl class="qmeta"><dt>Car</dt><dd>${esc([v.make, v.model, v.year].filter(Boolean).join(' '))}${v.plate ? ` · ${esc(v.plate)}` : ''}</dd>
           <dt>Date</dt><dd>${esc(fmtDate(q.date))}</dd>${q.validUntil ? `<dt>Valid until</dt><dd>${esc(fmtDate(q.validUntil))}</dd>` : ''}</dl>
         ${q.description ? `<p style="white-space:pre-wrap;margin:12px 0 0">${esc(q.description)}</p>` : ''}</div>
@@ -68,7 +70,7 @@
           <span class="big">Total</span><span class="big n">${money(t.total)}</span></div></div>
       <div class="card" id="act">${action}</div>
       ${terms ? `<div class="card terms">${esc(terms)}</div>` : ''}
-      <div class="foot">${esc(g.name || '')}${g.address ? ' · ' + esc(g.address) : ''}${g.phone ? '<br>' + esc(g.phone) : ''}${g.footer ? '<br>' + esc(g.footer) : ''}</div>`;
+      <div class="foot" ${plain ? 'hidden' : ''}>${esc(g.name || '')}${g.address ? ' · ' + esc(g.address) : ''}${g.phone ? '<br>' + esc(g.phone) : ''}${g.footer ? '<br>' + esc(g.footer) : ''}</div>`;
     if (!decided && !expired) {
       const nm = document.getElementById('nm'), er = document.getElementById('er');
       const go = async decision => {
@@ -92,7 +94,7 @@
     try { Q = await rpc('public_quote', { p_token: token }); }
     catch (e) { return fail('We could not load your quotation right now. Please try again in a minute.'); }
     if (!Q) return fail('This quotation link is not valid any more. Please message us for your quotation.');
-    document.title = `Quotation ${Q.number} — ${Q.garage.name || 'mendtech.'}`;
+    document.title = Q.plain ? `Quotation ${Q.number}` : `Quotation ${Q.number} — ${Q.garage.name || 'mendtech.'}`;
     draw();
   })();
 })();

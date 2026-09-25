@@ -44,7 +44,7 @@ function openSendDialog(kind, doc, extra = {}) {
   const { v, c } = docParties(doc);
   const st = S.settings;
   const text = fillTemplate(st.templates[docTemplateKey(kind, doc)], docMessageCtx(kind, doc, extra));
-  const subject = `${docTitle(kind)} ${doc.number} — ${v.plate || ''} ${vehicleLabel(v)} — ${brandFor(doc)}`;
+  const subject = `${docTitle(kind, doc)} ${doc.number} — ${v.plate || ''} ${vehicleLabel(v)}${doc.plain ? '' : ' — ' + brandFor(doc)}`;
   const hasShare = canShareFiles();
   const m = openModal({
     title: `Send ${docTitle(kind).toLowerCase()} ${esc(doc.number)}`, size: 'wide',

@@ -1,19 +1,19 @@
 /* GaragePro — core: storage, data model, calculations */
 'use strict';
 
-const APP_VERSION = '3.4.0';
+const APP_VERSION = '3.5.0';
 const CFG = Object.assign({ mode: 'live', dbName: 'garagepro', supabaseUrl: '', supabaseKey: '', garageId: '' }, window.GP_CONFIG || {});
 const IS_PREVIEW = CFG.mode === 'preview';
 const COLLECTIONS = ['customers', 'vehicles', 'quotes', 'jobs', 'invoices', 'payments', 'parts',
   'purchaseOrders', 'suppliers', 'labour', 'technicians', 'expenses', 'messages', 'stockAdjustments',
-  'bookings', 'packages', 'staff', 'requests', 'secLog', 'campaigns', 'partners', 'renewals'];
+  'bookings', 'packages', 'staff', 'requests', 'secLog', 'campaigns', 'partners', 'renewals', 'incomes'];
 
 /* ---------- IndexedDB wrapper ---------- */
 const DB = {
   db: null,
   open() {
     return new Promise((resolve, reject) => {
-      const req = indexedDB.open(CFG.dbName, 6);   // v5: secLog · v6: campaigns, partners, renewals
+      const req = indexedDB.open(CFG.dbName, 7);   // v5: secLog · v6: campaigns, partners, renewals · v7: incomes
       req.onupgradeneeded = () => {
         const d = req.result;
         for (const c of [...COLLECTIONS, 'meta']) if (!d.objectStoreNames.contains(c)) d.createObjectStore(c, { keyPath: 'id' });
@@ -108,6 +108,7 @@ const DEFAULT_SETTINGS = {
     customerType: ['Individual', 'Company', 'Fleet', 'Walk-in', 'Insurance'],
     paymentMethod: ['Cash', 'Card – Stripe', 'Bank transfer – WIO', 'Card (machine)', 'Cheque', 'Credit'],
     partCategory: ['Filters', 'Fluids & Lubricants', 'Brakes', 'Tyres & Wheels', 'Battery & Electrical', 'Suspension & Steering', 'Engine', 'Cooling', 'AC', 'Transmission', 'Body & Glass', 'Consumables', 'Other'],
+    incomeCategory: ['Scrap sale', 'Car sale', 'Used parts sale', 'Old batteries / oil', 'Commission / referral', 'Rent received', 'Other'],
     expenseCategory: ['Rent', 'Salaries & Wages', 'Utilities', 'Tools & Equipment', 'Workshop Consumables', 'Marketing', 'Licences & Fees', 'Insurance', 'Fuel', 'Salik / tolls', 'Parking', 'Van maintenance', 'Maintenance', 'Bank & card charges', 'Other'],
     trade: ['General Mechanic', 'Auto Electrician', 'AC Technician', 'Denter / Painter', 'Tyre & Alignment', 'Mobile Technician', 'Driver', 'Service Advisor', 'Helper'],
   },

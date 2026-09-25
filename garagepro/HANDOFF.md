@@ -11,7 +11,7 @@ Open `index.html` in Chrome, or use the live site.
 - Customer booking page: https://mendtechauto.netlify.app/book.html
 - Cloud data: Supabase (owner's personal account). Table `records` (all data, row-level security per garage account) + `requests` (booking-page inbox, public insert only).
 - WhatsApp for all enquiries/app messages: +971 52 233 8499. Calls: +971 55 957 4148.
-- Version in this folder: 3.4.0 (Security Level 2 + tap-to-approve quotes, on top of 3.3 revenue features, 3.2 branding, 3.1 Security Level 1). Nothing after 3.0.1 is live yet.
+- Version in this folder: 3.5.0 (other income + plain documents, on top of 3.4 Security Level 2 + tap-to-approve quotes, on top of 3.3 revenue features, 3.2 branding, 3.1 Security Level 1). Nothing after 3.0.1 is live yet.
 - Source of truth is now git: repo `mendtech23/mts-field-app`, folder `garagepro/` (live config) + `garagepro-cloud/` (Level 2 database script, 3 Edge Functions, tests, SETUP-GUIDE.md — NOT part of the website). The preview build = same folder with `js/config.js` set to mode 'preview', dbName 'garagepro-preview', no Supabase keys.
 
 ## Folder / file map
@@ -34,6 +34,11 @@ Open `index.html` in Chrome, or use the live site.
 - `book.html` + `js/book.js` public booking page · `sw.js` offline cache (bump CACHE name on every release) · `lib/` bundled jsPDF, xlsx, supabase, qrcode
 
 Gotchas: mobile service settings live in `S.settings.mob` (NOT `.mobile`, that's a phone field). `render()` closes modals synchronously before any await. Deletions must go through `remove()` / `wipeCollections()` so cloud tombstones sync.
+
+## Status (26 Sep 2026) — v3.5.0 built, PREVIEW ONLY
+- **Other income** (`js/income.js`, collection `incomes`, IndexedDB v7, list `incomeCategory`): scrap / car / used parts / commission / rent. amount = total received incl. VAT, vat = output VAT, cost = what the item cost (optional) → profit = amount − vat − cost. Counted in Reports & P&L (column + hint), month-end closing (P&L lines, VAT, cash by method, collected, Excel), VAT summary, Excel export. Owner/Manager only (advisor excluded in `ROLES`, `Sync.canPush`, SQL `app.can_access`).
+- **Plain documents**: tick box on quotation and invoice pages (`doc.plain`). Print/PDF without logo, watermark, colour bar, contact line, company TRN, bank details and "· mendtech." on the signature; invoice title becomes "INVOICE". E-mail subject drops the company name; the customer quote link (`public_quote` returns `plain`) hides the company too.
+- Checks: new `v35.mjs` (25), `crawl.mjs` (every page × 5 roles × desktop/phone = 450 visits), plus all earlier suites and the cloud suites.
 
 ## Status (25 Sep 2026, night) — v3.4.0 built, PREVIEW ONLY
 - **Security Level 2** (owner's answers: alerts by e-mail + in-app only to mendtech23@gmail.com — NOT WhatsApp; instant for important + daily summary 20:00; Manager role; technicians: customer name only, own jobs, notes/findings only; drivers: name + phone + location, own jobs; shared PC: own username + password each, PIN = screen lock only; preview on a SECOND free Supabase project).

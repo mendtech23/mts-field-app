@@ -1,4 +1,4 @@
-mendtech. workshop app v3.4
+mendtech. workshop app v3.5
 ===========================
 
 START
@@ -37,6 +37,14 @@ ONLINE (optional) — Settings > Cloud & devices
   5. Phone/tablet: drag this GaragePro folder onto app.netlify.com/drop (free) to get a
      web address -> open it on the phone -> "Add to Home screen" -> sign in with the same
      garage account. Works offline too; syncs when internet returns.
+
+OTHER INCOME — Finance > Other income: scrap sold, a car sold, used parts, commission, rent.
+  Enter the total received, the VAT in it (if any) and what the item cost you (optional).
+  It counts in the P&L, month-end closing, VAT summary and the cash count.
+
+PLAIN QUOTATION / INVOICE — on the quotation or invoice page tick "Plain document": the print and
+  PDF have no company name, logo, TRN, bank or contact details (the invoice is titled INVOICE,
+  not TAX INVOICE — a tax invoice legally needs your name and TRN, so use plain only when needed).
 
 MONTH END — Finance > Month-end closing (checklist, P&L, VAT, cash-up, aging, lock month).
 

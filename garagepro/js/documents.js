@@ -2,7 +2,7 @@
 'use strict';
 
 const DOC_TITLES = { quote: 'QUOTATION', job: 'JOB CARD', invoice: 'TAX INVOICE', receipt: 'PAYMENT RECEIPT' };
-function docTitle(kind) { return kind === 'invoice' && !S.settings.trn ? 'INVOICE' : DOC_TITLES[kind]; }
+function docTitle(kind, doc) { return kind === 'invoice' && (!S.settings.trn || (doc && doc.plain)) ? 'INVOICE' : DOC_TITLES[kind]; }
 
 function groupItems(items) {
   const g = [['Parts', 'part'], ['Labour', 'labour'], ['Other / Sublet', 'other']]
@@ -41,16 +41,16 @@ function brandTerms(txt) {
 }
 const bdCB = (on, label) => `<span class="bd-cbx"><span class="bd-cb${on ? ' on' : ''}"></span>${label ? esc(label) : ''}</span>`;
 const bdField = (label, val) => `<div class="bd-f"><span>${esc(label)}</span><b>${esc(val ?? '')}</b></div>`;
-function bdHead(title, meta, left = '') {
-  return `<header class="bd-head"><div class="bd-brand"><img class="bd-logo" src="img/brand/logo.svg" alt="${BRAND_TXT} AUTO · MOBILE">${left}</div>
+function bdHead(title, meta, left = '', plain = false) {
+  return `<header class="bd-head"><div class="bd-brand">${plain ? '<div class="bd-logo"></div>' : `<img class="bd-logo" src="img/brand/logo.svg" alt="${BRAND_TXT} AUTO · MOBILE">`}${left}</div>
     <div class="bd-titlebox"><div class="bd-title">${esc(title)}</div>${meta ? `<div class="bd-meta${meta.cols === 2 ? ' two' : ''}">${(meta.rows || meta).map(([k, v]) => `<span>${esc(k)}</span><b>${esc(v ?? '')}</b>`).join('')}</div>` : ''}</div></header>
     <div class="bd-rule"><i></i><i></i></div>`;
 }
-function bdFoot(signs) {
+function bdFoot(signs, plain = false) {
   return `<footer class="bd-foot">${signs ? `<div class="bd-signs" style="grid-template-columns:repeat(${signs.length},1fr)">${signs.map(s => `<div>${s.img ? `<img src="${s.img}" alt="">` : ''}<span>${s.label}</span></div>`).join('')}</div>` : ''}
-    <div class="bd-contact"><span>${esc(brandContact())}</span><span>${esc(brandFooterNote())}</span></div></footer><div class="bd-bar"><i></i><i></i><i></i></div>`;
+    ${plain ? '' : `<div class="bd-contact"><span>${esc(brandContact())}</span><span>${esc(brandFooterNote())}</span></div>`}</footer>${plain ? '' : '<div class="bd-bar"><i></i><i></i><i></i></div>'}`;
 }
-const bdDoc = (inner, cls = '') => `<div class="bdoc ${cls}"><img class="bd-wm" src="img/brand/watermark.svg" alt=""><div class="bd-body">${inner}</div></div>`;
+const bdDoc = (inner, cls = '') => `<div class="bdoc ${cls}">${/\bplain\b/.test(cls) ? '' : '<img class="bd-wm" src="img/brand/watermark.svg" alt="">'}<div class="bd-body">${inner}</div></div>`;
 const typeLabel = it => it.type === 'part' ? 'Parts' : it.type === 'labour' ? 'Labour' : 'Other';
 function bdVehicleFields(v, doc) {
   return bdField('Make/Model', [v.make, v.model].filter(Boolean).join(' ')) + bdField('Plate no.', [v.plate, v.emirate].filter(Boolean).join(' · ')) +
@@ -73,7 +73,8 @@ function docHTML(kind, doc, extra = {}) {
     ? [['Quote no.', doc.number], ['Date', fmtDate(doc.date)], ['Valid until', fmtDate(doc.validUntil)]]
     : [['Invoice no.', doc.number], ['Date', fmtDate(doc.date)], ['Job card no.', (get('jobs', doc.jobId) || {}).number || ''],
       ...(doc.dueDate && doc.dueDate !== doc.date ? [['Due date', fmtDate(doc.dueDate)]] : []), ...(doc.lpo ? [['Customer ref', doc.lpo]] : [])];
-  const trn = kind === 'invoice' ? `<div class="bd-trn">TRN: <b>${esc(st.trn || '')}</b></div>` : '';
+  const plain = !!doc.plain;   // "plain document": no company name, logo, TRN, bank or contact details
+  const trn = kind === 'invoice' && !plain ? `<div class="bd-trn">TRN: <b>${esc(st.trn || '')}</b></div>` : '';
   const party = kind === 'quote'
     ? `<div><div class="bd-sec">Customer</div>${bdField('Name', c.name)}${bdField('Mobile', c.phone)}${bdField('Email', c.email)}</div>`
     : `<div><div class="bd-sec">Bill to</div>${bdField('Name', c.name)}${bdField('Company', c.company || (c.type === 'Company' ? c.name : ''))}${bdField('Mobile', c.phone)}${bdField('TRN', c.trn)}</div>`;
@@ -98,9 +99,9 @@ function docHTML(kind, doc, extra = {}) {
   } else {
     const pm = paidMethods(doc), link = payLinkFor(doc), pasted = pastedBankDetails();
     left = `<div class="bd-sec">Payment</div><div class="bd-cbrow">${bdCB(pm.cash, 'Cash')}${bdCB(pm.card, 'Card')}${bdCB(pm.bank, 'Bank transfer')}${bdCB(pm.credit, 'Credit (fleet)')}</div>
-      <p class="bd-bank">Bank: <b>${esc(st.wioIban ? (st.wioBank || 'Wio Bank') : '')}</b> IBAN: <b>${esc(st.wioIban || '')}</b></p>
+      ${plain ? '' : `<p class="bd-bank">Bank: <b>${esc(st.wioIban ? (st.wioBank || 'Wio Bank') : '')}</b> IBAN: <b>${esc(st.wioIban || '')}</b></p>
       ${st.wioIban && (st.wioName || st.legalName) ? `<p class="bd-p">Account name: ${esc(st.wioName || st.legalName)} · Reference: ${esc(doc.number)}</p>` : ''}
-      ${pasted && !st.wioIban ? `<p class="bd-p" style="white-space:pre-wrap">${esc(pasted)}</p>` : ''}
+      ${pasted && !st.wioIban ? `<p class="bd-p" style="white-space:pre-wrap">${esc(pasted)}</p>` : ''}`}
       ${link && s.balance > 0 && !doc.void ? `<div class="bd-pay">${qrSVG(link, 74)}<div><b>Pay by card / Apple Pay</b><br>Scan the code or open<br><span>${esc(link)}</span></div></div>` : ''}
       ${brandTerms(st.invoiceTerms).map(l => `<p class="bd-p">${esc(l.replace(/^\d+[.)]\s*/, ''))}</p>`).join('')}
       ${doc.notes ? `<p class="bd-p"><b>Notes:</b> ${esc(doc.notes)}</p>` : ''}
@@ -108,15 +109,15 @@ function docHTML(kind, doc, extra = {}) {
   }
   const desc = kind === 'quote' ? doc.description : doc.workDone;
   const stamp = doc.void ? '<div class="bd-stamp void">VOID</div>' : s && s.status === 'Paid' ? '<div class="bd-stamp">PAID</div>' : '';
-  const signs = kind === 'quote' ? [{ label: `Prepared by · ${BRAND_TXT}` }, { label: 'Customer approval · name, signature &amp; date' }]
+  const signs = kind === 'quote' ? [{ label: plain ? 'Prepared by' : `Prepared by · ${BRAND_TXT}` }, { label: 'Customer approval · name, signature &amp; date' }]
     : [{ label: 'Authorised signature &amp; stamp' }, { label: 'Received by customer · signature &amp; date' }];
-  return bdDoc(`${bdHead(kind === 'invoice' ? docTitle('invoice') : 'QUOTATION', meta, trn)}
+  return bdDoc(`${bdHead(kind === 'invoice' ? docTitle('invoice', doc) : 'QUOTATION', meta, trn, plain)}
     <div class="bd-two">${party}<div><div class="bd-sec">Vehicle</div>${bdVehicleFields(v, doc)}</div></div>
     ${kind === 'quote' ? `<div class="bd-cbrow" style="margin-top:12px">${bdCB(!mob, 'Workshop (Auto)')}${bdCB(mob, 'On-site (Mobile)')}</div>` : ''}
     ${desc ? `<div class="bd-sec" style="margin-top:14px">${kind === 'quote' ? 'Work requested' : 'Work carried out'}</div><p class="bd-p" style="white-space:pre-wrap">${esc(desc)}</p>` : ''}
     <table class="bd-items"><thead><tr><th class="c-n">#</th><th class="c-d">Description</th><th class="c-t">Type</th><th class="c-q">Qty</th><th class="c-u">Unit (${esc(st.currency)})</th><th class="c-a">Amount</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="bd-after"><div class="bd-left">${left}</div><div class="bd-right">${tot}${stamp}</div></div>
-    <div class="bd-grow"></div>${bdFoot(signs)}`, doc.void ? 'is-void' : '');
+    <div class="bd-grow"></div>${bdFoot(signs, plain)}`, (doc.void ? 'is-void' : '') + (plain ? ' plain' : ''));
 }
 
 const CHECK_BODY = ['Front bumper', 'Bonnet', 'Windscreen', 'Roof', 'Left side / doors', 'Right side / doors', 'Rear bumper', 'Boot / tailgate', 'Wheels / rims', 'Mirrors & lights'];
@@ -176,7 +177,7 @@ function printDoc(kind, doc, extra) {
 }
 function previewDoc(kind, doc, extra = {}) {
   const m = openModal({
-    title: `${kind === 'job' ? 'JOB CARD' : docTitle(kind)} ${esc(doc.number || '')}`, size: 'xwide',
+    title: `${kind === 'job' ? 'JOB CARD' : docTitle(kind, doc)} ${esc(doc.number || '')}`, size: 'xwide',
     body: `<div class="bd-stage">${docHTML(kind, doc, extra)}</div>`,
     foot: `<button class="btn" data-print>🖨 Print</button><button class="btn" data-pdf>⬇ Download PDF</button><button class="btn wa" data-send>Send via WhatsApp / Email</button>`
   });
@@ -198,7 +199,7 @@ const PDF_LIBS = ['lib/jspdf.umd.min.js', 'lib/jspdf.plugin.autotable.min.js', '
 async function ensurePdfLibs() { for (const s of PDF_LIBS) await loadScript(s); }
 function pdfName(kind, doc) {
   const v = vehicleOf(kind === 'receipt' ? get('invoices', doc.invoiceId) || doc : doc);
-  const t = kind === 'job' ? 'JOB_CARD' : kind === 'quote' ? 'QUOTATION' : kind === 'receipt' ? 'RECEIPT' : docTitle(kind).replace(/\s+/g, '_');
+  const t = kind === 'job' ? 'JOB_CARD' : kind === 'quote' ? 'QUOTATION' : kind === 'receipt' ? 'RECEIPT' : docTitle(kind, doc).replace(/\s+/g, '_');
   return `${t}_${doc.number || ''}${v ? '_' + norm(v.plate) : ''}.pdf`;
 }
 async function pdfFile(kind, doc, extra = {}) {
@@ -211,7 +212,8 @@ async function pdfFile(kind, doc, extra = {}) {
 
 const PX = 0.26458;   // mm per template px
 const RGB = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
-function brandPDF() {
+function brandPDF(opts = {}) {
+  const plain = !!opts.plain;   // no logo, watermark, colour bar or contact line
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
   const F = window.GP_PDF_FONTS || {};
@@ -250,7 +252,7 @@ function brandPDF() {
     cbLabel(x, y, on, label) { api.cb(x, y - 2.7, on); api.font('reg', 10.5, BRAND.ink); api.txt(label, x + 12 * PX + 1.9, y); return x + 12 * PX + 1.9 + pdf.getTextWidth(label) + 22 * PX; },
     header(title, rows, opts = {}) {
       const I = window.GP_BRAND_IMG || {};
-      if (I.logo) pdf.addImage(I.logo, 'PNG', K.M, 43 * PX, 165 * PX, 165 * PX / 2.885, 'logo', 'FAST');
+      if (I.logo && !plain) pdf.addImage(I.logo, 'PNG', K.M, 43 * PX, 165 * PX, 165 * PX / 2.885, 'logo', 'FAST');
       const cs = (opts.titlePx || 26) * 0.75 * 0.035 * 0.3528; api.font('head', opts.titlePx || 26, BRAND.navy, cs);
       api.txt(title, K.R - pdf.getTextWidth(title) - cs * (title.length - 1), 62 * PX); pdf.setCharSpace(0);
       const two = opts.cols === 2, vw = (two ? 96 : 128) * PX; let y = 84 * PX;
@@ -267,9 +269,9 @@ function brandPDF() {
       api.fill(BRAND.gold); pdf.rect(K.M, ry, 55 * PX, 4 * PX, 'F'); api.fill(BRAND.orange); pdf.rect(K.M + 55 * PX, ry, 55 * PX, 4 * PX, 'F');
       return 174 * PX;
     },
-    watermark() { const I = window.GP_BRAND_IMG || {}; if (I.watermark) pdf.addImage(I.watermark, 'PNG', 172 * PX, 478 * PX, 486 * PX, 486 * PX / 1.712, 'wm', 'FAST'); },
-    bar() { const y = K.H - 7 * PX; api.fill(BRAND.navy); pdf.rect(0, y, K.W * 0.64, 7 * PX, 'F'); api.fill(BRAND.gold); pdf.rect(K.W * 0.64, y, K.W * 0.18, 7 * PX, 'F'); api.fill(BRAND.orange); pdf.rect(K.W * 0.82, y, K.W * 0.18 + 0.1, 7 * PX, 'F'); },
-    contact() { const y = K.H - 7 * PX - 16 * PX - 1; api.font('reg', 9, BRAND.mute); api.txt(brandContact(), K.M, y); api.txt(brandFooterNote(), K.R, y, { align: 'right' }); },
+    watermark() { const I = window.GP_BRAND_IMG || {}; if (I.watermark && !plain) pdf.addImage(I.watermark, 'PNG', 172 * PX, 478 * PX, 486 * PX, 486 * PX / 1.712, 'wm', 'FAST'); },
+    bar() { if (plain) return; const y = K.H - 7 * PX; api.fill(BRAND.navy); pdf.rect(0, y, K.W * 0.64, 7 * PX, 'F'); api.fill(BRAND.gold); pdf.rect(K.W * 0.64, y, K.W * 0.18, 7 * PX, 'F'); api.fill(BRAND.orange); pdf.rect(K.W * 0.82, y, K.W * 0.18 + 0.1, 7 * PX, 'F'); },
+    contact() { if (plain) return; const y = K.H - 7 * PX - 16 * PX - 1; api.font('reg', 9, BRAND.mute); api.txt(brandContact(), K.M, y); api.txt(brandFooterNote(), K.R, y, { align: 'right' }); },
     signTop: () => K.H - 7 * PX - 16 * PX - 1 - 22 * PX - 8 * PX - 3,   // y of the signature lines
     signs(list) {
       const y = api.signTop(), gap = 34 * PX, w = (K.R - K.M - gap * (list.length - 1)) / list.length;
@@ -339,12 +341,13 @@ function pdfLines(B, text, x, y, w, px = 10, color = BRAND.ink, lh = 4.0) {
 function buildPDF(kind, doc, extra = {}) {
   if (kind === 'job') return buildJobPDF(doc, extra);
   if (kind === 'receipt') return buildReceiptPDF(doc, extra);
-  const B = brandPDF(), { pdf, K } = B, st = S.settings, { v, c } = docParties(doc);
+  const plain = !!doc.plain;
+  const B = brandPDF({ plain }), { pdf, K } = B, st = S.settings, { v, c } = docParties(doc);
   const t = calcDoc(doc), s = kind === 'invoice' ? invoiceState(doc) : null, mob = lineOf(doc) === 'mobile';
   const rows = kind === 'quote' ? [['Quote no.', doc.number], ['Date', fmtDate(doc.date)], ['Valid until', fmtDate(doc.validUntil)]]
     : [['Invoice no.', doc.number], ['Date', fmtDate(doc.date)], ['Job card no.', (get('jobs', doc.jobId) || {}).number || ''],
       ...(doc.dueDate && doc.dueDate !== doc.date ? [['Due date', fmtDate(doc.dueDate)]] : []), ...(doc.lpo ? [['Customer ref', doc.lpo]] : [])];
-  let y = B.header(kind === 'quote' ? 'QUOTATION' : docTitle('invoice'), rows, { trn: kind === 'invoice' ? (st.trn || '') : null });
+  let y = B.header(kind === 'quote' ? 'QUOTATION' : docTitle('invoice', doc), rows, { trn: kind === 'invoice' && !plain ? (st.trn || '') : null });
   const colW = (K.R - K.M - 22 * PX) / 2, x2 = K.M + colW + 22 * PX;
   B.sec(kind === 'quote' ? 'Customer' : 'Bill to', K.M, y + 2.4); B.sec('Vehicle', x2, y + 2.4);
   let fy = y + 2.4 + 7 * PX + 24 * PX - 1.2;
@@ -372,13 +375,15 @@ function buildPDF(kind, doc, extra = {}) {
       const pm = paidMethods(doc);
       if (!dry) { let cx = K.M; [[pm.cash, 'Cash'], [pm.card, 'Card'], [pm.bank, 'Bank transfer'], [pm.credit, 'Credit (fleet)']].forEach(([on, l]) => { cx = B.cbLabel(cx, ly + 1.5, on, l); }); }
       ly += 8;
-      if (!dry) {
+      if (!dry && !plain) {
         B.font('reg', 10, BRAND.ink); B.txt('Bank:', K.M, ly); B.font('semi', 10, BRAND.navy); const bk = st.wioIban ? (st.wioBank || 'Wio Bank') : ''; B.txt(bk, K.M + 10, ly); B.hline(K.M + 9.5, K.M + 36, ly + 1.1, BRAND.navy, 0.2);
         B.font('reg', 10, BRAND.ink); B.txt('IBAN:', K.M + 39, ly); B.font('semi', 10, BRAND.navy); B.txt(st.wioIban || '', K.M + 49.5, ly); B.hline(K.M + 49, Math.min(K.M + leftW, K.M + 110), ly + 1.1, BRAND.navy, 0.2);
       }
-      ly += 5;
-      if (st.wioIban && (st.wioName || st.legalName)) P.lines(`Account name: ${st.wioName || st.legalName} · Reference: ${doc.number}`);
-      const pasted = pastedBankDetails(); if (pasted && !st.wioIban) P.lines(pasted);
+      if (!plain) {
+        ly += 5;
+        if (st.wioIban && (st.wioName || st.legalName)) P.lines(`Account name: ${st.wioName || st.legalName} · Reference: ${doc.number}`);
+        const pasted = pastedBankDetails(); if (pasted && !st.wioIban) P.lines(pasted);
+      }
       const link = payLinkFor(doc), qm = link && s.balance > 0 && !doc.void ? qrMatrix(link) : null;
       if (qm) {
         const qs = 19; if (!dry) { const n = qm.length, cell = qs / n; B.fill('#000000'); qm.forEach((row, r) => row.forEach((d, cc) => { if (d) pdf.rect(K.M + cc * cell, ly + r * cell, cell + 0.01, cell + 0.01, 'F'); }));
@@ -400,7 +405,7 @@ function buildPDF(kind, doc, extra = {}) {
     B.draw(red ? '#b91c1c' : BRAND.gold, 0.7); B.font('head', 20, red ? '#b91c1c' : BRAND.goldInk, 1.2);
     const sx = K.R - 34, sy = y - 17; pdf.roundedRect(sx, sy, 32, 10, 1, 1, 'S'); B.txt(red ? 'VOID' : 'PAID', sx + 16, sy + 7.2, { align: 'center' }); pdf.setCharSpace(0);
   }
-  B.signs(kind === 'quote' ? [{ label: `Prepared by · ${BRAND_TXT}` }, { label: 'Customer approval · name, signature & date' }] : [{ label: 'Authorised signature & stamp' }, { label: 'Received by customer · signature & date' }]);
+  B.signs(kind === 'quote' ? [{ label: plain ? 'Prepared by' : `Prepared by · ${BRAND_TXT}` }, { label: 'Customer approval · name, signature & date' }] : [{ label: 'Authorised signature & stamp' }, { label: 'Received by customer · signature & date' }]);
   B.contact(); pdfPageNumbers(B);
   return pdf;
 }

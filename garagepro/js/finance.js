@@ -13,10 +13,12 @@ function monthData(mk) {
   const exps = S.expenses.filter(e => inM(e.date));
   const expByCat = {}; let expNet = 0, expVat = 0;
   exps.forEach(e => { const n = num(e.amount) - num(e.vat); expByCat[e.category] = (expByCat[e.category] || 0) + n; expNet += n; expVat += num(e.vat); });
+  const oth = incomeTotals(start, end);
   const pays = S.payments.filter(p => inM(p.date));
   const methods = {};
   pays.forEach(p => { const m = p.method || 'Other'; (methods[m] = methods[m] || { in: 0, out: 0 }).in += num(p.amount); });
   exps.forEach(e => { const m = e.method || 'Other'; (methods[m] = methods[m] || { in: 0, out: 0 }).out += num(e.amount); });
+  oth.list.forEach(i => { const m = i.method || 'Other'; (methods[m] = methods[m] || { in: 0, out: 0 }).in += num(i.amount); });
   // receivables as at month end
   const aging = [0, 0, 0, 0]; const debtors = {};
   for (const i of S.invoices) {
@@ -32,8 +34,8 @@ function monthData(mk) {
   const payables = S.purchaseOrders.filter(o => o.status === 'Received' && (o.receivedDate || o.date) <= end && !(o.paidDate && o.paidDate <= end));
   const byLine = { auto: 0, mobile: 0 };
   invs.forEach(i => { byLine[lineOf(i)] += calcDoc(i).net; });
-  const r = { mk, start, end, invs, sales, exps, expByCat, expNet, expVat, pays, methods, aging, debtors, wip, payables, byLine };
-  r.gp = r2(sales.net - sales.cost); r.np = r2(r.gp - expNet); r.collected = r2(pays.reduce((a, p) => a + num(p.amount), 0));
+  const r = { mk, start, end, invs, sales, exps, expByCat, expNet, expVat, oth, pays, methods, aging, debtors, wip, payables, byLine };
+  r.gp = r2(sales.net - sales.cost); r.np = r2(r.gp - expNet + oth.profit); r.collected = r2(pays.reduce((a, p) => a + num(p.amount), 0) + oth.amount);
   r.receivables = r2(aging.reduce((a, b) => a + b, 0)); r.wipValue = r2(wip.reduce((a, j) => a + calcDoc(j).net, 0)); r.payablesValue = r2(payables.reduce((a, o) => a + poTotal(o), 0));
   r.cashExpected = r2(((methods.Cash || {}).in || 0) - ((methods.Cash || {}).out || 0));
   return r;
@@ -88,10 +90,10 @@ PAGES.closing = () => {
         ${line('Parts sales', money(r.sales.parts))}${line('Labour sales', money(r.sales.labour))}${r.sales.other ? line('Other / sublet', money(r.sales.other)) : ''}${line('Discounts given', '− ' + money(r.sales.discount))}
         ${line('<b>Net revenue</b>', '<b>' + money(r.sales.net) + '</b>')}${line('Cost of parts used', '− ' + money(r.sales.cost))}${line('<b>Gross profit</b>', '<b>' + money(r.gp) + '</b>')}
         ${Object.entries(r.expByCat).sort((a, b) => b[1] - a[1]).map(([k, v]) => line(esc(k), '− ' + money(v), 'small')).join('')}
-        ${line('Total overheads', '− ' + money(r.expNet))}<div class="tr grand"><span>Net profit</span><span class="${r.np < 0 ? 'red' : ''}">${money(r.np)}</span></div></div></div>
+        ${line('Total overheads', '− ' + money(r.expNet))}${r.oth.list.length ? Object.entries(r.oth.byCat).map(([k, v]) => line('💰 ' + esc(k), (v < 0 ? '− ' : '+ ') + money(Math.abs(v)), 'small')).join('') + line('Other income (profit)', '+ ' + money(r.oth.profit)) : ''}<div class="tr grand"><span>Net profit</span><span class="${r.np < 0 ? 'red' : ''}">${money(r.np)}</span></div></div></div>
       <div class="card"><div class="card-head"><h3>🧾 VAT for the month</h3></div><div class="card-pad totals" style="width:100%">
-        ${line('Taxable sales', money(r.sales.net))}${line('Output VAT (charged)', money(r.sales.vat))}${line('Input VAT (on expenses)', '− ' + money(r.expVat))}
-        <div class="tr grand"><span>VAT payable</span><span>${money(r.sales.vat - r.expVat)}</span></div>
+        ${line('Taxable sales', money(r.sales.net))}${line('Output VAT (charged)', money(r.sales.vat))}${r.oth.vat ? line('Output VAT (other income)', money(r.oth.vat)) : ''}${line('Input VAT (on expenses)', '− ' + money(r.expVat))}
+        <div class="tr grand"><span>VAT payable</span><span>${money(r.sales.vat + r.oth.vat - r.expVat)}</span></div>
         <div class="small faint mt-s">Add up three months for a quarterly FTA return, or use Reports → VAT summary with a date range.</div></div></div>
       <div class="card"><div class="card-head"><h3>💵 Cash & bank by payment method</h3></div>${table([{ h: 'Method', v: ([k]) => esc(k) }, { h: 'Received', cls: 'num', v: ([, x]) => m(x.in) }, { h: 'Paid out', cls: 'num', v: ([, x]) => m(x.out) }, { h: 'Net', cls: 'num', v: ([, x]) => `<b>${m(x.in - x.out)}</b>` }], Object.entries(r.methods), { empty: 'No money movements' })}
         <div class="card-pad"><div class="row"><div class="field grow"><label>Cash counted in drawer at month end</label><input class="inp" type="number" value="${esc(counted ?? '')}" ${closed ? 'disabled' : ''} oninput="(UI.filters.closing=UI.filters.closing||{})['cash_${mk}']=this.value" onchange="render()"></div>
@@ -144,9 +146,10 @@ async function exportMonthExcel(mk) {
   const add = (name, rows) => XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), name);
   add('Summary', [{ Item: 'Net revenue', Amount: r.sales.net }, { Item: 'Parts sales', Amount: r.sales.parts }, { Item: 'Labour sales', Amount: r.sales.labour }, { Item: 'Other sales', Amount: r.sales.other }, { Item: 'Discounts', Amount: r.sales.discount },
     { Item: 'Output VAT', Amount: r.sales.vat }, { Item: 'Input VAT', Amount: r.expVat }, { Item: 'Parts COGS', Amount: r.sales.cost }, { Item: 'Gross profit', Amount: r.gp }, { Item: 'Overheads (net of VAT)', Amount: r.expNet }, { Item: 'Net profit', Amount: r.np },
-    { Item: 'Collected', Amount: r.collected }, { Item: 'Receivables at month end', Amount: r.receivables }, { Item: 'Work in progress', Amount: r.wipValue }, { Item: 'Supplier payables', Amount: r.payablesValue }]);
+    { Item: 'Other income received', Amount: r.oth.amount }, { Item: 'Other income profit (net of VAT and cost)', Amount: r.oth.profit }, { Item: 'Output VAT on other income', Amount: r.oth.vat }, { Item: 'Collected', Amount: r.collected }, { Item: 'Receivables at month end', Amount: r.receivables }, { Item: 'Work in progress', Amount: r.wipValue }, { Item: 'Supplier payables', Amount: r.payablesValue }]);
   add('Sales invoices', r.invs.map(i => { const s = invoiceState(i); return { Invoice: i.number, Date: i.date, Customer: cn(i.customerId), 'Customer TRN': (get('customers', i.customerId) || {}).trn || '', Plate: (vehicleOf(i) || {}).plate, Net: s.net, VAT: s.vat, Total: s.total, Paid: s.paid, Balance: s.balance }; }));
   add('Payments', r.pays.map(p => ({ Receipt: p.number, Date: p.date, Invoice: (get('invoices', p.invoiceId) || {}).number, Customer: cn(p.customerId), Method: p.method, Amount: num(p.amount), Reference: p.reference })));
   add('Expenses', r.exps.map(e => ({ Date: e.date, Category: e.category, Description: e.description, 'Paid to': e.paidTo, Method: e.method, Net: r2(num(e.amount) - num(e.vat)), VAT: num(e.vat), Total: num(e.amount) })));
+  add('Other income', r.oth.list.map(i => ({ Date: i.date, Type: i.category, Description: i.description, 'Received from': i.receivedFrom, Method: i.method, Net: incomeNet(i), VAT: num(i.vat), Total: num(i.amount), Cost: num(i.cost), Profit: incomeProfit(i) })));
   XLSX.writeFile(wb, `GaragePro_${mk}_closing.xlsx`);
 }

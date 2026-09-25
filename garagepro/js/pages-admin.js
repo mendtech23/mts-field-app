@@ -119,18 +119,20 @@ PAGES.reports = () => {
     const invs = S.invoices.filter(i => !i.void && monthKey(i.date) === mk);
     const t = invs.reduce((a, i) => { const c = calcDoc(i); a.net += c.net; a.vat += c.vat; a.cost += c.cost; a.parts += c.parts; a.labour += c.labour; return a; }, { net: 0, vat: 0, cost: 0, parts: 0, labour: 0 });
     const exp = S.expenses.filter(e => monthKey(e.date) === mk).reduce((a, e) => a + num(e.amount) - num(e.vat), 0);
+    const oth = incomeTotals(mk + '-01', mk + '-31');
     const col = S.payments.filter(p => monthKey(p.date) === mk).reduce((a, p) => a + num(p.amount), 0);
     const jobs = S.jobs.filter(j => j.status !== 'Cancelled' && monthKey(j.date) === mk).length;
-    rows.push({ mk, jobs, invs: invs.length, ...t, gp: t.net - t.cost, exp, np: t.net - t.cost - exp, col });
+    rows.push({ mk, jobs, invs: invs.length, ...t, gp: t.net - t.cost, exp, oth: oth.profit, othVat: oth.vat, np: t.net - t.cost - exp + oth.profit, col: col + oth.amount });
   }
-  const T = rows.reduce((a, r) => { for (const k of ['jobs', 'invs', 'net', 'vat', 'cost', 'parts', 'labour', 'gp', 'exp', 'np', 'col']) a[k] = (a[k] || 0) + r[k]; return a; }, {});
+  const T = rows.reduce((a, r) => { for (const k of ['jobs', 'invs', 'net', 'vat', 'cost', 'parts', 'labour', 'gp', 'exp', 'oth', 'othVat', 'np', 'col']) a[k] = (a[k] || 0) + r[k]; return a; }, {});
   const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '—';
   const m = v => money(v, false);
 
   // VAT period
   const vf = getFilter('reports', 'vfrom', `${y}-01-01`), vt = getFilter('reports', 'vto', today());
   const vInv = S.invoices.filter(i => !i.void && i.date >= vf && i.date <= vt);
-  const outVat = vInv.reduce((a, i) => a + calcDoc(i).vat, 0), sales = vInv.reduce((a, i) => a + calcDoc(i).net, 0);
+  const vOth = incomeTotals(vf, vt);
+  const outVat = vInv.reduce((a, i) => a + calcDoc(i).vat, 0) + vOth.vat, sales = vInv.reduce((a, i) => a + calcDoc(i).net, 0) + vOth.net;
   const inVat = S.expenses.filter(e => e.date >= vf && e.date <= vt).reduce((a, e) => a + num(e.vat), 0);
 
   // top customers & job types (year)
@@ -144,21 +146,21 @@ PAGES.reports = () => {
     `<div class="grid g6 mb">
       <div class="kpi"><div class="lbl">Revenue ${y}</div><div class="val">${m(T.net)}</div><div class="hint">parts ${m(T.parts)} · labour ${m(T.labour)}</div></div>
       <div class="kpi"><div class="lbl">Gross profit</div><div class="val">${m(T.gp)}</div><div class="hint">margin ${pct(T.gp, T.net)}</div></div>
-      <div class="kpi"><div class="lbl">Overheads</div><div class="val">${m(T.exp)}</div></div>
+      <div class="kpi"><div class="lbl">Overheads</div><div class="val">${m(T.exp)}</div>${T.oth ? `<div class="hint">other income + ${m(T.oth)}</div>` : ''}</div>
       <div class="kpi"><div class="lbl">Net profit</div><div class="val ${T.np < 0 ? 'red' : 'green'}">${m(T.np)}</div><div class="hint">net margin ${pct(T.np, T.net)}</div></div>
       <div class="kpi"><div class="lbl">Collected</div><div class="val">${m(T.col)}</div></div>
       <div class="kpi"><div class="lbl">Avg. invoice</div><div class="val">${m(T.invs ? T.net / T.invs : 0)}</div><div class="hint">${T.invs} invoices</div></div></div>
     <div class="card mb"><div class="card-head"><h3>Monthly P&L — ${y}</h3></div>${table([
       { h: 'Month', v: r => new Date(r.mk + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'short' }) }, { h: 'Jobs', cls: 'num', v: r => r.jobs || '' }, { h: 'Invoices', cls: 'num', v: r => r.invs || '' },
       { h: 'Revenue (net)', cls: 'num', v: r => m(r.net) }, { h: 'VAT collected', cls: 'num', v: r => m(r.vat) }, { h: 'Parts COGS', cls: 'num', v: r => m(r.cost) },
-      { h: 'Gross profit', cls: 'num', v: r => m(r.gp) }, { h: 'GP %', cls: 'num', v: r => pct(r.gp, r.net) }, { h: 'Overheads', cls: 'num', v: r => m(r.exp) },
+      { h: 'Gross profit', cls: 'num', v: r => m(r.gp) }, { h: 'GP %', cls: 'num', v: r => pct(r.gp, r.net) }, { h: 'Overheads', cls: 'num', v: r => m(r.exp) }, { h: 'Other income', cls: 'num', v: r => r.oth ? m(r.oth) : '' },
       { h: 'Net profit', cls: 'num', v: r => `<b class="${r.np < 0 ? 'red' : ''}">${m(r.np)}</b>` }, { h: 'Collected', cls: 'num', v: r => m(r.col) }], rows,
-      { foot: [{ v: 'Total' }, { cls: 'num', v: T.jobs }, { cls: 'num', v: T.invs }, { cls: 'num', v: m(T.net) }, { cls: 'num', v: m(T.vat) }, { cls: 'num', v: m(T.cost) }, { cls: 'num', v: m(T.gp) }, { cls: 'num', v: pct(T.gp, T.net) }, { cls: 'num', v: m(T.exp) }, { cls: 'num', v: m(T.np) }, { cls: 'num', v: m(T.col) }] })}</div>
+      { foot: [{ v: 'Total' }, { cls: 'num', v: T.jobs }, { cls: 'num', v: T.invs }, { cls: 'num', v: m(T.net) }, { cls: 'num', v: m(T.vat) }, { cls: 'num', v: m(T.cost) }, { cls: 'num', v: m(T.gp) }, { cls: 'num', v: pct(T.gp, T.net) }, { cls: 'num', v: m(T.exp) }, { cls: 'num', v: T.oth ? m(T.oth) : '' }, { cls: 'num', v: m(T.np) }, { cls: 'num', v: m(T.col) }] })}</div>
     ${lineReportHTML(y)}
     <div class="grid g3">
       <div class="card"><div class="card-head"><h3>VAT summary</h3></div><div class="card-pad">
         <div class="row mb"><input type="date" class="inp" value="${vf}" onchange="setFilter('reports','vfrom',this.value)"> to <input type="date" class="inp" value="${vt}" onchange="setFilter('reports','vto',this.value)"></div>
-        <div class="totals" style="width:100%"><div class="tr"><span>Taxable sales</span><span>${money(sales)}</span></div><div class="tr"><span>Output VAT (invoices)</span><span>${money(outVat)}</span></div>
+        <div class="totals" style="width:100%"><div class="tr"><span>Taxable sales</span><span>${money(sales)}</span></div><div class="tr"><span>Output VAT (invoices${vOth.vat ? ' + other income' : ''})</span><span>${money(outVat)}</span></div>
         <div class="tr"><span>Input VAT (expenses)</span><span>− ${money(inVat)}</span></div><div class="tr grand"><span>VAT payable</span><span>${money(outVat - inVat)}</span></div></div>
         <div class="small faint mt-s">Guide figures for your accountant / FTA return. Record input VAT on expenses to include it.</div></div></div>
       <div class="card"><div class="card-head"><h3>Top customers ${y}</h3></div>${table([{ h: 'Customer', v: ([id]) => custLink(get('customers', id)) }, { h: 'Revenue', cls: 'num', v: ([, v]) => m(v) }], top, { empty: 'No sales yet' })}</div>
@@ -236,7 +238,7 @@ PAGES.settings = () => {
   if (tab === 'staff') checkSecurityHeaders();
 };
 Object.assign(TEMPLATE_LABELS, { booking: 'Booking confirmation', bookingReminder: 'Booking reminder (day before)', mobileReceived: 'Mobile — request received', mobileOnWay: 'Mobile — on the way', mobileArrived: 'Mobile — arrived', mobileCompleted: 'Mobile — completed + payment', needsWorkshop: 'Mobile — needs workshop', requestDeclined: 'Online request declined' });
-const LIST_LABELS = { jobType: 'Job types', fuel: 'Fuel types', transmission: 'Transmissions', drive: 'Drive types', emirate: 'Emirates / regions', customerType: 'Customer types', paymentMethod: 'Payment methods', partCategory: 'Part categories', expenseCategory: 'Expense categories', trade: 'Technician trades' };
+const LIST_LABELS = { incomeCategory: 'Other income types', jobType: 'Job types', fuel: 'Fuel types', transmission: 'Transmissions', drive: 'Drive types', emirate: 'Emirates / regions', customerType: 'Customer types', paymentMethod: 'Payment methods', partCategory: 'Part categories', expenseCategory: 'Expense categories', trade: 'Technician trades' };
 const PAY_KEYS = { bankDetails: 'pasted bank details', payStripeLink: 'Stripe payment link', wioName: 'WIO account name', wioBank: 'bank name', wioIban: 'IBAN', wioLink: 'WIO payment link' };
 async function saveSettingsForm(keys) {
   const vals = {};
@@ -348,6 +350,7 @@ async function exportExcel() {
     'Invoice Lines': S.invoices.flatMap(i => (i.items || []).map(it => ({ Invoice: i.number, Date: i.date, Plate: vp(i.vehicleId), Type: it.type, Description: it.desc, 'Part no': it.partNo, Qty: num(it.qty), Rate: num(it.rate), Amount: lineTotal(it), 'Service item': it.serviceItem }))),
     Payments: S.payments.map(p => ({ Receipt: p.number, Date: p.date, Invoice: (get('invoices', p.invoiceId) || {}).number, Customer: cn(p.customerId), Amount: num(p.amount), Method: p.method, Reference: p.reference })),
     Stock: stockTable().map(r => ({ Code: r.p.code, Part: r.p.name, 'Part no': r.p.partNumber, Category: r.p.category, 'On hand': r.onHand, Cost: num(r.p.cost), Price: num(r.p.price), Value: r.value, 'Reorder level': num(r.p.reorderLevel), Bin: r.p.bin })),
+    'Other income': S.incomes.map(i => ({ Date: i.date, Type: i.category, Description: i.description, Amount: num(i.amount), VAT: num(i.vat), Cost: num(i.cost), Profit: incomeProfit(i), 'Received from': i.receivedFrom, Method: i.method, Reference: i.reference })),
     Expenses: S.expenses.map(e => ({ Date: e.date, Category: e.category, Description: e.description, Amount: num(e.amount), VAT: num(e.vat), 'Paid to': e.paidTo, Method: e.method })),
   };
   for (const [name, rows] of Object.entries(sheets)) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), name);

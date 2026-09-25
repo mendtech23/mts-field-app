@@ -1,0 +1,10 @@
+import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const P = await (await b.newContext()).newPage(); const errs = [];
+P.on('pageerror', e => errs.push(e.message));
+await P.goto('http://localhost:8099/old/garagepro/index.html'); await P.waitForTimeout(2500);
+const before = await P.evaluate(() => ({ v: APP_VERSION, db: DB.db.version, jobs: S.jobs.length, inv: S.invoices.length, cust: S.customers.length }));
+await P.goto('http://localhost:8099/new/index.html'); await P.waitForTimeout(2500);
+const after = await P.evaluate(() => ({ v: APP_VERSION, db: DB.db.version, jobs: S.jobs.length, inv: S.invoices.length, cust: S.customers.length, inc: Array.isArray(S.incomes), schema: S.settings.schema, cats: S.settings.lists.incomeCategory.length }));
+console.log(JSON.stringify({ before, after, errs }));
+await b.close();

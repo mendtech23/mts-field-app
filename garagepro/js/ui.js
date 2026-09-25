@@ -38,7 +38,7 @@ const NAV = [
   { g: 'Customers', items: [['customers', '👤', 'Customers'], ['vehicles', '🚗', 'Vehicles'], ['reminders', '🔔', 'Reminders & follow-ups', () => reminderList().length], ['followups', '📣', 'Campaigns'], ['renewals', '🪪', 'Registration renewals', () => typeof renewalsDue === 'function' ? renewalsDue() : 0], ['partners', '🤝', 'Partners']] },
   { g: 'Stock', items: [['parts', '📦', 'Parts & Stock', () => stockTable().filter(r => r.low).length], ['pos', '🚚', 'Purchase Orders'], ['suppliers', '🏭', 'Suppliers']] },
   { g: 'Setup', items: [['labour', '⏱', 'Labour Catalogue'], ['packages', '📦', 'Service Packages'], ['technicians', '👷', 'Technicians']] },
-  { g: 'Finance', items: [['kpi', '📈', 'KPI dashboard'], ['expenses', '💸', 'Expenses'], ['reports', '📊', 'Reports & P&L'], ['closing', '🔒', 'Month-end closing']] },
+  { g: 'Finance', items: [['kpi', '📈', 'KPI dashboard'], ['expenses', '💸', 'Expenses'], ['incomes', '💰', 'Other income'], ['reports', '📊', 'Reports & P&L'], ['closing', '🔒', 'Month-end closing']] },
   { g: null, items: [['settings', '⚙', 'Settings & Backup']] },
 ];
 const ROUTE_NAV = { partner: 'partners', vehicle: 'vehicles', customer: 'customers', quote: 'quotes', job: 'jobs', invoice: 'invoices', po: 'pos', search: 'lookup', package: 'packages' };

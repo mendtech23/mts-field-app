@@ -405,7 +405,7 @@ async function changeMyPassword() {
 const CL = { members: null, devices: [], alerts: [], audit: [], hasPin: false, email: '', factors: [], err: '', who: 'all', coll: 'all' };
 const ROLE_OPTS = () => CLOUD_ROLES.map(r => [r, ROLES[r].label]);
 const agoTxt = iso => { if (!iso) return '—'; const s = (Date.now() - new Date(iso)) / 1000; return s < 90 ? 'just now' : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : fmtDate(iso.slice(0, 10)); };
-const COLL_LABEL = { invoices: 'Invoice', quotes: 'Quotation', jobs: 'Job', payments: 'Payment', customers: 'Customer', vehicles: 'Vehicle', expenses: 'Expense', parts: 'Part', settings: 'Settings',
+const COLL_LABEL = { invoices: 'Invoice', quotes: 'Quotation', jobs: 'Job', payments: 'Payment', customers: 'Customer', vehicles: 'Vehicle', expenses: 'Expense', incomes: 'Other income', parts: 'Part', settings: 'Settings',
   photos: 'Photo', staff: 'Staff', technicians: 'Technician', renewals: 'Renewal', partners: 'Partner', campaigns: 'Campaign', bookings: 'Booking', suppliers: 'Supplier', purchaseOrders: 'Purchase order', stockAdjustments: 'Stock', labour: 'Labour', packages: 'Package', messages: 'Message', secLog: 'Security log' };
 
 function cloudSecurityHTML() {
