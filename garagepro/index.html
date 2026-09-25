@@ -3,22 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GaragePro — Workshop Manager</title>
-<meta name="theme-color" content="#0f172a">
-<meta name="description" content="GaragePro — auto repair workshop management: job cards, quotations, invoices, vehicle history, stock and finance.">
+<title>mendtech. — Workshop Manager</title>
+<meta name="theme-color" content="#122036">
+<meta name="description" content="mendtech. auto · mobile — workshop management: job cards, quotations, invoices, vehicle history, stock and finance.">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="GaragePro">
+<meta name="apple-mobile-web-app-title" content="mendtech.">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23f97316'/><path d='M8 20l3-8h10l3 8v4h-3v-2H11v2H8z' fill='white'/></svg>">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="img/brand/favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="icons/favicon.ico">
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
 <div id="app">
   <aside id="sidebar">
     <div class="brand" onclick="go('#/dashboard')">
-      <div class="brand-logo" id="brandLogo">GP</div>
-      <div><div class="brand-name" id="brandName">GaragePro</div><div class="brand-sub">Workshop Manager</div></div>
+      <img class="brand-img" src="img/brand/logo-reverse.svg" alt="mendtech. auto · mobile">
     </div>
     <nav id="nav"></nav>
     <div class="side-foot"><span id="backupHint"></span></div>
@@ -26,6 +26,7 @@
   <div id="main">
     <header id="topbar">
       <button class="icon-btn only-mobile" onclick="document.body.classList.toggle('nav-open')" aria-label="Menu">☰</button>
+      <img class="only-mobile topmark light" src="img/brand/mark.svg" alt="mendtech." onclick="go('#/dashboard')"><img class="only-mobile topmark dark" src="img/brand/mark-reverse.svg" alt="" onclick="go('#/dashboard')">
       <div class="search-wrap">
         <span class="search-ico">⌕</span>
         <input id="globalSearch" type="search" autocomplete="off" placeholder="Enter number plate or VIN — or search customer, phone, invoice no.  ( / )"

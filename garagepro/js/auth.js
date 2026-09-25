@@ -25,13 +25,13 @@ const Auth = {
     const st = S.settings;
     let el = $('#lockScreen'); if (!el) { el = document.createElement('div'); el.id = 'lockScreen'; document.body.appendChild(el); }
     el.innerHTML = `<div class="lock-card">
-      <div class="brand-logo" style="width:64px;height:64px;margin:0 auto 10px;font-size:22px">${st.logo ? `<img src="${st.logo}" alt="">` : esc((st.garageName || 'GP').slice(0, 2).toUpperCase())}</div>
-      <h2 style="text-align:center">${esc(st.garageName)}</h2><p class="muted center" style="margin:4px 0 16px">Who's working?</p>
+      <img class="lock-logo light" src="img/brand/logo.svg" alt="mendtech. auto · mobile"><img class="lock-logo dark" src="img/brand/logo-reverse.svg" alt="">
+      <p class="muted center" style="margin:0 0 16px">Who's working?</p>
       <div class="lock-users">${staff.map(s => `<button class="lock-user" data-id="${s.id}"><span class="av">${esc(s.name.slice(0, 1).toUpperCase())}</span>${esc(s.name)}<span class="small faint">${esc((ROLES[s.role] || {}).label || '')}</span></button>`).join('')}</div>
       <div id="pinBox" style="display:none;margin-top:14px"><input id="pinIn" class="inp center" type="password" inputmode="numeric" maxlength="8" placeholder="Enter PIN" autocomplete="off" style="font-size:22px;letter-spacing:.3em">
         <div id="pinErr" class="small center" style="color:#fecaca;min-height:18px;margin-top:6px"></div>
         <div class="row mt-s" style="justify-content:center"><button class="btn" id="pinBack">Back</button><button class="btn primary" id="pinGo">Unlock</button></div></div>
-      <p class="small faint center" style="margin-top:16px">GaragePro v${APP_VERSION}</p></div>`;
+      <p class="small faint center" style="margin-top:16px">mendtech. workshop app v${APP_VERSION}</p></div>`;
     let chosen = null;
     const pinErr = t => { el.querySelector('#pinErr').textContent = t || ''; };
     el.querySelectorAll('.lock-user').forEach(b => b.onclick = () => {

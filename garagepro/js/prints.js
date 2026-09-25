@@ -1,17 +1,24 @@
 /* GaragePro — print anything: current screen, vehicle history report, customer statement */
 'use strict';
 
-function printHTML(html) {
+/* brand = full-bleed A4 document (mendtech. templates); otherwise a normal report with page margins */
+function printHTML(html, brand = false) {
+  document.body.classList.toggle('print-brand', !!brand);
+  let ps = document.getElementById('pageStyle'); if (!ps) { ps = document.createElement('style'); ps.id = 'pageStyle'; document.head.appendChild(ps); }
+  ps.textContent = brand ? '@page { size: A4; margin: 0; }' : '@page { size: A4; margin: 12mm; }';
   $('#printRoot').innerHTML = html;
   const imgs = [...$('#printRoot').querySelectorAll('img')].filter(i => !i.complete);
   Promise.all(imgs.map(i => new Promise(r => { i.onload = i.onerror = r; }))).then(() => setTimeout(() => window.print(), 60));
 }
+/* mendtech. letterhead: logo left, contact details right, gold/orange rule, then the report title */
 function printHeader(title, meta = []) {
   const st = S.settings;
-  return `<div class="dh"><div style="display:flex;gap:14px;align-items:flex-start">${st.logo ? `<img src="${st.logo}" alt="">` : ''}
-    <div><div class="gname">${esc(st.garageName)}</div><div style="color:#555;line-height:1.5">${esc(st.address)}<br>${esc(contactLine())}<br>${esc(st.email || '')}${st.trn ? `<br><b>TRN: ${esc(st.trn)}</b>` : ''}</div></div></div>
-    <div><div class="dtitle">${esc(title)}</div><div class="meta">${meta.map(([k, v]) => `<b>${esc(k)}:</b> ${esc(v)}`).join('<br>')}</div></div></div>`;
+  return `<div class="lh"><img class="lh-logo" src="img/brand/logo.svg" alt="mendtech. auto · mobile">
+      <div class="lh-contact">${esc(brandPhones())}<br>${esc(st.email || '')}<br>${esc(st.address || '')}${st.trn ? `<br>TRN: ${esc(st.trn)}` : ''}</div></div>
+    <div class="bd-rule"><i></i><i></i></div>
+    <div class="lh-title"><div class="dtitle">${esc(title)}</div>${meta.length ? `<div class="meta">${meta.map(([k, v]) => `<span>${esc(k)}</span> <b>${esc(v)}</b>`).join('<i>·</i>')}</div>` : ''}</div>`;
 }
+const printFooter = () => `<div class="lh-foot"><span>${esc(brandContact())}</span><span>${esc(brandFooterNote())}</span></div><div class="bd-bar"><i></i><i></i><i></i></div>`;
 
 /* Print whatever screen is open — lists, reports, dashboards */
 function printView() {
@@ -31,7 +38,7 @@ function printView() {
   });
   clone.querySelectorAll('.btn,.icon-btn,.filters,.seg,.stepper .st:not(.on),.no-print,.rbtn:not(.on),label.btn').forEach(e => e.remove());
   const h1 = src.querySelector('h1');
-  printHTML(`<div class="docv printview">${printHeader(h1 ? h1.textContent.trim().slice(0, 60) : 'Report', [['Printed', new Date().toLocaleString('en-GB')]])}<div style="margin-top:14px">${clone.innerHTML}</div></div>`);
+  printHTML(`<div class="docv printview">${printHeader(h1 ? h1.textContent.trim().slice(0, 60) : 'Report', [['Printed', new Date().toLocaleString('en-GB')]])}<div style="margin-top:14px">${clone.innerHTML}</div>${printFooter()}</div>`);
 }
 
 /* Complete vehicle history report */
@@ -47,7 +54,7 @@ async function printVehicleReport(vid, withPhotos = true) {
     const pays = inv ? S.payments.filter(p => p.invoiceId === inv.id) : [];
     const ph = photos.filter(p => p.jobId === j.id);
     const fl = inspectionFlags(j);
-    return `<div style="break-inside:avoid;border:1px solid #ddd;border-radius:6px;padding:10px 12px;margin-bottom:10px">
+    return `<div class="visit">
       <div style="display:flex;justify-content:space-between;gap:10px"><b style="font-size:13.5px">Visit ${idx + 1} — Job ${esc(j.number)} (${esc(j.status)})</b><span>${fmtDate(j.date)} · ${fmtNum(j.odometer)} km · ${esc(techName(j.technicianId))}</span></div>
       ${j.complaint ? `<div style="margin-top:4px"><b>Request:</b> ${esc(j.complaint)}</div>` : ''}${j.diagnosis ? `<div><b>Work done:</b> ${esc(j.diagnosis)}</div>` : ''}
       ${(items || []).length ? `<table style="margin-top:6px"><thead><tr><th>Type</th><th>Description</th><th class="n">Qty</th><th class="n">Amount</th></tr></thead><tbody>${items.map(it => `<tr><td>${it.type === 'labour' ? 'Labour' : it.type === 'part' ? 'Part' : 'Other'}</td><td>${esc(it.desc)}${it.partNo ? ' <span style="color:#777">' + esc(it.partNo) + '</span>' : ''}</td><td class="n">${fmtNum(it.qty)}</td><td class="n">${money(lineTotal(it), false)}</td></tr>`).join('')}</tbody></table>` : ''}
@@ -65,7 +72,7 @@ async function printVehicleReport(vid, withPhotos = true) {
     ${pw.quotes.length || pw.advisories.length ? `<div class="box" style="margin-bottom:10px;border-color:#f59e0b"><div class="bt">Recommended but not done</div>${pw.quotes.map(q => `Quotation ${esc(q.number)} (${fmtDate(q.date)}, ${quoteState(q)}) — ${esc(q.description || q.items.map(i => i.desc).join(', '))} — ${money(calcDoc(q).total)}`).join('<br>')}${pw.quotes.length && pw.advisories.length ? '<br>' : ''}${pw.advisories.map(a => `${esc(a.p.point)} — ${a.p.result}${a.p.note ? ' (' + esc(a.p.note) + ')' : ''}, found ${fmtDate(a.j.date)} on ${esc(a.j.number)}`).join('<br>')}</div>` : ''}
     ${sched.length ? `<h3 style="margin:12px 0 6px">Service schedule</h3><table><thead><tr><th>Item</th><th>Last done</th><th class="n">At km</th><th>Next due</th><th class="n">Due at km</th><th>Status</th></tr></thead><tbody>${sched.map(x => `<tr><td>${esc(x.name)}</td><td>${fmtDate(x.lastDate)}</td><td class="n">${fmtNum(x.lastOdo)}</td><td>${fmtDate(x.nextDate)}</td><td class="n">${x.nextOdo != null ? fmtNum(x.nextOdo) : ''}</td><td>${esc(x.status)}</td></tr>`).join('')}</tbody></table>` : ''}
     <h3 style="margin:14px 0 6px">Visit history</h3>${visits || '<p>No visits recorded.</p>'}
-  </div>`);
+  ${printFooter()}</div>`);
 }
 
 /* Customer statement of account with running balance */
@@ -91,6 +98,6 @@ function statementHTML(cid, from = '', to = today()) {
       ${shown.map(r => { bal += r.dr - r.cr; return `<tr><td>${fmtDate(r.date)}</td><td>${esc(r.ref)}</td><td>${esc(r.desc)}</td><td class="n">${r.dr ? money(r.dr, false) : ''}</td><td class="n">${r.cr ? money(r.cr, false) : ''}</td><td class="n"><b>${money(bal, false)}</b></td></tr>`; }).join('')}
     </tbody></table>
     <table style="margin-top:14px"><thead><tr><th class="n">0–30 days</th><th class="n">31–60 days</th><th class="n">61–90 days</th><th class="n">90+ days</th><th class="n">Total due</th></tr></thead><tbody><tr>${aging.map(a => `<td class="n">${money(a, false)}</td>`).join('')}<td class="n"><b>${money(aging.reduce((x, y) => x + y, 0), false)}</b></td></tr></tbody></table>
-    ${S.settings.bankDetails ? `<div class="foot">Payment details:\n${esc(S.settings.bankDetails)}</div>` : ''}</div>`;
+    ${hasPaymentDetails(null) ? `<div class="foot">How to pay:\n${esc(payInfoText(null, ''))}</div>` : ''}${printFooter()}</div>`;
 }
 function printStatement(cid) { printHTML(statementHTML(cid)); }

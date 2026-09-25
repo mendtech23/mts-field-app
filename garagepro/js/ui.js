@@ -66,8 +66,6 @@ function renderNav() {
   $('#bottomNav').innerHTML = bn.map(([id, icn, label, cls]) => `<a href="#/${id}" class="${cls || ''} ${active === id ? 'on' : ''}">${ic(icn)}<span>${label}</span></a>`).join('') +
     `<a onclick="document.body.classList.toggle('nav-open')">${ic('menu-2')}<span>More</span></a>`;
   const st = S.settings;
-  $('#brandName').textContent = st.garageName || 'GaragePro';
-  $('#brandLogo').innerHTML = st.logo ? `<img src="${st.logo}" alt="">` : esc((st.garageName || 'GP').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase());
   const lb = st.lastBackup ? daysBetween(st.lastBackup.slice(0, 10), today()) : null;
   const hasData = S.jobs.length + S.customers.length > 0;
   const cloudOk = typeof Sync !== 'undefined' && Sync.user;

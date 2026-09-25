@@ -1,7 +1,7 @@
 /* GaragePro — core: storage, data model, calculations */
 'use strict';
 
-const APP_VERSION = '3.1.0';
+const APP_VERSION = '3.2.0';
 const CFG = Object.assign({ mode: 'live', dbName: 'garagepro', supabaseUrl: '', supabaseKey: '', garageId: '' }, window.GP_CONFIG || {});
 const IS_PREVIEW = CFG.mode === 'preview';
 const COLLECTIONS = ['customers', 'vehicles', 'quotes', 'jobs', 'invoices', 'payments', 'parts',
@@ -83,7 +83,7 @@ const DEFAULT_SETTINGS = {
   phone: '+971 55 957 4148',        // calls
   whatsapp: '+971 52 233 8499',     // all WhatsApp enquiries and app messages
   mobile: '',
-  email: 'service@mygarage.ae',
+  email: 'mendtech23@gmail.com',
   website: '',
   trn: '',
   logo: '',
@@ -94,8 +94,9 @@ const DEFAULT_SETTINGS = {
   quoteValidDays: 14,
   invoiceDueDays: 0,
   bankDetails: 'Bank: \nAccount Name: \nIBAN: ',
-  quoteTerms: 'Prices valid for the period shown. Additional work found during repair will be quoted separately before proceeding.',
-  invoiceTerms: 'Thank you for your business. Parts warranty as per manufacturer. Labour warranty 30 days / 1,000 km.',
+  quoteTerms: 'Prices in AED. Quote valid for {validDays} days.\nWork starts only after customer approval.\nAny extra work found during repair will be quoted separately before we proceed.\nParts warranty as per manufacturer; labour warranty 30 days.',
+  invoiceTerms: 'Labour warranty 30 days from invoice date. Keep this invoice for warranty claims.',
+  docFooter: 'Workshop 08:00–20:00 · Mobile 24/7 · Sharjah',   // bottom-right line on every document
   prefixes: { quote: 'QT-', job: 'JC-', mjob: 'MJ-', invoice: 'INV-', receipt: 'RC-', po: 'PO-', customer: 'C-', vehicle: 'V-', part: 'P-', supplier: 'S-', labour: 'L-', tech: 'T-' },
   counters: { quote: 0, job: 0, mjob: 0, invoice: 0, receipt: 0, po: 0, customer: 0, vehicle: 0, part: 0, supplier: 0, labour: 0, tech: 0 },
   lists: {
@@ -545,6 +546,11 @@ async function migrateSettings() {
   }
   if (st.schema < 32) {   // v3.1: Security Level 1 (defaults come from DEFAULT_SETTINGS; nothing to convert)
     st.schema = 32; changed = true;
+  }
+  if (st.schema < 33) {   // v3.2: mendtech. branding — brand terms replace the old defaults only if you never edited them
+    if (st.quoteTerms === 'Prices valid for the period shown. Additional work found during repair will be quoted separately before proceeding.') st.quoteTerms = DEFAULT_SETTINGS.quoteTerms;
+    if (st.invoiceTerms === 'Thank you for your business. Parts warranty as per manufacturer. Labour warranty 30 days / 1,000 km.') st.invoiceTerms = DEFAULT_SETTINGS.invoiceTerms;
+    st.schema = 33; changed = true;
   }
   if (changed) await saveSettings();
 }

@@ -1,15 +1,16 @@
 {
-  "name": "GaragePro — Workshop Manager",
-  "short_name": "GaragePro",
-  "description": "Auto repair workshop management: job cards, quotations, invoices, vehicle history, stock and finance.",
+  "name": "mendtech. — Auto · Mobile",
+  "short_name": "mendtech.",
+  "description": "mendtech. workshop app: job cards, quotations, invoices, MendTech Mobile dispatch, vehicle history, stock and finance.",
   "start_url": "./index.html#/dashboard",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#ffffff",
+  "theme_color": "#122036",
   "orientation": "any",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

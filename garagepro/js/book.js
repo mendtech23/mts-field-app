@@ -40,12 +40,11 @@
   function applyBrand() {
     const b = Object.assign({}, defaults, brand || {});
     brand = b;
-    $('#bname').textContent = type === 'mobile' ? (b.mobile || b.name) : b.name;
-    $('#bsub').textContent = type === 'mobile' ? 'We come to you — Dubai & Sharjah' : 'Book a workshop visit';
+    $('#bname').textContent = type === 'mobile' ? 'We come to you' : 'Book a workshop visit';
+    $('#bsub').textContent = type === 'mobile' ? 'mendtech. mobile — Dubai & Sharjah' : 'mendtech. auto — ' + (b.address || 'our workshop');
     document.title = `Book a service — ${type === 'mobile' ? (b.mobile || b.name) : b.name}`;
-    $('#logo').innerHTML = b.logo ? `<img src="${b.logo}" alt="">` : esc((b.name || 'MT').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase());
     if (b.address) $('#wsAddr').textContent = b.address;
-    $('#footTxt').textContent = [b.name, b.phone].filter(Boolean).join(' · ');
+    $('#footTxt').textContent = ['mendtech. auto · mobile', b.phone].filter(Boolean).join(' · ');
     const list = type === 'mobile' ? b.services : b.workshopServices;
     $('#svc').innerHTML = (list || []).map(s => `<button type="button" class="chip ${s === service ? 'on' : ''}">${esc(s)}</button>`).join('');
     $('#svc').querySelectorAll('.chip').forEach(c => c.onclick = () => { service = c.textContent; $('#svc').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c)); });

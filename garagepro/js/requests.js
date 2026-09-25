@@ -243,16 +243,16 @@ async function saveMobileSettings() {
 function bookingLink() { return location.protocol.startsWith('http') ? location.origin + location.pathname.replace(/[^/]*$/, '') + 'book.html' : ''; }
 function printBookingPoster() {
   const link = bookingLink() || 'https://mendtechauto.netlify.app/book.html';
-  const st = S.settings;
-  printHTML(`<div class="docv" style="text-align:center;padding:60px 40px">
-    ${st.logo ? `<img src="${st.logo}" style="max-height:110px;max-width:260px">` : ''}
-    <div style="font-size:34px;font-weight:800;margin-top:14px">${esc(st.brandMobile || 'MendTech Mobile')}</div>
-    <div style="font-size:18px;color:#555;margin-top:4px">Car trouble? We come to you — Dubai & Sharjah</div>
-    <div style="display:inline-block;margin:34px auto 20px;padding:16px;border:3px solid #f97316;border-radius:18px">${qrSVG(link, 300)}</div>
-    <div style="font-size:24px;font-weight:700">Scan to book a service</div>
-    <div style="font-size:15px;color:#444;margin-top:8px">Battery · Tyres · Jump start · Minor service at your location · AC · Diagnostics</div>
-    <div style="font-size:15px;color:#444;margin-top:20px">${esc(st.garageName)} · ${esc(contactLine())}</div>
-    <div style="font-size:12px;color:#888;margin-top:6px;word-break:break-all">${esc(link)}</div></div>`);
+  printHTML(bdDoc(`<div class="poster">
+      <img class="poster-logo" src="img/brand/logo.svg" alt="mendtech. auto · mobile">
+      <div class="bd-rule" style="width:220px;margin:26px auto"><i></i><i></i></div>
+      <div class="poster-h">Car trouble?<br>We come to you.</div>
+      <div class="poster-sub">Dubai &amp; Sharjah · or visit our workshop</div>
+      <div class="poster-qr">${qrSVG(link, 300)}</div>
+      <div class="poster-cta">Scan to book a service</div>
+      <div class="poster-svc">Battery · Tyres · Jump start · Minor service at your location · AC · Diagnostics</div>
+      <div class="poster-link">${esc(link)}</div></div>
+    <div class="bd-grow"></div>${bdFoot(null)}`), true);
 }
 function downloadBookingConfig() {
   if (!Sync.cfg.url || !Sync.cfg.key || !Sync.user) return toast('Connect cloud sync first (Settings → Cloud & devices), then try again', 'err');

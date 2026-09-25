@@ -90,46 +90,40 @@ function photoReportHTML(j, ps) {
     <div class="box"><div class="bt">Vehicle</div><b>${esc(v.plate || '')}</b> ${esc(vehicleLabel(v))}<br>VIN: ${esc(v.vin || '—')}<br>Odometer: ${fmtNum(j.odometer)} km</div></div>
     ${j.complaint ? `<div class="box" style="margin-bottom:10px"><div class="bt">Customer request</div>${esc(j.complaint)}</div>` : ''}
     ${j.diagnosis ? `<div class="box" style="margin-bottom:10px"><div class="bt">Work carried out</div>${esc(j.diagnosis)}</div>` : ''}
-    ${PHOTO_STAGES.filter(s => ps.some(p => p.stage === s)).map(s => `<h3 style="margin:14px 0 8px;color:#c2410c">${s} repair</h3>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${ps.filter(p => p.stage === s).map(p => `<div style="break-inside:avoid;border:1px solid #ddd;border-radius:6px;padding:6px"><img src="${p.data}" style="width:100%;max-height:260px;object-fit:contain;display:block"><div style="font-size:11px;margin-top:4px"><b>${esc(p.caption || s)}</b> <span style="color:#777">${new Date(p.date).toLocaleString('en-GB')}</span></div></div>`).join('')}</div>`).join('')}
-  </div>`;
+    ${PHOTO_STAGES.filter(s => ps.some(p => p.stage === s)).map(s => `<h3 style="margin:14px 0 8px">${s} repair</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${ps.filter(p => p.stage === s).map(p => `<div style="break-inside:avoid;border:1px solid #dee3e9;border-radius:6px;padding:6px"><img src="${p.data}" style="width:100%;max-height:260px;object-fit:contain;display:block"><div style="font-size:11px;margin-top:4px"><b>${esc(p.caption || s)}</b> <span style="color:#777">${new Date(p.date).toLocaleString('en-GB')}</span></div></div>`).join('')}</div>`).join('')}
+  ${printFooter()}</div>`;
 }
 async function photoReportPDF(j, ps) {
   await ensurePdfLibs();
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
-  const st = S.settings, v = vehicleOf(j) || {}, c = customerOf(j) || {}, M = 14, W = 210;
-  const safe = s => String(s ?? '').replace(/[‒-―−]/g, '-').replace(/[^\x00-\xFF]/g, '');
-  let y = 16;
-  if (st.logo) { try { const pr = pdf.getImageProperties(st.logo); const h = 16, w = Math.min(40, pr.width * h / pr.height); pdf.addImage(st.logo, M, y - 4, w, w * pr.height / pr.width); } catch (e) { } }
-  pdf.setFont('helvetica', 'bold'); pdf.setFontSize(16); pdf.setTextColor(234, 88, 12); pdf.text('PHOTO REPORT', W - M, y, { align: 'right' });
-  pdf.setFontSize(9); pdf.setTextColor(30); pdf.setFont('helvetica', 'normal');
-  pdf.text(safe(`${st.garageName} · ${contactLine()}`), W - M, y + 5, { align: 'right' });
-  pdf.text(safe(`Job ${j.number} · ${fmtDate(j.date)}`), W - M, y + 10, { align: 'right' });
-  y += 18; pdf.setDrawColor(234, 88, 12); pdf.setLineWidth(0.7); pdf.line(M, y, W - M, y); y += 7;
-  pdf.setFont('helvetica', 'bold'); pdf.setFontSize(11); pdf.text(safe(`${v.plate || ''}  ${vehicleLabel(v)}`), M, y);
-  pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9);
-  pdf.text(safe(`Customer: ${c.name || ''} ${c.phone || ''}   ·   VIN: ${v.vin || '-'}   ·   Odometer: ${fmtNum(j.odometer)} km`), M, y + 5);
-  y += 10;
-  if (j.diagnosis) { const l = pdf.splitTextToSize(safe('Work carried out: ' + j.diagnosis), W - 2 * M); pdf.text(l, M, y); y += l.length * 4 + 3; }
-  const colW = (W - 2 * M - 6) / 2, imgH = 68;
+  const B = brandPDF(), { pdf, K } = B, v = vehicleOf(j) || {}, c = customerOf(j) || {};
+  let y = B.header('PHOTO REPORT', [['Job no.', j.number], ['Date', fmtDate(j.date)], ['Photos', String(ps.length)]]);
+  const colW = (K.R - K.M - 22 * PX) / 2, x2 = K.M + colW + 22 * PX;
+  B.sec('Customer', K.M, y + 2.4); B.sec('Vehicle', x2, y + 2.4);
+  const fy = y + 2.4 + 7 * PX + 24 * PX - 1.2;
+  [['Name', c.name], ['Mobile', c.phone]].forEach(([k, val], i) => B.field(k, val, K.M, fy + i * 24 * PX, colW));
+  [['Plate no.', v.plate], ['Make/Model', vehicleLabel(v)], ['Odometer', j.odometer ? fmtNum(j.odometer) + ' km' : '']].forEach(([k, val], i) => B.field(k, val, x2, fy + i * 24 * PX, colW));
+  y = fy + 2 * 24 * PX + 8;
+  if (j.diagnosis) { B.sec('Work carried out', K.M, y); y = pdfLines(B, j.diagnosis, K.M, y + 5, K.R - K.M) + 2; }
+  const gap = 6, cw = (K.R - K.M - gap) / 2, imgH = 64, bottom = B.signTop() + 10;
   for (const s of PHOTO_STAGES) {
     const list = ps.filter(p => p.stage === s); if (!list.length) continue;
-    if (y + 10 > 280) { pdf.addPage(); y = 16; }
-    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(11); pdf.setTextColor(194, 65, 12); pdf.text(`${s.toUpperCase()} REPAIR`, M, y + 4); pdf.setTextColor(30); y += 8;
+    if (y + 14 > bottom) { B.newPage(); y = 18; }
+    B.sec(`${s} repair`, K.M, y + 4); y += 8;
     for (let i = 0; i < list.length; i += 2) {
-      if (y + imgH + 10 > 287) { pdf.addPage(); y = 16; }
+      if (y + imgH + 10 > bottom) { B.newPage(); y = 18; }
       for (let k = 0; k < 2 && i + k < list.length; k++) {
-        const p = list[i + k], x = M + k * (colW + 6);
-        const r = Math.min(colW / p.w, imgH / p.h), w = p.w * r, h = p.h * r;
-        pdf.setDrawColor(220); pdf.rect(x, y, colW, imgH + 8);
-        pdf.addImage(p.data, 'JPEG', x + (colW - w) / 2, y + (imgH - h) / 2, w, h);
-        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8);
-        pdf.text(safe(`${p.caption || s} - ${new Date(p.date).toLocaleString('en-GB')}`).slice(0, 70), x + 2, y + imgH + 5);
+        const p = list[i + k], x = K.M + k * (cw + gap);
+        const r = Math.min((cw - 4) / p.w, imgH / p.h), w = p.w * r, h = p.h * r;
+        B.draw(BRAND.line, 0.3); pdf.roundedRect(x, y, cw, imgH + 9, 1, 1, 'S');
+        pdf.addImage(p.data, 'JPEG', x + (cw - w) / 2, y + 2 + (imgH - h) / 2, w, h);
+        B.font('semi', 9, BRAND.navy); B.txt(B.fit(p.caption || s, cw - 40), x + 2, y + imgH + 6.4);
+        B.font('reg', 8.5, BRAND.mute); B.txt(new Date(p.date).toLocaleString('en-GB'), x + cw - 2, y + imgH + 6.4, { align: 'right' });
       }
-      y += imgH + 12;
+      y += imgH + 13;
     }
   }
+  B.contact(); pdfPageNumbers(B);
   return new File([pdf.output('blob')], `PHOTO_REPORT_${j.number}_${norm(v.plate)}.pdf`, { type: 'application/pdf' });
 }
 async function photoReport(jobId) {

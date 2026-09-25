@@ -11,7 +11,7 @@ Open `index.html` in Chrome, or use the live site.
 - Customer booking page: https://mendtechauto.netlify.app/book.html
 - Cloud data: Supabase (owner's personal account). Table `records` (all data, row-level security per garage account) + `requests` (booking-page inbox, public insert only).
 - WhatsApp for all enquiries/app messages: +971 52 233 8499. Calls: +971 55 957 4148.
-- Version in this folder: 3.1.0 (MendTech Auto + MendTech Mobile + Security Level 1).
+- Version in this folder: 3.2.0 (mendtech. branding + MendTech Mobile + Security Level 1). Nothing after 3.0.1 is live yet.
 - Source of truth is now git: repo `mendtech23/mts-field-app`, folder `garagepro/` (live config). The preview build = same folder with `js/config.js` set to mode 'preview', dbName 'garagepro-preview', no Supabase keys.
 
 ## Folder / file map
@@ -31,6 +31,15 @@ Open `index.html` in Chrome, or use the live site.
 - `book.html` + `js/book.js` public booking page · `sw.js` offline cache (bump CACHE name on every release) · `lib/` bundled jsPDF, xlsx, supabase, qrcode
 
 Gotchas: mobile service settings live in `S.settings.mob` (NOT `.mobile`, that's a phone field). `render()` closes modals synchronously before any await. Deletions must go through `remove()` / `wipeCollections()` so cloud tombstones sync.
+
+## Status (25 Sep 2026)
+- v3.2.0 built = mendtech. branding (PREVIEW ONLY — not published). Brand source: owner's PDF "MenDTech automotive branding" (letterhead, quotation, tax invoice, job card) + logo images.
+  - Exact vector logo + "m." mark extracted from the owner's PDF → `img/brand/*.svg`; app icons in `icons/` (192/512/maskable/apple/favicon/.ico).
+  - Colours: navy #122036, steel #9AA3B5, gold #C9A227 (labels #A9812E), orange #D97A2B, ink #4B5265/#6C7488, lines #DEE3E9/#C7CCD9. Fonts: Inter (text) + Space Grotesk (titles), bundled in `fonts/` (OFL) and as PDF fonts in `lib/pdf-fonts.js`; logo/watermark PNGs for PDFs in `lib/brand-assets.js`.
+  - `js/documents.js`: docHTML (print/preview) + buildPDF (jsPDF) both follow the templates: quotation, tax invoice, job card (page 1 = vehicle check-in, page 2 = work & parts), receipt, letterhead, blank job card. Job card editor has a new "Vehicle check-in" card (`job.checkin`: timeIn, keys, location, breakdown, body{area:OK|S|D|C}, items{item:true|false}, bodyNotes).
+  - Reports (statement, vehicle history, screen print, photo report + its PDF), QR poster and booking page use the same letterhead/brand.
+  - New setting `docFooter` (bottom-right line on documents). Settings schema 33: brand terms replace the old default terms only if never edited.
+- Open questions for the owner: address on documents (brand PDF says Sharjah; app settings say Al Quoz, Dubai), quote validity (brand terms say 7 days; app setting 14 — terms now use {validDays}), TRN (blank), MOBILE hours (brand says 24/7; setting says 08:00–20:00).
 
 ## Status (24 Sep 2026, later)
 - v3.1.0 built = Security Level 1 (item 1 below), tested in a browser, waiting for the owner to test the preview and publish.

@@ -307,7 +307,7 @@ PAGES.job = id => {
       ${field('Customer ref / LPO', inpText('lpo', j.lpo))}${field('Fuel level in', selectHTML('fuelIn', ['', 'E', '¼', '½', '¾', 'F'], j.fuelIn))}
       ${field('Customer complaint / request', `<textarea oninput="edSet('complaint',this.value)">${esc(j.complaint || '')}</textarea>`, 'span2')}
       ${field('Diagnosis / work carried out', `<textarea oninput="edSet('diagnosis',this.value)">${esc(j.diagnosis || '')}</textarea>`, 'span2')}</div>`,
-    main: jobPhotosCardHTML(j) + `<div class="card mb"><div class="card-head"><h3>🔍 Multi-point inspection</h3><div class="actions" id="inspActions">${inspActionsHTML(j)}</div></div><div class="card-pad" id="inspBox">${inspectionHTML(j)}</div></div>`,
+    main: `<div id="ckBox">${checkinCardHTML(j)}</div>` + jobPhotosCardHTML(j) + `<div class="card mb"><div class="card-head"><h3>🔍 Multi-point inspection</h3><div class="actions" id="inspActions">${inspActionsHTML(j)}</div></div><div class="card-pad" id="inspBox">${inspectionHTML(j)}</div></div>`,
     side: jobSideHTML(j),
   });
   drawJobPhotos(j.id);

@@ -23,11 +23,11 @@ const SKIP_TAGS = new Set(['TEXTAREA', 'INPUT', 'OPTION', 'SELECT', 'SCRIPT', 'S
 
 function iconize(root) {
   if (!root || root.nodeType !== 1) return;
-  if (root.closest && root.closest('.docv, #printRoot, [data-noicon]')) return;
+  if (root.closest && root.closest('.docv, .bdoc, #printRoot, [data-noicon]')) return;
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(n) {
       const p = n.parentElement;
-      if (!p || SKIP_TAGS.has(p.tagName) || p.closest('.docv, #printRoot, [data-noicon], .tl-lines-msg')) return NodeFilter.FILTER_REJECT;
+      if (!p || SKIP_TAGS.has(p.tagName) || p.closest('.docv, .bdoc, #printRoot, [data-noicon], .tl-lines-msg')) return NodeFilter.FILTER_REJECT;
       EMOJI_RE.lastIndex = 0;
       return EMOJI_RE.test(n.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
     }

@@ -202,11 +202,12 @@ PAGES.settings = () => {
   if (tab === 'docs') body = `<div class="card card-pad"><div class="grid g4">
       <div class="field"><label>Quote valid for (days)</label><input id="s_quoteValidDays" type="number" value="${esc(st.quoteValidDays)}"></div>
       <div class="field"><label>Invoice due in (days)</label><input id="s_invoiceDueDays" type="number" value="${esc(st.invoiceDueDays)}"><div class="help">0 = due on receipt</div></div>
-      <div class="field spanall"><label>Quotation terms</label><textarea id="s_quoteTerms">${esc(st.quoteTerms)}</textarea></div>
-      <div class="field spanall"><label>Invoice terms / warranty</label><textarea id="s_invoiceTerms">${esc(st.invoiceTerms)}</textarea></div>
+      <div class="field spanall"><label>Quotation terms — one per line, numbered automatically. {validDays} = the quote validity above</label><textarea id="s_quoteTerms" style="min-height:96px">${esc(st.quoteTerms)}</textarea></div>
+      <div class="field spanall"><label>Invoice terms / warranty (one per line)</label><textarea id="s_invoiceTerms">${esc(st.invoiceTerms)}</textarea></div>
+      <div class="field spanall"><label>Document footer (bottom right of every quotation, invoice and job card)</label><input id="s_docFooter" value="${esc(st.docFooter || '')}" placeholder="Workshop 08:00–20:00 · Mobile 24/7 · Sharjah"></div>
       <div class="fieldset-title">Document numbering — prefix and last number used</div>
       ${Object.keys(st.prefixes).map(k => `<div class="field"><label>${esc(k)}</label><div class="row" style="flex-wrap:nowrap"><input id="p_${k}" value="${esc(st.prefixes[k])}" style="width:80px"><input id="c_${k}" type="number" value="${esc(st.counters[k] || 0)}" title="Last number used"></div></div>`).join('')}
-    </div><div class="row end mt"><button class="btn primary" onclick="saveDocSettings()">Save</button></div></div>`;
+    </div><div class="row end mt"><button class="btn primary" onclick="saveDocSettings()">Save</button></div></div>` + brandStationeryHTML();
   if (tab === 'lists') body = `<div class="card card-pad"><p class="muted" style="margin-top:0">One entry per line.</p><div class="grid g3">
       ${Object.entries(st.lists).map(([k, arr]) => `<div class="field"><label>${esc(LIST_LABELS[k] || k)}</label><textarea id="l_${k}" style="min-height:150px">${esc(arr.join('\n'))}</textarea></div>`).join('')}
       <div class="field spanall"><label>Service items & intervals — format: <code>Name | km | months</code> (0 = not used)</label><textarea id="l_service" style="min-height:220px" class="mono">${esc(st.serviceItems.map(s => `${s.name} | ${s.km} | ${s.months}`).join('\n'))}</textarea></div>
@@ -246,7 +247,7 @@ async function saveSettingsForm(keys) {
 async function saveDocSettings() {
   const st = S.settings;
   st.quoteValidDays = num($('#s_quoteValidDays').value); st.invoiceDueDays = num($('#s_invoiceDueDays').value);
-  st.quoteTerms = $('#s_quoteTerms').value; st.invoiceTerms = $('#s_invoiceTerms').value;
+  st.quoteTerms = $('#s_quoteTerms').value; st.invoiceTerms = $('#s_invoiceTerms').value; st.docFooter = $('#s_docFooter').value.trim();
   for (const k of Object.keys(st.prefixes)) { st.prefixes[k] = $('#p_' + k).value; st.counters[k] = num($('#c_' + k).value); }
   await saveSettings(); toast('Saved', 'ok');
 }
