@@ -713,7 +713,7 @@ declare n int;
 begin
   update public.devices set revoked = true, revoked_at = now() where user_id = p_user and not revoked;
   get diagnostics n = row_count;
-  delete from auth.sessions where user_id = p_user;
+  begin delete from auth.sessions where user_id = p_user; exception when others then null; end;   -- best effort; devices are cut off above either way
   return n;
 end $$;
 

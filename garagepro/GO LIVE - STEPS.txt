@@ -1,53 +1,31 @@
-GaragePro v3.1.0 — SECURITY LEVEL 1 — LIVE BUILD
-=================================================
+mendtech. v3.4.0 — SECURITY LEVEL 2 — LIVE BUILD
+================================================
 
-Publish this ONLY after you have tested the preview and are happy.
-It is the same app as the preview, but uses your real data and cloud sync.
+Publish this ONLY after you have tested the preview (garagepro-cloud/SETUP-GUIDE.md, Part A)
+and are happy. The full live steps are in SETUP-GUIDE.md, Part B. Short version:
 
-WHAT'S NEW IN 3.1
-  - PINs are now 6-8 digits, stored with strong hashing. 5 wrong PINs lock that login
-    for 15 minutes (longer if it continues). Everyone chooses a new 6-digit PIN the first
-    time they sign in to 3.1 with their old PIN.
-  - Owner PIN needed when staff: give a discount above 10% (limit set in Settings > Staff & security),
-    void or delete an invoice, delete a payment, change an invoice's payment link, reopen a closed month.
-  - Owner PIN always needed (even for the Owner) to change bank / Stripe / WIO details,
-    restore a backup, erase data.
-  - Backups are locked with a password you choose. Without it the file cannot be opened.
-  - Website security headers (the "_headers" file - keep it in the folder).
-  - Booking page: max 3 requests per 10 minutes per connection, 30 per hour in total.
-  - Security alerts: Settings > Staff & security (Owner only). The sidebar shows a red
-    "security alert" line when there is something new.
+WHAT'S NEW IN 3.4 (on top of 3.1 security, 3.2 branding, 3.3 revenue features)
+  - Everyone gets their own login: Owner = e-mail + password + 6-digit code from an
+    authenticator app on your phone; staff = username + password you create for them.
+    The PIN is now only the screen lock on each device.
+  - What each role can see and change is enforced by the cloud database, not just hidden:
+    Manager, Service Advisor, Technician (own jobs, customer name only, no prices),
+    Driver (own mobile jobs, customer name + phone + location, no prices).
+  - Voids, deletions, big discounts, payment links, bank details, reopening a month need
+    your approval PIN, checked by the server (5 wrong tries lock it and alert you).
+  - Audit log of every change that nobody can edit. Devices list: sign out a lost phone at once.
+  - Alerts by e-mail to mendtech23@gmail.com (instant for important things, summary at 20:00)
+    and in the app (Settings > Staff & security).
+  - Customers approve quotations from a link in the WhatsApp message.
 
-1. BACKUP (1 min)
-   Live app > Settings > Backup & data > Download backup.
+BEFORE: backup (Settings > Backup & data > Download backup).
+1. Live Supabase: sign-ups off, TOTP on, extensions pg_net + pg_cron, run level2.sql,
+   deploy the 3 functions + secrets (SETUP-GUIDE B2-B3).
+2. Close the app everywhere. Netlify > mendtechauto > Deploys > drag THIS folder. Reopen.
+   Everything works exactly as before at this point.
+3. After closing time: Settings > Staff & security > "Switch on Security Level 2" (4 steps).
+4. Everyone signs in once with their own username + password and picks a screen PIN.
+5. Settings > Mobile & booking > Download config.js > put it in js/ > publish again.
 
-2. PUBLISH (2 min)
-   Close GaragePro on every PC and phone first (an old copy left open holds up the update).
-   app.netlify.com > mendtechauto > Deploys > drag THIS folder (GaragePro-v3.1-Live) onto the upload box.
-   Open https://mendtechauto.netlify.app on the office PC and phones (close & reopen once to load v3.1).
-   Your data and settings stay.
-   Office PC offline copy: double-click "INSTALL ON THIS PC.bat" in this folder too.
-   IMPORTANT: every device must be on 3.1 before anyone sets a new PIN - the new PINs
-   do not work in 3.0.1, so an old copy left running would lock everyone out on that device.
-
-3. NEW PINS (1 min each person)
-   Each person signs in with their old PIN once and is asked for a new 6-8 digit PIN.
-   Settings > Staff & security shows who still has an old PIN.
-
-4. BOOKING PAGE RATE LIMIT (2 min, once)
-   Settings > Mobile & booking > "Copy SQL" > Supabase > SQL Editor > paste > Run.
-   (Same script as before with the rate limit added. Safe to run again.)
-
-5. NEW PROTECTED BACKUP (1 min)
-   Settings > Backup & data > Download backup > choose a password (write it down, keep it
-   away from the file). Then delete the old unprotected backup files from Downloads / USB / Drive.
-
-6. CHECK
-   Settings > Staff & security: every line in "Security check" should be green,
-   including "Website security headers are active".
-
-UNDO
-   Netlify > Deploys > click the previous deploy > "Publish deploy".
-   Note: after 3.1 has opened on a device, go back to 3.0.1 only if you really have to:
-   new 6-digit PINs will not work in 3.0.1 (restore the backup from step 1 instead).
-   The office PC offline copy (C:\Users\S445696\GaragePro) keeps the previous version until you replace it.
+UNDO: Netlify > Deploys > previous deploy > Publish deploy (before step 3 nothing changes
+for staff). Lost authenticator phone: see SETUP-GUIDE "If something goes wrong".

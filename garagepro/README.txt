@@ -1,5 +1,5 @@
-GaragePro v3.1 — Workshop Manager
-=================================
+mendtech. workshop app v3.4
+===========================
 
 START
   Windows Start menu -> type "GaragePro"  (or double-click "Open GaragePro.bat" in this folder).
@@ -42,7 +42,13 @@ MONTH END — Finance > Month-end closing (checklist, P&L, VAT, cash-up, aging, 
 
 PRINT — every screen has 🖨 Print (choose "Save as PDF" for a file).
 
-SECURITY (v3.1)
+SECURITY LEVEL 2 (v3.4, once switched on — see garagepro-cloud/SETUP-GUIDE.md)
+  Everyone signs in with their own username + password (Owner: e-mail + password + authenticator
+  code). The PIN only unlocks the screen on that device. The cloud database enforces what each role
+  may see and change; approvals use the Owner's approval PIN checked by the server; every change is
+  in an audit log; the Owner can sign out any device; alerts go to mendtech23@gmail.com.
+
+SECURITY (v3.1 — still used until Level 2 is switched on)
   5 wrong PINs lock a login for 15 minutes. Staff need the Owner's PIN for big discounts
   (over 10%), voiding / deleting invoices, deleting payments, changing an invoice's payment link
   and reopening a closed month. Bank / Stripe details, restore and erase always ask for the Owner PIN.
