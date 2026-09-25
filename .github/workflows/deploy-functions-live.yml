@@ -1,0 +1,81 @@
+# Deploys the three mendtech. server functions (login, staff-admin, notify) to the LIVE Supabase project
+# from GitHub's servers, so it doesn't depend on the owner's browser or network.
+# Needs the repository secret SUPABASE_ACCESS_TOKEN_LIVE (a token limited to the live project only).
+# Runs only when garagepro-cloud/deploy-live.txt changes — i.e. on purpose, on go-live night.
+# Optional secret RESEND_API_KEY: if set, it is copied into the functions' secrets too.
+name: Deploy functions to LIVE
+
+on:
+  push:
+    branches: [claude/handoff-continuation-l39e0b]
+    paths:
+      - 'garagepro-cloud/deploy-live.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN_LIVE }}
+      PROJECT_REF: otdmnzvmlqjppydokcfv          # LIVE project (mendtechauto.netlify.app)
+      APP_URL: https://mendtechauto.netlify.app
+    steps:
+      - name: Access token present?
+        id: token
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::notice::SUPABASE_ACCESS_TOKEN_LIVE secret not added yet — nothing deployed."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.token.outputs.ok == 'true'
+
+      - uses: supabase/setup-cli@v1
+        if: steps.token.outputs.ok == 'true'
+        with:
+          version: latest
+
+      - name: Prepare function folders
+        if: steps.token.outputs.ok == 'true'
+        run: |
+          mkdir -p work && cd work
+          supabase init --force
+          mkdir -p supabase/functions
+          cp -r ../garagepro-cloud/functions/* supabase/functions/
+          ls -R supabase/functions
+
+      - name: Deploy login, staff-admin, notify
+        if: steps.token.outputs.ok == 'true'
+        working-directory: work
+        run: |
+          supabase functions deploy login       --project-ref "$PROJECT_REF" --no-verify-jwt --use-api
+          supabase functions deploy staff-admin --project-ref "$PROJECT_REF" --use-api
+          supabase functions deploy notify      --project-ref "$PROJECT_REF" --no-verify-jwt --use-api
+
+      - name: Set function secrets
+        if: steps.token.outputs.ok == 'true'
+        working-directory: work
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          supabase secrets set "APP_URL=$APP_URL" --project-ref "$PROJECT_REF"
+          if [ -n "$RESEND_API_KEY" ]; then
+            supabase secrets set "RESEND_API_KEY=$RESEND_API_KEY" --project-ref "$PROJECT_REF"
+          else
+            echo "::notice::RESEND_API_KEY not in GitHub secrets — add it in Supabase → Edge Functions → Secrets instead."
+          fi
+          supabase functions list --project-ref "$PROJECT_REF"
+
+      - name: Check the login function answers
+        if: steps.token.outputs.ok == 'true'
+        run: |
+          sleep 5
+          out=$(curl -s -X POST "https://$PROJECT_REF.supabase.co/functions/v1/login" -H 'Content-Type: application/json' -d '{}')
+          echo "$out"
+          echo "$out" | grep -q MISSING
