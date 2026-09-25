@@ -16,7 +16,7 @@ const EMOJI_ICON = {
   '🎉': 'confetti', '👋': 'hand-stop', '💡': 'bulb', '🅿': 'parking', '🆕': 'sparkles', '📈': 'trending-up', '📭': 'inbox',
   '💾': 'device-floppy', '🧪': 'flask', '🛠': 'tools', '🛡': 'shield', '🪪': 'id', '💰': 'coin', '💵': 'cash', '📋': 'clipboard',
   '📱': 'device-mobile', '🚐': 'truck', '📍': 'map-pin', '🧭': 'navigation', '📞': 'phone', '📥': 'inbox', '🗺': 'map', '🔄': 'arrows-exchange',
-  '⏰': 'clock', '🏁': 'flag', '▶': 'player-play', '↩': 'arrow-back-up', '🏬': 'building-warehouse', '☁': 'cloud', '⚡': 'bolt', '⟳': 'refresh', '⏳': 'hourglass', '★': 'star', '👥': 'users', '☰': 'menu-2',
+  '⏰': 'clock', '🏁': 'flag', '▶': 'player-play', '↩': 'arrow-back-up', '🏬': 'building-warehouse', '☁': 'cloud', '⚡': 'bolt', '⟳': 'refresh', '⏳': 'hourglass', '★': 'star', '👥': 'users', '☰': 'menu-2', '📣': 'speakerphone', '🤝': 'heart-handshake', '🔁': 'repeat', '⭐': 'star', '🔎': 'zoom-check', '🚨': 'alert-octagon', '🔑': 'key', '🖥': 'devices', '📜': 'history',
 };
 const EMOJI_RE = new RegExp('(' + Object.keys(EMOJI_ICON).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\uFE0F?', 'g');
 const SKIP_TAGS = new Set(['TEXTAREA', 'INPUT', 'OPTION', 'SELECT', 'SCRIPT', 'STYLE', 'svg', 'CODE', 'PRE']);

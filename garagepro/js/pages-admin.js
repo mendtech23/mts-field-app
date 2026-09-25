@@ -50,6 +50,7 @@ function reminderList(includeDone = false) {
     const v = vehicleOf(q), c = customerOf(q);
     add({ cat: 'Quote follow-up', ico: '✎', bg: 'var(--graySoft)', sort: 20, vehicle: v, customer: c, tpl: 'quote', doc: q, kind: 'quote', title: `Follow up quotation ${q.number} (${money(calcDoc(q).total)})`, sub: `${c ? c.name : ''} · ${v ? v.plate : ''} · sent ${fmtDate((q.sentAt || q.date).slice(0, 10))}` });
   }
+  if (typeof followUpReminders === 'function') followUpReminders(add);
   return out.sort((a, b) => a.sort - b.sort);
 }
 function reminderRowHTML(r) {
@@ -70,7 +71,7 @@ function sendReminder(key) {
 PAGES.reminders = () => {
   const f = getFilter('reminders', 'cat', 'All'), showDone = getFilter('reminders', 'done', false);
   const all = reminderList(showDone);
-  const cats = ['All', 'Online request', 'Mobile', 'Booking', 'Collection', 'Payment', 'Service', 'Registration', 'Insurance', 'Quote follow-up'];
+  const cats = ['All', 'Online request', 'Mobile', 'Booking', 'Collection', 'Payment', 'Service', 'Registration', 'Insurance', 'Quote follow-up', 'Recommended work', 'Review request'];
   const list = all.filter(r => f === 'All' || r.cat === f);
   view().innerHTML = pageHead('Reminders — who to contact today', 'Built automatically from expiry dates, the service schedule, unpaid invoices and quotes. Anything messaged in the last 14 days is hidden.') +
     `<div class="filters"><div class="seg">${cats.map(k => { const n = all.filter(r => k === 'All' || r.cat === k).length; return `<button class="${f === k ? 'on' : ''}" onclick="setFilter('reminders','cat','${k}')">${k}${n ? ` (${n})` : ''}</button>`; }).join('')}</div>
@@ -167,8 +168,10 @@ PAGES.reports = () => {
 
 /* =================== SETTINGS =================== */
 PAGES.settings = () => {
-  const tab = getFilter('settings', 'tab', 'garage');
-  const tabs = [['garage', 'Garage details'], ['docs', 'Invoices & numbering'], ['lists', 'Lists & service intervals'], ['mobile', '🚐 Mobile & booking'], ['templates', 'Message templates'], ['staff', 'Staff & security'], ['cloud', 'Cloud & devices'], ['data', 'Backup & data']];
+  let tab = getFilter('settings', 'tab', 'garage');
+  if ((Auth.active && Auth.role().hideTabs || []).includes(tab)) tab = 'garage';
+  const hide = Auth.active && Auth.role().hideTabs || [];
+  const tabs = [['garage', 'Garage details'], ['docs', 'Invoices & numbering'], ['lists', 'Lists & service intervals'], ['mobile', '🚐 Mobile & booking'], ['templates', 'Message templates'], ['staff', 'Staff & security'], ['cloud', 'Cloud & devices'], ['data', 'Backup & data']].filter(([k]) => !hide.includes(k));
   const st = S.settings;
   let body = '';
   if (tab === 'mobile') body = mobileSettingsHTML();
@@ -207,7 +210,7 @@ PAGES.settings = () => {
       <div class="field spanall"><label>Document footer (bottom right of every quotation, invoice and job card)</label><input id="s_docFooter" value="${esc(st.docFooter || '')}" placeholder="Workshop 08:00–20:00 · Mobile 24/7 · Sharjah"></div>
       <div class="fieldset-title">Document numbering — prefix and last number used</div>
       ${Object.keys(st.prefixes).map(k => `<div class="field"><label>${esc(k)}</label><div class="row" style="flex-wrap:nowrap"><input id="p_${k}" value="${esc(st.prefixes[k])}" style="width:80px"><input id="c_${k}" type="number" value="${esc(st.counters[k] || 0)}" title="Last number used"></div></div>`).join('')}
-    </div><div class="row end mt"><button class="btn primary" onclick="saveDocSettings()">Save</button></div></div>` + brandStationeryHTML();
+    </div><div class="row end mt"><button class="btn primary" onclick="saveDocSettings()">Save</button></div></div>` + offersSettingsHTML() + brandStationeryHTML();
   if (tab === 'lists') body = `<div class="card card-pad"><p class="muted" style="margin-top:0">One entry per line.</p><div class="grid g3">
       ${Object.entries(st.lists).map(([k, arr]) => `<div class="field"><label>${esc(LIST_LABELS[k] || k)}</label><textarea id="l_${k}" style="min-height:150px">${esc(arr.join('\n'))}</textarea></div>`).join('')}
       <div class="field spanall"><label>Service items & intervals — format: <code>Name | km | months</code> (0 = not used)</label><textarea id="l_service" style="min-height:220px" class="mono">${esc(st.serviceItems.map(s => `${s.name} | ${s.km} | ${s.months}`).join('\n'))}</textarea></div>
@@ -403,4 +406,25 @@ async function importExcel(file) {
     await saveSettings();
     toast(`Imported ${added} records`, 'ok'); render();
   } catch (e) { console.error(e); toast('Import failed: ' + e.message, 'err'); }
+}
+
+/* ---------- Services & offers (v3.3) ---------- */
+function offersSettingsHTML() {
+  const o = S.settings.offers;
+  return `<div class="card card-pad mt"><h3 style="margin-top:0">🏷 Services &amp; offers</h3><div class="grid g4">
+    <div class="field"><label>Health check fee without a paid service (AED)</label><input id="of_hc" type="number" value="${esc(o.healthCheckFee)}"><div class="help">Free automatically when the job has other paid work</div></div>
+    <div class="field"><label>Pre-purchase inspection price (AED)</label><input id="of_ppi" type="number" value="${esc(o.ppiPrice)}"></div>
+    <div class="field"><label>Registration renewal service fee (AED)</label><input id="of_rn" type="number" value="${esc(o.renewalFee)}"></div>
+    <div class="field"><label>Follow up recommended work after (days)</label><input id="of_fu" value="${esc((o.followUpDays || []).join(', '))}"><div class="help">e.g. 7, 30, 90</div></div>
+    <div class="field span2"><label>Google review link</label><input id="of_rev" value="${esc(o.googleReviewLink || '')}" placeholder="https://g.page/r/…/review"><div class="help">Google Business Profile → Ask for reviews → copy link</div></div>
+    <div class="field"><label>Ask for a review after (days)</label><input id="of_ra" type="number" value="${esc(o.reviewAfterDays)}"></div>
+    <div class="field"><label>Ask the same customer again after (months)</label><input id="of_rm" type="number" value="${esc(o.reviewEveryMonths)}"></div>
+  </div><div class="row end mt"><button class="btn primary" onclick="saveOffers()">Save</button></div></div>`;
+}
+async function saveOffers() {
+  const o = S.settings.offers, v = id => $(id).value.trim();
+  Object.assign(o, { healthCheckFee: num(v('#of_hc')), ppiPrice: num(v('#of_ppi')), renewalFee: num(v('#of_rn')), googleReviewLink: v('#of_rev'), reviewAfterDays: num(v('#of_ra')) || 1, reviewEveryMonths: num(v('#of_rm')) || 6,
+    followUpDays: v('#of_fu').split(/[^\d]+/).map(num).filter(Boolean).sort((a, b) => a - b) });
+  if (o.googleReviewLink && !/^https:\/\//.test(o.googleReviewLink)) return toast('The review link must start with https://', 'err');
+  await saveSettings(); secLog('settings', 'Prices / offers changed', 'info'); toast('Saved', 'ok'); render();
 }

@@ -266,7 +266,7 @@ function mobilePanelHTML(j) {
       <div class="stepper mb">${steps}</div>
       ${next ? `<div class="row mb"><button class="btn primary lg" onclick="setMobileStatus('${j.id}',${jsq(next)})">${MOB_NEXT_LABEL[st]}</button>
         ${map ? `<a class="btn lg" href="${esc(map)}" target="_blank" rel="noopener">🧭 Navigate</a>` : ''}
-        ${c.phone ? `<a class="btn lg" href="tel:+${waNumber(c.phone)}">📞 Call</a>` : ''}
+        ${c.phone && (!isRestricted() || Auth.role().customerDetail === 'contact') ? `<a class="btn lg" href="tel:+${waNumber(c.phone)}">📞 Call</a>` : ''}
         <button class="btn lg" onclick="sendMobileMsg(get('jobs','${j.id}'),'mobileOnWay')">💬 Message</button></div>` : ''}
       <div class="grid g2">
         <dl class="kv"><dt>Problem</dt><dd>${esc(m.problem || '—')}</dd><dt>When</dt><dd>${m.urgency === 'urgent' ? 'ASAP (urgent)' : esc(`${fmtDate(m.prefDate)} ${m.prefTime || ''}`)}</dd>
@@ -337,14 +337,17 @@ function dispatchCard(j) {
 /* ---------- Crew phone screen ---------- */
 function myTechId() { return Auth.user ? Auth.user.techId || (S.technicians.find(t => t.name.toLowerCase() === Auth.user.name.toLowerCase()) || {}).id : ''; }
 PAGES.myjobs = () => {
-  const me = myTechId(), pick = getFilter('myjobs', 'who', me || 'all');
+  const me = myTechId(), crew = isRestricted(), pick = crew ? (me || '-') : getFilter('myjobs', 'who', me || 'all');
   const mine = j => pick === 'all' || j.technicianId === pick || (j.mobile || {}).driverId === pick;
+  const shop = S.jobs.filter(j => !isMobile(j) && OPEN_JOB.includes(j.status) && pick !== 'all' && j.technicianId === pick && Auth.role().customerDetail !== 'contact');
   const open = S.jobs.filter(j => isMobile(j) && MOBILE_OPEN.includes((j.mobile || {}).status || 'New') && mine(j))
     .sort((a, b) => ((b.mobile || {}).urgency === 'urgent') - ((a.mobile || {}).urgency === 'urgent') || ((a.mobile.prefDate || '') + (a.mobile.prefTime || '')).localeCompare((b.mobile.prefDate || '') + (b.mobile.prefTime || '')));
   const done = S.jobs.filter(j => isMobile(j) && mine(j) && ['Completed', 'Needs workshop'].includes((j.mobile || {}).status) && ((j.mobile.times || {}).completed || (j.mobile.times || {}).needsWorkshop || '').slice(0, 10) === today());
   const who = S.technicians.filter(t => t.active !== false);
   view().innerHTML = `<div class="page-head"><div><h1>📱 My jobs</h1><div class="sub">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · ${open.length} to do · ${done.length} done</div></div>
-      <div class="actions"><select class="inp" onchange="setFilter('myjobs','who',this.value)"><option value="all">Everyone</option>${who.map(t => `<option value="${t.id}" ${pick === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></div></div>
+      ${crew ? '' : `<div class="actions"><select class="inp" onchange="setFilter('myjobs','who',this.value)"><option value="all">Everyone</option>${who.map(t => `<option value="${t.id}" ${pick === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></div>`}</div>
+    ${crew && !me ? `<div class="card card-pad mb amber">Your login is not linked to a Technicians entry yet — ask the Owner to link it (Settings → Staff &amp; security).</div>` : ''}
+    ${shop.length ? `<h3 class="mb" style="font-size:15px">🔧 Workshop jobs</h3>${shop.map(j => { const v = vehicleOf(j) || {}; return `<div class="card card-pad mb row" onclick="go('#/job/${j.id}')" style="cursor:pointer">${plateTag(v)} <div class="grow"><b>${esc(j.number)}</b> · ${esc(vehicleLabel(v))}<div class="small muted">${esc((j.complaint || '').slice(0, 80))}</div></div>${pill(j.status)}</div>`; }).join('')}<h3 class="mb mt" style="font-size:15px">🚐 Mobile jobs</h3>` : ''}
     ${open.length ? open.map(crewCard).join('') : `<div class="card card-pad"><div class="empty"><div class="big">🎉</div>No open jobs${pick === 'all' ? '' : ' for you'} right now.</div></div>`}
     ${done.length ? `<h3 class="mt mb" style="font-size:15px">Done today</h3>${done.map(j => `<div class="card card-pad mb row" onclick="go('#/job/${j.id}')" style="cursor:pointer"><b>${esc(j.number)}</b> ${plateTag(vehicleOf(j))} <span class="grow muted small">${esc((j.mobile || {}).problem || '')}</span>${pill(j.mobile.status)} ${pill(jobTotals(j).status)}</div>`).join('')}` : ''}`;
 };
@@ -354,15 +357,15 @@ function crewCard(j) {
   return `<div class="card mb crew-card ${m.urgency === 'urgent' ? 'urgent' : ''}"><div class="card-pad">
     <div class="row" style="justify-content:space-between"><div><b style="font-size:17px">${esc(m.problem || 'Mobile service')}</b><div class="small muted">${esc(j.number)} · ${m.urgency === 'urgent' ? 'ASAP' : esc(`${fmtDate(m.prefDate)} ${m.prefTime || ''}`)}</div></div><div>${pill(st)} ${m.urgency === 'urgent' ? pill('Urgent') : ''}</div></div>
     <div class="mt-s">${plateTag(v)} <b>${esc(vehicleLabel(v))}</b></div>
-    <div class="mt-s">${esc(c.name || '')} · <a href="tel:+${waNumber(c.phone)}">${esc(c.phone || '')}</a></div>
+    <div class="mt-s">${esc(c.name || '')}${!isRestricted() || Auth.role().customerDetail === 'contact' ? ` · <a href="tel:+${waNumber(c.phone)}">${esc(c.phone || '')}</a>` : ''}</div>
     <div class="muted">${esc(locationText(m) || m.zone || '')}</div>
     ${m.eta && st === 'On the way' ? `<div class="small">ETA ${esc(m.eta)}</div>` : ''}
     <div class="crew-btns">
       ${next ? `<button class="btn primary lg" onclick="setMobileStatus('${j.id}',${jsq(next)})">${MOB_NEXT_LABEL[st]}</button>` : ''}
       ${map ? `<a class="btn lg" href="${esc(map)}" target="_blank" rel="noopener">🧭 Navigate</a>` : ''}
-      ${c.phone ? `<a class="btn lg" href="tel:+${waNumber(c.phone)}">📞 Call</a>` : ''}
+      ${c.phone && (!isRestricted() || Auth.role().customerDetail === 'contact') ? `<a class="btn lg" href="tel:+${waNumber(c.phone)}">📞 Call</a>` : ''}
       <button class="btn lg" onclick="go('#/job/${j.id}')">🔧 Job card</button>
-      ${inv && invoiceState(inv).balance > 0 && payLinkFor(inv) ? `<button class="btn lg" onclick="showPayQR(get('invoices','${inv.id}'))">▦ Pay QR</button>` : ''}
+      ${inv && !isRestricted() && invoiceState(inv).balance > 0 && payLinkFor(inv) ? `<button class="btn lg" onclick="showPayQR(get('invoices','${inv.id}'))">▦ Pay QR</button>` : ''}
     </div></div></div>`;
 }
 
@@ -382,7 +385,7 @@ PAGES.van = () => {
     `${vans.length > 1 ? `<select class="inp" onchange="setFilter('van','id',this.value)">${vans.map(v => `<option value="${v.id}" ${v.id === van.id ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select>` : ''}
      <button class="btn" onclick="vanTransfer('${van.id}','return')">↩ Return to workshop</button><button class="btn" onclick="vanCount('${van.id}')">📋 Count van stock</button><button class="btn primary" onclick="vanTransfer('${van.id}','load')">🔄 Load van</button>`) +
     `<div class="grid g4 mb"><div class="kpi"><div class="lbl">Parts on van</div><div class="val">${rows.filter(r => r.van > 0).length}</div></div>
-      <div class="kpi"><div class="lbl">Van stock value</div><div class="val">${money(rows.reduce((a, r) => a + r.van * num(r.p.cost), 0), false)}</div></div>
+      ${isRestricted() ? '' : `<div class="kpi"><div class="lbl">Van stock value</div><div class="val">${money(rows.reduce((a, r) => a + r.van * num(r.p.cost), 0), false)}</div></div>`}
       <div class="kpi"><div class="lbl">Used today</div><div class="val">${Object.values(usedToday).reduce((a, b) => a + b, 0)}</div></div>
       <div class="kpi link" onclick="vanTransfer('${van.id}','load',true)"><div class="lbl">To refill tonight</div><div class="val ${refill.length ? 'amber' : ''}">${refill.length}</div><div class="hint">below the van minimum</div></div></div>
     <div class="filters"><label class="small row"><input type="checkbox" ${getFilter('van', 'all') ? 'checked' : ''} onchange="setFilter('van','all',this.checked)"> show all parts (to set van minimums)</label></div>

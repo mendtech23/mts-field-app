@@ -2,10 +2,14 @@
 'use strict';
 
 const ROLES = {
-  owner: { label: 'Owner / Manager', pages: '*', finance: true },
-  advisor: { label: 'Service Advisor', pages: ['dashboard', 'lookup', 'search', 'checkin', 'bookings', 'quotes', 'quote', 'jobs', 'job', 'invoices', 'invoice', 'payments', 'customers', 'customer', 'vehicles', 'vehicle', 'reminders', 'parts', 'pos', 'po', 'suppliers', 'labour', 'packages', 'package', 'technicians', 'dispatch', 'myjobs', 'requests', 'van'], finance: false },
-  technician: { label: 'Technician', pages: ['dashboard', 'lookup', 'search', 'checkin', 'bookings', 'jobs', 'job', 'vehicles', 'vehicle', 'parts', 'myjobs', 'dispatch', 'van'], finance: false },
-  driver: { label: 'Driver', pages: ['myjobs', 'job', 'vehicle', 'lookup', 'search', 'van'], finance: false, home: 'myjobs' },
+  owner: { label: 'Owner', pages: '*', finance: true },
+  /* Manager: everything the Owner does except security, bank details, staff logins, backups and deleting data */
+  manager: { label: 'Manager', pages: '*', finance: true, hideTabs: ['staff', 'cloud', 'data'], noDiscountLimit: true },
+  advisor: { label: 'Service Advisor', pages: ['dashboard', 'lookup', 'search', 'checkin', 'bookings', 'quotes', 'quote', 'jobs', 'job', 'invoices', 'invoice', 'payments', 'customers', 'customer', 'vehicles', 'vehicle', 'reminders', 'parts', 'pos', 'po', 'suppliers', 'labour', 'packages', 'package', 'technicians', 'dispatch', 'myjobs', 'requests', 'van', 'followups', 'renewals', 'partners', 'partner'], finance: false },
+  /* Technician: own jobs only, customer name only, findings / check-in / inspection / photos — no parts, labour or prices */
+  technician: { label: 'Technician', pages: ['myjobs', 'job'], finance: false, home: 'myjobs', restricted: true, customerDetail: 'name' },
+  /* Driver: own mobile jobs only, customer name + phone + location, no prices */
+  driver: { label: 'Driver', pages: ['myjobs', 'job', 'van'], finance: false, home: 'myjobs', restricted: true, customerDetail: 'contact' },
 };
 
 /* PIN hashing, lockout and approvals live in security.js */
@@ -87,7 +91,7 @@ function staffSettingsHTML() {
         <button class="btn" style="align-self:flex-end" onclick="saveDiscountLimit()">Save</button></div></div>
     <div class="card"><div class="card-head"><h3>👥 Staff logins</h3><div class="actions"><button class="btn sm primary" onclick="editStaff()">＋ Add staff</button></div></div>
     <div class="card-pad muted small" style="padding-bottom:0">Once you add staff, the app asks “Who's working?” and a PIN every time it opens. Everything created is stamped with the person's name.
-      <b>Owner</b> sees everything. <b>Service Advisor</b>: front desk, MendTech Mobile dispatch, quotes, jobs, invoices, payments, stock — no profit reports, expenses, closing or settings. <b>Technician</b>: job cards, My jobs, dispatch, vehicles, stock, bookings. <b>Driver</b>: My jobs and van stock only, no prices.</div>
+      <b>Owner</b> sees everything. <b>Manager</b>: everything except staff logins, security, cloud, backups, bank details and deleting data. <b>Service Advisor</b>: front desk, MendTech Mobile dispatch, quotes, jobs, invoices, payments, stock, follow-ups — no profit reports, expenses, closing or settings. <b>Technician</b>: only their own job cards, customer name only, findings / check-in / inspection / photos — no parts, labour or prices. <b>Driver</b>: only their own mobile jobs (name, phone, location) and van stock, no prices.</div>
     ${table([{ h: 'Name', v: s => `<b>${esc(s.name)}</b>` }, { h: 'Role', v: s => esc((ROLES[s.role] || {}).label || s.role) }, { h: 'Status', v: s => s.active === false ? pill('Inactive') : pill('Active') }, { h: '', v: s => Auth.user && Auth.user.id === s.id ? pill('you', 'blue') : '' }],
       S.staff, { click: s => `editStaff('${s.id}')`, empty: 'No staff logins — anyone who opens the app has full access.' })}
     <div class="card-pad row"><div class="field"><label>Auto-lock after (minutes idle, 0 = never)</label><input class="inp" type="number" id="s_autoLockMinutes" value="${esc(S.settings.autoLockMinutes || 0)}" style="width:120px"></div>

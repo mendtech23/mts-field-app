@@ -139,6 +139,7 @@ function showPayQR(inv) {
 }
 
 const TEMPLATE_LABELS = {
+  followUp: 'Follow-up — recommended work not done', review: 'Google review request',
   quote: 'Quotation', invoice: 'Invoice', receipt: 'Payment receipt', ready: 'Vehicle ready for collection', jobUpdate: 'Job status update',
   serviceDue: 'Service due reminder', regExpiry: 'Registration expiring', insExpiry: 'Insurance expiring', payment: 'Payment reminder',
   inspection: 'Inspection results', thanks: 'Thank you / feedback',

@@ -35,13 +35,13 @@ const NAV = [
   { g: null, items: [['dashboard', '▦', 'Dashboard'], ['lookup', '⌕', 'Vehicle Lookup']] },
   { g: 'MendTech Mobile', items: [['dispatch', '🚐', 'Dispatch board', () => S.jobs.filter(j => isMobile(j) && MOBILE_OPEN.includes((j.mobile || {}).status || 'New')).length], ['myjobs', '📱', 'My jobs'], ['requests', '📥', 'Online requests', () => S.requests.filter(r => (r.status || 'New') === 'New').length], ['van', '🚚', 'Van stock']] },
   { g: 'Front desk', items: [['checkin', '＋', 'Check-in'], ['bookings', '📅', 'Bookings', () => S.bookings.filter(b => b.date === today() && ['Booked', 'Confirmed'].includes(b.status || 'Booked')).length], ['quotes', '✎', 'Quotations'], ['jobs', '🔧', 'Job Cards', () => S.jobs.filter(j => OPEN_JOB.includes(j.status)).length], ['invoices', '🧾', 'Invoices'], ['payments', '💳', 'Payments']] },
-  { g: 'Customers', items: [['customers', '👤', 'Customers'], ['vehicles', '🚗', 'Vehicles'], ['reminders', '🔔', 'Reminders', () => reminderList().length]] },
+  { g: 'Customers', items: [['customers', '👤', 'Customers'], ['vehicles', '🚗', 'Vehicles'], ['reminders', '🔔', 'Reminders & follow-ups', () => reminderList().length], ['followups', '📣', 'Campaigns'], ['renewals', '🪪', 'Registration renewals', () => typeof renewalsDue === 'function' ? renewalsDue() : 0], ['partners', '🤝', 'Partners']] },
   { g: 'Stock', items: [['parts', '📦', 'Parts & Stock', () => stockTable().filter(r => r.low).length], ['pos', '🚚', 'Purchase Orders'], ['suppliers', '🏭', 'Suppliers']] },
   { g: 'Setup', items: [['labour', '⏱', 'Labour Catalogue'], ['packages', '📦', 'Service Packages'], ['technicians', '👷', 'Technicians']] },
-  { g: 'Finance', items: [['expenses', '💸', 'Expenses'], ['reports', '📊', 'Reports & P&L'], ['closing', '🔒', 'Month-end closing']] },
+  { g: 'Finance', items: [['kpi', '📈', 'KPI dashboard'], ['expenses', '💸', 'Expenses'], ['reports', '📊', 'Reports & P&L'], ['closing', '🔒', 'Month-end closing']] },
   { g: null, items: [['settings', '⚙', 'Settings & Backup']] },
 ];
-const ROUTE_NAV = { vehicle: 'vehicles', customer: 'customers', quote: 'quotes', job: 'jobs', invoice: 'invoices', po: 'pos', search: 'lookup', package: 'packages' };
+const ROUTE_NAV = { partner: 'partners', vehicle: 'vehicles', customer: 'customers', quote: 'quotes', job: 'jobs', invoice: 'invoices', po: 'pos', search: 'lookup', package: 'packages' };
 function activeNavFor(name, args) { if (name === 'job') { const j = get('jobs', args[0]); if (isMobile(j)) return Auth.canPage('dispatch') ? 'dispatch' : 'myjobs'; } return null; }
 
 function renderNav() {
@@ -49,6 +49,7 @@ function renderNav() {
   const active = activeNavFor(name, rargs) || ROUTE_NAV[name] || name || 'dashboard';
   const pt = document.getElementById('previewTag'); if (pt) pt.hidden = !IS_PREVIEW;
   document.body.classList.toggle('role-driver', !!(typeof Auth !== 'undefined' && Auth.user && Auth.user.role === 'driver'));
+  document.body.classList.toggle('role-restricted', typeof isRestricted === 'function' && isRestricted());
   let h = '';
   const allowed = id => typeof Auth === 'undefined' || Auth.canPage(id);
   for (const grp of NAV) {
@@ -74,7 +75,7 @@ function renderNav() {
     (typeof Auth !== 'undefined' && Auth.user ? `<div class="side-user"><span class="av">${esc(Auth.user.name.slice(0, 1).toUpperCase())}</span><span class="grow">${esc(Auth.user.name)}<br><span class="faint">${esc(Auth.role().label)}</span></span><button class="btn sm dark" onclick="Auth.lock()" title="Lock / switch user">🔒</button></div>` : '') +
     (typeof Install !== 'undefined' && Install.prompt ? `<div><a class="warn" onclick="Install.run()">⬇ Install as app</a></div>` : '') +
     (typeof secUnread === 'function' && secCanSee() && secUnread() ? `<div><a class="warn" onclick="setFilter('settings','tab','staff');go('#/settings')">🚨 ${secUnread()} security alert${secUnread() > 1 ? 's' : ''} — click</a></div>` : '') +
-    (!hasData || cloudOk ? `<div>v${APP_VERSION}</div>` :
+    (!hasData || cloudOk || (typeof secCanSee === 'function' && !secCanSee()) ? `<div>v${APP_VERSION}</div>` :
       (lb == null || lb >= 7) ? `<span class="warn" onclick="setFilter('settings','tab','data');go('#/settings')">⚠ Backup ${lb == null ? 'never taken' : lb + ' days old'} — click</span>` :
         `Last backup: ${fmtDate(st.lastBackup)}`);
   if (typeof renderSyncBadge === 'function') renderSyncBadge();

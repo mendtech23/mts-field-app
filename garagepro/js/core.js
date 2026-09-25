@@ -1,19 +1,19 @@
 /* GaragePro — core: storage, data model, calculations */
 'use strict';
 
-const APP_VERSION = '3.2.0';
+const APP_VERSION = '3.3.0';
 const CFG = Object.assign({ mode: 'live', dbName: 'garagepro', supabaseUrl: '', supabaseKey: '', garageId: '' }, window.GP_CONFIG || {});
 const IS_PREVIEW = CFG.mode === 'preview';
 const COLLECTIONS = ['customers', 'vehicles', 'quotes', 'jobs', 'invoices', 'payments', 'parts',
   'purchaseOrders', 'suppliers', 'labour', 'technicians', 'expenses', 'messages', 'stockAdjustments',
-  'bookings', 'packages', 'staff', 'requests', 'secLog'];
+  'bookings', 'packages', 'staff', 'requests', 'secLog', 'campaigns', 'partners', 'renewals'];
 
 /* ---------- IndexedDB wrapper ---------- */
 const DB = {
   db: null,
   open() {
     return new Promise((resolve, reject) => {
-      const req = indexedDB.open(CFG.dbName, 5);   // v5: secLog store
+      const req = indexedDB.open(CFG.dbName, 6);   // v5: secLog · v6: campaigns, partners, renewals
       req.onupgradeneeded = () => {
         const d = req.result;
         for (const c of [...COLLECTIONS, 'meta']) if (!d.objectStoreNames.contains(c)) d.createObjectStore(c, { keyPath: 'id' });
@@ -157,6 +157,8 @@ const DEFAULT_SETTINGS = {
     mobileArrived: 'Dear {customer},\n\nOur {brand} technician {tech} has arrived at your location. See you shortly!\n{garagePhone}',
     mobileCompleted: 'Dear {customer},\n\nThe work on your {vehicle} {plate} is complete ({number}).\nTotal: {amount}\n\n{payInfo}\n\nThank you for choosing {brand}!\n{garagePhone}',
     needsWorkshop: 'Dear {customer},\n\nOur technician has checked your {vehicle} {plate}. This repair needs our workshop equipment, so we have booked it in at {garage}: {date} {time}.\n\nAddress: {address}\nWe can arrange recovery if needed — just reply.\n{garagePhone}',
+    followUp: 'Dear {customer},\n\nWhen we checked your {vehicle} ({plate}) on {date}, we recommended:\n{item}\n\nWould you like us to book this in? We can also come to you.\n{garagePhone}',
+    review: 'Dear {customer},\n\nThank you for choosing {garage}! If you are happy with the work on your {vehicle}, a quick Google review would help us a lot:\n{reviewLink}\n\nThank you!\n{garagePhone}',
     requestDeclined: 'Dear {customer},\n\nThank you for your request to {brand}. Unfortunately we cannot take this job at the requested time. Please reply with another time that suits you, or call us on {garagePhone}.\n\nSorry for the inconvenience.',
   },
   lastBackup: null,
@@ -165,6 +167,8 @@ const DEFAULT_SETTINGS = {
   security: { discountLimit: 10 },   // % discount staff may give without the Owner PIN
   secSeenAt: '',                     // security alerts read up to this time
   lastBackupEncrypted: false,
+  /* v3.3 services & offers — prices are placeholders until the Owner confirms them */
+  offers: { healthCheckFee: 49, ppiPrice: 299, renewalFee: 150, googleReviewLink: '', reviewAfterDays: 1, followUpDays: [7, 30, 90], reviewEveryMonths: 6 },
 };
 
 const JOB_STATUSES = ['Booked', 'In Progress', 'Awaiting Parts', 'Awaiting Approval', 'Ready', 'Delivered', 'Cancelled'];
@@ -496,7 +500,7 @@ function baseCtx(v, c) {
   return {
     customer: c ? c.name : 'Customer', plate: v ? v.plate : '', vehicle: vehicleLabel(v), vin: v ? v.vin : '',
     odometer: v ? fmtNum(currentOdo(v)) : '', garage: st.garageName, garagePhone: contactLine(), whatsapp: st.whatsapp || '', phone: st.phone || '',
-    bank: st.bankDetails || '', payInfo: payInfoText(null, ''), payLink: st.payStripeLink || '', brand: st.garageName,
+    bank: st.bankDetails || '', payInfo: payInfoText(null, ''), payLink: st.payStripeLink || '', brand: st.garageName, reviewLink: (st.offers || {}).googleReviewLink || '',
   };
 }
 /* Contact line used in messages and documents: calls + WhatsApp */
@@ -558,6 +562,10 @@ async function migrateSettings() {
     if (!st.docFooter || st.docFooter === 'Workshop 08:00–20:00 · Mobile 24/7 · Sharjah') st.docFooter = DEFAULT_SETTINGS.docFooter;
     st.mob.allDay = false;
     st.schema = 34; changed = true;
+  }
+  if (st.schema < 35) {   // v3.3: partner payments are recorded as expenses
+    if (!st.lists.expenseCategory.includes('Partner payments')) st.lists.expenseCategory.splice(Math.max(0, st.lists.expenseCategory.indexOf('Other')), 0, 'Partner payments');
+    st.schema = 35; changed = true;
   }
   if (changed) await saveSettings();
 }

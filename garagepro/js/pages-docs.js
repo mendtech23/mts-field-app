@@ -32,7 +32,7 @@ async function edDiscount(k, v) {
   const d = ED.doc;
   if (ED.kind === 'invoice' && guardClosed(d.date, 'This invoice')) return render();
   const pct = discountPct({ ...d, [k]: v });
-  if (pct > discountLimit() + 0.001 && pct > num(d.discountApproved) + 0.001) {
+  if (pct > discountLimit() + 0.001 && pct > num(d.discountApproved) + 0.001 && !Auth.role().noDiscountLimit) {
     const label = (KINDS[ED.kind] || { label: 'Package' }).label;
     const ok = await ownerApprove(`Discount of ${pct}% on ${label.toLowerCase()} ${d.number || d.name || ''} (limit without approval: ${discountLimit()}%)`);
     if (!ok) { toast('Discount not changed — needs Owner approval', 'err'); return render(); }
@@ -78,7 +78,7 @@ function itemsHTML() {
     <td class="del"><button class="icon-btn" style="font-size:15px" title="Remove" onclick="edDelItem(${i})">✕</button></td></tr>`).join('');
   return `<div class="tbl-wrap"><table class="tbl items-tbl"><thead><tr><th>Type</th><th>Description</th><th>Service item</th><th class="num">Qty / Hrs</th><th class="num">Rate</th><th class="num">Amount</th><th></th></tr></thead>
     <tbody>${rows || `<tr><td colspan="7" class="empty" style="padding:20px">No items yet — add parts and labour below.</td></tr>`}</tbody></table></div>
-    <div class="row mt-s">${ED.kind !== 'package' ? '<button class="btn" onclick="edAddPackage()">📦 ＋ Service package</button>' : ''}<button class="btn" onclick="edAddPart()">⚙ ＋ Part from stock</button><button class="btn" onclick="edAddLabour()">⏱ ＋ Labour operation</button><button class="btn" onclick="edAddCustom()">＋ Custom line</button></div>`;
+    <div class="row mt-s">${ED.kind !== 'package' ? '<button class="btn" onclick="edAddPackage()">📦 ＋ Service package</button>' : ''}<button class="btn" onclick="edAddPart()">⚙ ＋ Part from stock</button><button class="btn" onclick="edAddLabour()">⏱ ＋ Labour operation</button><button class="btn" onclick="edAddCustom()">＋ Custom line</button>${ED.kind !== 'package' ? '<button class="btn" onclick="edAddPartner()">🤝 ＋ Partner service</button>' : ''}</div>`;
 }
 function edTotalsHTML() {
   const d = ED.doc, t = calcDoc(d);
@@ -286,6 +286,7 @@ function drawJobs() {
 }
 PAGES.job = id => {
   const j = get('jobs', id); if (!j) { view().innerHTML = '<div class="empty">Job card not found.</div>'; return; }
+  if (isRestricted()) return crewJobPage(j);
   ED.kind = 'job'; ED.doc = j;
   const inv = jobInvoice(j);
   const techs = [['', '— unassigned —'], ...S.technicians.filter(t => t.active !== false || t.id === j.technicianId).map(t => [t.id, t.name])];
@@ -307,7 +308,7 @@ PAGES.job = id => {
       ${field('Customer ref / LPO', inpText('lpo', j.lpo))}${field('Fuel level in', selectHTML('fuelIn', ['', 'E', '¼', '½', '¾', 'F'], j.fuelIn))}
       ${field('Customer complaint / request', `<textarea oninput="edSet('complaint',this.value)">${esc(j.complaint || '')}</textarea>`, 'span2')}
       ${field('Diagnosis / work carried out', `<textarea oninput="edSet('diagnosis',this.value)">${esc(j.diagnosis || '')}</textarea>`, 'span2')}</div>`,
-    main: `<div id="ckBox">${checkinCardHTML(j)}</div>` + jobPhotosCardHTML(j) + `<div class="card mb"><div class="card-head"><h3>🔍 Multi-point inspection</h3><div class="actions" id="inspActions">${inspActionsHTML(j)}</div></div><div class="card-pad" id="inspBox">${inspectionHTML(j)}</div></div>`,
+    main: `<div id="ckBox">${checkinCardHTML(j)}</div>` + ppiCardHTML(j) + jobPhotosCardHTML(j) + `<div class="card mb"><div class="card-head"><h3>🔍 Multi-point inspection</h3><div class="actions" id="inspActions">${inspActionsHTML(j)}</div></div><div class="card-pad" id="inspBox">${inspectionHTML(j)}</div></div>`,
     side: jobSideHTML(j),
   });
   drawJobPhotos(j.id);
@@ -345,7 +346,7 @@ async function makeInvoiceFromJob(j) {
   if (isMobile(j)) applyCalloutRules(j);
   const inv = await save('invoices', {
     number: await nextNo('invoice'), date: today(), jobId: j.id, vehicleId: j.vehicleId, customerId: j.customerId, odometer: j.odometer, line: j.line || 'auto',
-    items: structuredClone(j.items || []), discount: j.discount, discountType: j.discountType, ...discountFields(j), vatRate: j.vatRate ?? S.settings.vatRate,
+    items: applyHealthCheckRule(structuredClone(j.items || [])), discount: j.discount, discountType: j.discountType, ...discountFields(j), vatRate: j.vatRate ?? S.settings.vatRate,
     workDone: j.diagnosis || (isMobile(j) ? (j.mobile || {}).problem || '' : ''), lpo: j.lpo || '', dueDate: addDays(today(), num(S.settings.invoiceDueDays)),
   });
   j.invoiceId = inv.id; await save('jobs', j);
@@ -363,18 +364,19 @@ async function syncInvoiceFromJob() {
   await edFlush();
   const j = ED.doc, inv = jobInvoice(j);
   if (!(await confirmBox(`Replace the items on ${inv.number} with the current items on this job card?`))) return;
-  Object.assign(inv, { items: structuredClone(j.items || []), discount: j.discount, discountType: j.discountType, ...discountFields(j), vatRate: j.vatRate, workDone: j.diagnosis || inv.workDone, odometer: j.odometer });
+  Object.assign(inv, { items: applyHealthCheckRule(structuredClone(j.items || [])), discount: j.discount, discountType: j.discountType, ...discountFields(j), vatRate: j.vatRate, workDone: j.diagnosis || inv.workDone, odometer: j.odometer });
   await save('invoices', inv); toast('Invoice updated', 'ok'); render();
 }
 
 /* inspection */
 function inspActionsHTML(j) {
   if (!(j.inspection || []).length) return '';
+  if (isRestricted()) return '<button class="btn sm" onclick="markAllOK()">Mark rest OK</button>';
   const fl = inspectionFlags(j);
-  return `${fl.length ? `<button class="btn sm wa" onclick="sendInspection()">Send results</button><button class="btn sm" onclick="quoteFromInspection()">Quote advisories</button>` : ''}<button class="btn sm" onclick="markAllOK()">Mark rest OK</button>`;
+  return `<button class="btn sm" onclick="previewCheckReport()">🖨 Report</button>${fl.length ? `<button class="btn sm wa" onclick="sendInspection()">Send results</button><button class="btn sm primary" onclick="quoteFromInspection()">Findings → quote</button>` : ''}<button class="btn sm" onclick="markAllOK()">Mark rest OK</button>`;
 }
 function inspectionHTML(j) {
-  if (!(j.inspection || []).length) return `<div class="row"><span class="muted grow">Record the condition of the car — anything marked Attention or Replace becomes an advisory on the job card and in the car's history.</span><button class="btn" onclick="startInspection()">Start ${S.settings.inspectionTemplate.length}-point inspection</button></div>`;
+  if (!(j.inspection || []).length) return `<div class="row"><span class="muted grow">Record the condition of the car — anything marked Attention or Replace becomes an advisory on the job card and in the car's history.</span><button class="btn primary" onclick="startInspection()">Start a check…</button></div>`;
   let h = '', cat = '';
   j.inspection.forEach((p, i) => {
     if (p.cat !== cat) { cat = p.cat; h += `<div class="insp-cat">${esc(cat)}</div>`; }
@@ -382,10 +384,10 @@ function inspectionHTML(j) {
       <input class="inp sm" placeholder="Reading / note" value="${esc(p.note || '')}" oninput="ED.doc.inspection[${i}].note=this.value;edChanged()"></div>`;
   });
   const done = j.inspection.filter(p => p.result).length;
-  return `<div class="small muted mb">${done} of ${j.inspection.length} checked · ${inspectionFlags(j).length} advisories</div>${h}`;
+  return `<div class="small muted mb"><b>${esc(checkLabel(j))}</b> · ${done} of ${j.inspection.length} checked · ${inspectionFlags(j).length} advisories</div>${h}`;
 }
 function drawInspection() { $('#inspBox').innerHTML = inspectionHTML(ED.doc); $('#inspActions').innerHTML = inspActionsHTML(ED.doc); }
-function startInspection() { ED.doc.inspection = S.settings.inspectionTemplate.map(([cat, point]) => ({ cat, point, result: '', note: '' })); edChanged(); drawInspection(); }
+/* startInspection(): see checks.js (choose full / health check / EV / pre-purchase) */
 function setInsp(i, r) { const p = ED.doc.inspection[i]; p.result = p.result === r ? '' : r; edChanged(); drawInspection(); }
 function markAllOK() { ED.doc.inspection.forEach(p => { if (!p.result) p.result = 'OK'; }); edChanged(); drawInspection(); }
 function sendInspection() {

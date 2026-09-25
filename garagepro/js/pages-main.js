@@ -14,6 +14,7 @@ const customerFields = () => [
   { k: 'address', label: 'Area / address', span: 2 },
   { k: 'trn', label: 'TRN (VAT no.)' },
   { k: 'contactPerson', label: 'Contact person' },
+  { k: 'noMarketing', label: 'No marketing messages (leave out of campaigns and follow-ups)', type: 'checkbox', span: 2 },
   { k: 'notes', label: 'Notes', type: 'textarea', span: 'all' },
 ];
 const vehicleFields = (withOwner = true) => [
