@@ -52,7 +52,7 @@
     const start = +(b.hoursStart || '08:00').slice(0, 2), end = +(b.hoursEnd || '20:00').slice(0, 2), wins = [];
     for (let h = start; h + 2 <= end; h += 2) wins.push(`${String(h).padStart(2, '0')}:00–${String(h + 2).padStart(2, '0')}:00`);
     $('#win').innerHTML = wins.map(w => `<option>${w}</option>`).join('');
-    $('#hoursNote').textContent = b.allDay ? 'We operate 24/7.' : `Working hours ${b.hoursStart}–${b.hoursEnd}. Urgent calls outside these hours may carry an after-hours charge.`;
+    $('#hoursNote').textContent = b.allDay ? 'We operate 24/7.' : `Working hours ${b.hoursStart}–${b.hoursEnd}. Outside these hours we run a 24/7 emergency service at an extra charge.`;
     $('#locCard').classList.toggle('hidden', type !== 'mobile');
     $('#urgRow').classList.toggle('hidden', type !== 'mobile');
     if (type !== 'mobile') { urgency = 'scheduled'; }

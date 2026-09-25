@@ -79,7 +79,7 @@ const DEFAULT_SETTINGS = {
   wioBank: 'Wio Bank',
   wioLink: '',
   tagline: 'Auto Repair & Service Centre',
-  address: 'Al Quoz Industrial 3, Dubai, UAE',
+  address: 'Industrial Area 2, Sharjah, UAE',
   phone: '+971 55 957 4148',        // calls
   whatsapp: '+971 52 233 8499',     // all WhatsApp enquiries and app messages
   mobile: '',
@@ -91,12 +91,12 @@ const DEFAULT_SETTINGS = {
   vatRate: 5,
   labourRate: 120,
   countryCode: '971',
-  quoteValidDays: 14,
+  quoteValidDays: 7,
   invoiceDueDays: 0,
   bankDetails: 'Bank: \nAccount Name: \nIBAN: ',
   quoteTerms: 'Prices in AED. Quote valid for {validDays} days.\nWork starts only after customer approval.\nAny extra work found during repair will be quoted separately before we proceed.\nParts warranty as per manufacturer; labour warranty 30 days.',
   invoiceTerms: 'Labour warranty 30 days from invoice date. Keep this invoice for warranty claims.',
-  docFooter: 'Workshop 08:00–20:00 · Mobile 24/7 · Sharjah',   // bottom-right line on every document
+  docFooter: 'Workshop & Mobile 08:00–20:00 · 24/7 emergency (extra charge) · Sharjah',   // bottom-right line on every document
   prefixes: { quote: 'QT-', job: 'JC-', mjob: 'MJ-', invoice: 'INV-', receipt: 'RC-', po: 'PO-', customer: 'C-', vehicle: 'V-', part: 'P-', supplier: 'S-', labour: 'L-', tech: 'T-' },
   counters: { quote: 0, job: 0, mjob: 0, invoice: 0, receipt: 0, po: 0, customer: 0, vehicle: 0, part: 0, supplier: 0, labour: 0, tech: 0 },
   lists: {
@@ -551,6 +551,13 @@ async function migrateSettings() {
     if (st.quoteTerms === 'Prices valid for the period shown. Additional work found during repair will be quoted separately before proceeding.') st.quoteTerms = DEFAULT_SETTINGS.quoteTerms;
     if (st.invoiceTerms === 'Thank you for your business. Parts warranty as per manufacturer. Labour warranty 30 days / 1,000 km.') st.invoiceTerms = DEFAULT_SETTINGS.invoiceTerms;
     st.schema = 33; changed = true;
+  }
+  if (st.schema < 34) {   // v3.2: owner's answers — Sharjah address, quotes valid 7 days, 08:00–20:00 + paid 24/7 emergency
+    if (!st.address || /Al Quoz/i.test(st.address)) st.address = DEFAULT_SETTINGS.address;
+    if (num(st.quoteValidDays) === 14) st.quoteValidDays = 7;
+    if (!st.docFooter || st.docFooter === 'Workshop 08:00–20:00 · Mobile 24/7 · Sharjah') st.docFooter = DEFAULT_SETTINGS.docFooter;
+    st.mob.allDay = false;
+    st.schema = 34; changed = true;
   }
   if (changed) await saveSettings();
 }

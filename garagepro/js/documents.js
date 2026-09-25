@@ -33,7 +33,7 @@ function brandPhones() {
   return [st.phone, st.whatsapp, st.mobile].filter(Boolean).filter(p => { const k = p.replace(/\D/g, '').slice(-9); if (seen.has(k)) return false; seen.add(k); return true; }).join(' · ');
 }
 const brandContact = () => [brandPhones(), S.settings.email].filter(Boolean).join(' · ');
-const brandFooterNote = () => S.settings.docFooter || 'Workshop 08:00–20:00 · Mobile 24/7 · Sharjah';
+const brandFooterNote = () => S.settings.docFooter || DEFAULT_SETTINGS.docFooter;
 /* numbered terms: one per line; placeholders {validDays} */
 function brandTerms(txt) {
   return String(txt || '').replace(/\{validDays\}/g, num(S.settings.quoteValidDays) || 14).split('\n').map(l => l.trim()).filter(Boolean)
@@ -542,7 +542,7 @@ function letterheadHTML() {
     <div class="bd-rule" style="margin-top:22px"><i></i><i></i></div>
     <div class="bd-lh-ref"><span>Ref:</span><span>Date:</span></div>
     <div class="bd-grow"></div>
-    <div class="bd-lh-foot"><span><b class="a">AUTO</b> Workshop ${esc(st.workshopHours || '08:00–20:00')} <b class="m">MOBILE</b> ${st.mob.allDay ? '24/7 breakdown' : esc(st.mob.hoursStart + '–' + st.mob.hoursEnd)}</span><span>TRN: ${st.trn ? esc(st.trn) : '____________'}</span></div>
+    <div class="bd-lh-foot"><span><b class="a">AUTO</b> Workshop ${esc(st.workshopHours || '08:00–20:00')} <b class="m">MOBILE</b> ${st.mob.allDay ? '24/7 breakdown' : esc(st.mob.hoursStart + '–' + st.mob.hoursEnd) + ' · 24/7 emergency (extra charge)'}</span><span>TRN: ${st.trn ? esc(st.trn) : '____________'}</span></div>
     <div class="bd-bar"><i></i><i></i><i></i></div>`, 'letterhead');
 }
 async function letterheadPDF() {
@@ -556,7 +556,7 @@ async function letterheadPDF() {
   B.font('semi', 9.5, BRAND.goldInk, 0.3); B.txt('AUTO', x, fy); x += pdf.getTextWidth('AUTO') + 2.4; pdf.setCharSpace(0);
   B.font('reg', 9.5, BRAND.mute); const w1 = `Workshop ${st.workshopHours || '08:00–20:00'}`; B.txt(w1, x, fy); x += pdf.getTextWidth(w1) + 6;
   B.font('semi', 9.5, BRAND.orange, 0.3); B.txt('MOBILE', x, fy); x += pdf.getTextWidth('MOBILE') + 3; pdf.setCharSpace(0);
-  B.font('reg', 9.5, BRAND.mute); B.txt(st.mob.allDay ? '24/7 breakdown' : `${st.mob.hoursStart}–${st.mob.hoursEnd}`, x, fy);
+  B.font('reg', 9.5, BRAND.mute); B.txt(st.mob.allDay ? '24/7 breakdown' : `${st.mob.hoursStart}–${st.mob.hoursEnd} · 24/7 emergency (extra charge)`, x, fy);
   B.txt('TRN: ' + (st.trn || '____________'), K.R, fy, { align: 'right' });
   return new File([pdf.output('blob')], 'mendtech_letterhead.pdf', { type: 'application/pdf' });
 }
