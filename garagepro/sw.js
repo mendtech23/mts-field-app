@@ -1,10 +1,10 @@
 /* GaragePro service worker — makes the online version work offline and installable */
-const CACHE = 'garagepro-v3.3.0';
+const CACHE = 'garagepro-v3.4.0';
 const FILES = [
   './', './index.html', './book.html', './manifest.webmanifest', './css/app.css', './lib/qrcode.min.js',
   './js/config.js', './js/book.js', './js/mobile.js', './js/requests.js', './js/core.js', './js/icon-paths.js', './js/icons.js', './js/ui.js', './js/documents.js', './js/share.js', './js/pages-main.js', './js/pages-docs.js',
   './js/pages-stock.js', './js/pages-admin.js', './js/photos.js', './js/prints.js', './js/finance.js', './js/pro.js',
-  './js/security.js', './js/crew.js', './js/checks.js', './js/followups.js', './js/renewals.js', './js/partners.js', './js/kpi.js', './js/auth.js', './js/sync.js', './js/app.js',
+  './js/security.js', './js/crew.js', './js/checks.js', './js/followups.js', './js/renewals.js', './js/partners.js', './js/kpi.js', './js/auth.js', './js/cloud.js', './js/sync.js', './js/app.js',
   './lib/jspdf.umd.min.js', './lib/jspdf.plugin.autotable.min.js', './lib/xlsx.full.min.js', './lib/supabase.js',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png', './icons/favicon.ico',
   './lib/pdf-fonts.js', './lib/brand-assets.js',

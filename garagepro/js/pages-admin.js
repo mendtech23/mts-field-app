@@ -243,7 +243,7 @@ async function saveSettingsForm(keys) {
   for (const k of keys) { const el = $('#s_' + k); if (el) vals[k] = el.type === 'number' ? num(el.value) : el.value.trim(); }
   // where customers send money: always needs the Owner PIN, even when the Owner is signed in
   const payChanged = Object.keys(vals).filter(k => PAY_KEYS[k] && String(vals[k] ?? '') !== String((k === 'bankDetails' ? pastedBankDetails() : S.settings[k]) ?? ''));
-  if (payChanged.length && !(await ownerApprove(`Change payment details: ${payChanged.map(k => PAY_KEYS[k]).join(', ')}`, { always: true, level: 'alert' }))) return toast('Nothing saved — payment details need the Owner PIN', 'err');
+  if (payChanged.length && !(await ownerApprove(`Change payment details: ${payChanged.map(k => PAY_KEYS[k]).join(', ')}`, { always: true, level: 'alert', action: 'bank_details', target: 'settings' }))) return toast('Nothing saved — payment details need the Owner PIN', 'err');
   Object.assign(S.settings, vals);
   await saveSettings(); toast('Settings saved', 'ok'); render();
 }

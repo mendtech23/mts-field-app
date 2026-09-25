@@ -41,7 +41,7 @@ r = await rpc(O, 'whoami'); ok(r.data.role === 'owner' && r.data.is_garage_login
 r = await rpc(O, 'claim_owner'); r = await rpc(O, 'whoami'); ok(r.data.role === 'owner' && !r.data.is_garage_login && r.data.name === 'Owner', 'claim_owner registers the Owner as a member', r.data);
 r = await rpc(O, 'device_hello', { p_label: 'Owner PC', p_ua: 'test' }); ok(r.data && r.data.revoked === false, 'owner device registered', r.data);
 
-const settings = { garageName: 'mendtech.', security: { discountLimit: 10 }, bankDetails: 'IBAN AE00 1111', closedMonths: { '2026-08': true }, counters: { invoice: 5 }, vatRate: 5, phone: '0500000000', quoteValidDays: 7 };
+const settings = { garageName: 'mendtech.', security: { discountLimit: 10 }, bankDetails: 'IBAN AE00 1111', closedMonths: { '2026-08': true }, counters: { invoice: 5 }, vatRate: 5, phone: '0500000000', quoteValidDays: 7, offers: { healthCheckFee: 49, ppiPrice: 299 } };
 const items = [{ type: 'labour', desc: 'Service', qty: 1, rate: 1000, cost: 0 }];
 const token = crypto.randomBytes(18).toString('base64url');
 r = await upsert(O, [
@@ -102,6 +102,10 @@ r = await upsert(A.t, [{ ...q2, data: { ...q2.data, discount: 15 } }]); ok(/APPR
 r = await upsert(A.t, [{ ...q2, data: { ...q2.data, discount: 200, discountType: 'amt' } }]); ok(/APPROVAL_NEEDED/.test(msg(r)), 'advisor AED 200 off 1000 (20 %) → needs approval', r.data);
 r = await upsert(M.t, [{ ...q2, data: { ...q2.data, discount: 15 } }]); ok(r.status === 200, 'manager 15 % discount → allowed (no limit)', r.data);
 r = await upsert(A.t, [rec('quotes', 'q3', { number: 'Q-3', items, discount: 30 })]); ok(/APPROVAL_NEEDED/.test(msg(r)), 'new quote with 30 % → needs approval', r.data);
+const q2m = (await read(O, '&coll=eq.quotes&id=eq.q2')).data[0].data;
+r = await upsert(A.t, [rec('jobs', 'j9', { number: 'J-9', quoteId: 'q2', items, discount: 15 })]); ok(r.status === 200, 'job made from the approved 15 % quote keeps its discount', r.data);
+r = await upsert(A.t, [rec('invoices', 'i9', { number: 'INV-9', jobId: 'j9', items, discount: 15 })]); ok(r.status === 200, '… and so does its invoice', r.data);
+r = await upsert(A.t, [rec('invoices', 'i10', { number: 'INV-10', jobId: 'j9', items, discount: 25 })]); ok(/APPROVAL_NEEDED/.test(msg(r)), 'but a bigger discount still needs approval', r.data);
 const st = (await read(O, '&coll=eq.settings')).data[0];
 r = await upsert(A.t, [{ ...st, data: { ...st.data, phone: '0509999999' } }]); ok(r.status >= 400 && /Advisors cannot/.test(msg(r)), 'advisor cannot change settings', r.data);
 r = await upsert(A.t, [{ ...st, data: { ...st.data, counters: { invoice: 6 }, updatedAt: now() } }]); ok(r.status === 200, 'advisor can bump document counters', r.data);
@@ -139,6 +143,11 @@ r = await rpc(T.t, 'crew_push', { p_rows: [{ coll: 'jobs', id: 'j1', data: { sta
 ok(r.data.ok === 1 && r.data.rejected.length === 3, 'push: 1 accepted, 3 rejected', r.data);
 let j1 = (await read(O, '&coll=eq.jobs&id=eq.j1')).data[0].data;
 ok(j1.status === 'Ready' && j1.diagnosis === 'Worn pads' && j1.items[0].rate === 1000 && j1.discount === 0 && j1.customerId === 'c1', 'only allowed fields changed (prices untouched)', j1);
+r = await rpc(T.t, 'crew_push', { p_rows: [{ coll: 'jobs', id: 'j1', data: { inspectionType: 'health20', items: [{ type: 'labour', desc: 'x', qty: 1, rate: 0, hc: true }, { desc: 'free stuff', rate: 1 }] } }] });
+j1 = (await read(O, '&coll=eq.jobs&id=eq.j1')).data[0].data;
+ok(j1.items.length === 2 && j1.items[1].hc && j1.items[1].rate === 49 && j1.inspectionType === 'health20', 'health check line added at the garage price (not the phone\'s)', j1.items);
+r = await rpc(T.t, 'crew_push', { p_rows: [{ coll: 'jobs', id: 'j1', data: { items: [{ hc: true, rate: 0 }] } }] });
+ok((await read(O, '&coll=eq.jobs&id=eq.j1')).data[0].data.items.length === 2, 'added only once');
 r = await rpc(T.t, 'crew_push', { p_rows: [{ coll: 'jobs', id: 'j1', data: { status: 'Delivered' } }] }); ok(r.data.rejected.length === 1, 'technician cannot mark Delivered', r.data);
 r = await rpc(T.t, 'crew_push', { p_rows: [{ coll: 'photos', id: 'ph3', data: { id: 'ph3', jobId: 'j1', data: 'img3' } }, { coll: 'photos', id: 'ph4', data: { id: 'ph4', jobId: 'j2', data: 'x' } }] });
 ok(r.data.ok === 1 && r.data.rejected.length === 1, 'photo only on own job', r.data);

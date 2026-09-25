@@ -573,3 +573,11 @@ body.role-restricted #topbar::before { content: ''; flex: 1; }
 .kb path { transition: opacity .12s; } .kb.on path { opacity: .75; }
 .kpi-tip { position: absolute; z-index: 5; background: var(--panel); border: 1px solid var(--line2); border-radius: 8px; padding: 7px 10px; font-size: 12px; box-shadow: 0 6px 18px rgba(18,32,54,.15); pointer-events: none; width: 170px; }
 @media (prefers-reduced-motion: reduce) { .kb path { transition: none; } }
+
+/* ---------- v3.4 Security Level 2: sign-in, code and lock screens ---------- */
+.lock-card .field { margin-bottom: 10px; }
+.lock-card .field label { display: block; margin-bottom: 4px; }
+.lock-err { color: var(--red, #c62828); min-height: 18px; margin: 6px 0 8px; }
+.lock-note { background: var(--amberSoft, #fef3c7); color: #7a4b00; border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-bottom: 12px; }
+.av.lg { width: 56px; height: 56px; font-size: 24px; margin: 0 auto; }
+#clSec .alert-row, #l2wiz .alert-row { align-items: center; }

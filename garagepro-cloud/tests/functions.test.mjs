@@ -48,7 +48,7 @@ ok(!!O, 'owner now at password + code');
 
 console.log('\n2. Staff admin');
 const u1 = 'sam' + run.slice(-4), u2 = 'ravi' + run.slice(-4);
-r = await fn('staff-admin', { action: 'create', username: u1, name: 'Sam', role: 'advisor', password: 'Sam12345' }, O); ok(r.status === 200 && r.data.role === 'advisor' && r.data.username === u1, 'create advisor login', r.data);
+r = await fn('staff-admin', { action: 'create', username: u1, name: 'Sam', title: 'Front desk', role: 'advisor', password: 'Sam12345' }, O); ok(r.status === 200 && r.data.title === 'Front desk' && r.data.role === 'advisor' && r.data.username === u1, 'create advisor login', r.data);
 const samId = r.data.user_id;
 r = await fn('staff-admin', { action: 'create', username: u2.toUpperCase(), name: 'Ravi', role: 'technician', tech_id: 't1', password: 'Ravi12345' }, O); ok(r.status === 200 && r.data.username === u2, 'create technician (username stored lower-case)', r.data);
 const raviId = r.data.user_id;

@@ -35,14 +35,31 @@ const Sync = {
   get enabled() { return !!(this.cfg.url && this.cfg.key && this.cfg.enabled); },
 
   async init() {
-    if (IS_PREVIEW) { this.cfg = {}; this.setStatus('preview'); return; }   // preview never touches the real cloud
+    // preview never touches the real cloud; it may use its own test project (config: previewCloud: true)
+    if (IS_PREVIEW && !CFG.previewCloud) { this.cfg = {}; this.setStatus('preview'); return; }
     this.loadCfg();
-    if (!this.enabled) { this.setStatus('off'); return; }
+    if (Cloud.accounts && this.cfg.url && this.cfg.key) this.cfg.enabled = true;
+    const probe = !this.enabled && !!(this.cfg.url && this.cfg.key && CFG.garageId);   // new device of a known garage
+    if (!this.enabled && !probe) { this.setStatus('off'); return; }
     try {
       await this.connect();
       const { data } = await this.client.auth.getSession();
       this.user = data && data.session ? data.session.user : null;
-      if (!this.user) { this.setStatus('signed-out'); return; }
+      if (!this.user && !Cloud.accounts && CFG.garageId) {   // a new device: has the garage switched personal logins on?
+        try { const { data: mode } = await this.client.rpc('garage_mode', { p_garage: CFG.garageId }); if (mode === 'accounts') { lsSet('gp_accounts', '1'); this.cfg.enabled = true; this.saveCfg(); } } catch (e) { }
+      }
+      if (!this.user) { this.setStatus(this.enabled || Cloud.accounts ? 'signed-out' : 'off'); if (Cloud.accounts) { Cloud.me = null; Cloud.keep(); Auth.user = null; render(); } return; }
+      // Security Level 2: who am I on the server?
+      const wasAccounts = Cloud.accounts;
+      try { await Cloud.refresh(); } catch (e) { console.warn('whoami', e.message); }   // offline: keep the cached answer
+      if (Cloud.accounts) {
+        if (Cloud.me && !Cloud.me.role) return Cloud.revoked('Your login was switched off by the Owner.');
+        if (Cloud.me && Cloud.me.session_ok === false) return Cloud.revoked('This device was signed out by the Owner.');
+        if (!wasAccounts || Cloud.needsCode()) { Auth.user = null; ssDel('gp_unlocked'); document.getElementById('lockScreen')?.remove(); render(); if (Cloud.needsCode()) return; }   // the changeover just happened here
+        if (await Cloud.ensureScope()) render();
+        if (!Auth.user) return;   // start after the person unlocks / signs in (Cloud.begin)
+        Cloud.hello();
+      }
       this.start();
     } catch (e) { this.setStatus('error', e.message); }
   },
@@ -53,11 +70,16 @@ const Sync = {
   start() {
     this.setStatus('ready');
     this.syncNow();
-    clearInterval(this.interval);
+    clearInterval(this.interval); clearInterval(this.beat);
     this.interval = setInterval(() => this.syncNow(), 60000);
-    window.addEventListener('online', () => this.syncNow());
-    window.addEventListener('offline', () => this.setStatus('offline'));
+    if (Cloud.accounts) this.beat = setInterval(() => Cloud.heartbeat(), 5 * 60000);
+    if (!this.listening) {
+      this.listening = true;
+      window.addEventListener('online', () => this.syncNow());
+      window.addEventListener('offline', () => this.setStatus('offline'));
+    }
   },
+  stop() { clearInterval(this.interval); clearInterval(this.beat); clearTimeout(this.timer); this.interval = this.beat = null; this.setStatus('signed-out'); },
   async signIn(email, password, create) {
     if (!this.client) await this.connect();
     const fn = create ? this.client.auth.signUp.bind(this.client.auth) : this.client.auth.signInWithPassword.bind(this.client.auth);
@@ -65,6 +87,8 @@ const Sync = {
     if (error) throw error;
     if (!data.session) throw new Error('Account created — confirm the email Supabase sent you (or switch off “Confirm email” in Supabase → Authentication → Providers → Email), then sign in.');
     this.user = data.session.user; this.cfg.email = email; this.cfg.enabled = true; this.saveCfg();
+    try { await Cloud.refresh(); } catch (e) { }   // is the cloud ready for Security Level 2?
+    if (Cloud.accounts) return this.init();
     this.start();
   },
   async signOut() {
@@ -72,7 +96,7 @@ const Sync = {
     this.user = null; clearInterval(this.interval); this.setStatus('signed-out');
   },
   markDirty() {
-    if (!this.enabled || !this.user) return;
+    if (!this.enabled || !this.user || !this.interval) return;
     clearTimeout(this.timer);
     this.timer = setTimeout(() => this.syncNow(), 2500);
   },
@@ -86,6 +110,9 @@ const Sync = {
     if (this.busy) { this.again = true; return; }
     this.busy = true; this.setStatus('syncing');
     try {
+      // still on the shared garage login: notice the moment the Owner switches personal logins on
+      if (!Cloud.accounts && Cloud.level2) { await Cloud.refresh().catch(() => null); if (Cloud.accounts) { this.busy = false; Auth.user = null; ssDel('gp_user'); return this.init(); } }
+      if (Cloud.crew) { const n = await crewSync(); this.lastSync = new Date(); this.setStatus('synced'); if (n) this.afterPull(); return; }
       const changed = await this.pull();
       await this.push();
       if (typeof pullOnlineRequests === 'function') await pullOnlineRequests();
@@ -93,6 +120,7 @@ const Sync = {
       if (changed) this.afterPull();
     } catch (e) {
       console.warn('sync', e);
+      if (/JWT|refresh token|not authenticated|session/i.test(e.message || '') && Cloud.accounts) { const { data } = await this.client.auth.getSession(); if (!data || !data.session) { await Cloud.forget(); showCloudLogin('Please sign in again.'); return; } }
       this.setStatus('error', e.message || String(e));
     } finally {
       this.busy = false;
@@ -122,6 +150,7 @@ const Sync = {
       if ((S.settings.updatedAt || '') >= (data.updatedAt || '')) return false;
       S.settings = mergeDeep(structuredClone(DEFAULT_SETTINGS), data);
       await DB.put('meta', S.settings);
+      await DB.put('meta', { id: 'settingsBase', data });
       if ((S.settings.schema || 0) < 21) setTimeout(migrateSettings, 0);   // settings came from an older version
       return true;
     }
@@ -143,16 +172,30 @@ const Sync = {
   },
 
   /* ---- upload changes made on this device ---- */
+  /* the garage's rows (Level 2: every login writes into the garage, not its own account) */
+  get owner() { return (Cloud.me && Cloud.me.garage_id) || this.user.id; },
+  /* collections this login may upload (the database refuses the rest anyway) */
+  canPush(c) {
+    const r = Cloud.accounts ? Cloud.role : 'owner';
+    if (r === 'owner') return true;
+    if (['staff', 'secLog'].includes(c)) return false;
+    return !(r === 'advisor' && c === 'expenses');
+  },
+  async pendingCount() {
+    const since = ((await this.meta('sync')) || {}).lastPush || '';
+    let n = 0; for (const c of COLLECTIONS) if (this.canPush(c)) n += S[c].filter(r => (r.updatedAt || '') > since).length;
+    return n + (((await this.meta('tombs')) || {}).list || []).length;
+  },
   async push() {
     const st = (await this.meta('sync')) || { id: 'sync' };
     const since = st.lastPush || '';
     const started = new Date().toISOString();
     const rows = [];
-    const owner = this.user.id;
-    for (const c of COLLECTIONS) for (const r of S[c]) if ((r.updatedAt || '') > since) rows.push({ owner, coll: c, id: r.id, data: r, deleted: false, updated_at: r.updatedAt });
-    if ((S.settings.updatedAt || '') > since) rows.push({ owner, coll: 'settings', id: 'settings', data: S.settings, deleted: false, updated_at: S.settings.updatedAt });
+    const owner = this.owner;
+    for (const c of COLLECTIONS) if (this.canPush(c)) for (const r of S[c]) if ((r.updatedAt || '') > since) rows.push({ owner, coll: c, id: r.id, data: r, deleted: false, updated_at: r.updatedAt });
+    if ((S.settings.updatedAt || '') > since) await this.pushSettings(owner);
     const tombs = (await this.meta('tombs')) || { id: 'tombs', list: [] };
-    for (const t of tombs.list) rows.push({ owner, coll: t.coll, id: t.id, data: null, deleted: true, updated_at: t.at });
+    for (const t of tombs.list) if (this.canPush(t.coll)) rows.push({ owner, coll: t.coll, id: t.id, data: null, deleted: true, updated_at: t.at });
     for (let i = 0; i < rows.length; i += 200) await this.upsert(rows.slice(i, i + 200));
     // photos: larger, send in small batches
     const photos = (await DB.all('photos')).filter(p => (p.updatedAt || p.date || '') > since);
@@ -168,7 +211,70 @@ const Sync = {
   async upsert(rows) {
     if (!rows.length) return;
     const { error } = await this.client.from('records').upsert(rows, { onConflict: 'owner,coll,id' });
+    if (!error) return;
+    if (!isRefusal(error)) throw error;
+    // the server refused something (e.g. a void without the Owner's approval): send one by one, undo only the refused ones
+    if (rows.length === 1) return this.refused(rows[0], error);
+    for (const r of rows) {
+      const { error: e } = await this.client.from('records').upsert([r], { onConflict: 'owner,coll,id' });
+      if (e) { if (isRefusal(e)) await this.refused(r, e); else throw e; }
+    }
+  },
+  /* a refused change is undone on this device: the cloud copy comes back (or a refused new record goes away) */
+  async refused(row, err) {
+    console.warn('refused', row.coll, row.id, err.message);
+    const { data } = await this.client.from('records').select('coll,id,data,deleted,updated_at').eq('owner', row.owner).eq('coll', row.coll).eq('id', row.id).limit(1);
+    const srv = data && data[0], local = row.coll === 'photos' ? null : get(row.coll, row.id);
+    if (row.coll !== 'photos' && COLLECTIONS.includes(row.coll)) {
+      if (srv && !srv.deleted && srv.data) { const i = S[row.coll].findIndex(x => x.id === row.id); if (i >= 0) S[row.coll][i] = srv.data; else S[row.coll].push(srv.data); await DB.put(row.coll, srv.data); }
+      else { S[row.coll] = S[row.coll].filter(x => x.id !== row.id); await DB.del(row.coll, row.id); }
+      if (typeof ED !== 'undefined' && ED.doc && ED.doc.id === row.id) ED.doc = get(row.coll, row.id);
+    }
+    const what = `${(COLL_LABEL[row.coll] || row.coll).toLowerCase()} ${(local || (srv && srv.data) || {}).number || (local || (srv && srv.data) || {}).name || ''}`.trim();
+    const why = /APPROVAL_NEEDED/.test(err.message) ? 'it needs the Owner\'s approval' : /row-level|permission/i.test(err.message) ? 'your login is not allowed to change it' : err.message.replace(/^[A-Z_]+: /, '');
+    toast(`Not saved: ${what} — ${why}. Undone on this device.`, 'err');
+    this.refusedAny = true;
+  },
+  /* settings are one shared record: send only what this device changed, on top of the latest cloud copy.
+     Staff other than the Manager only move the document numbers forward. */
+  async pushSettings(owner) {
+    const base = ((await this.meta('settingsBase')) || {}).data || null;
+    const { data: rows, error } = await this.client.from('records').select('data').eq('owner', owner).eq('coll', 'settings').eq('id', 'settings').limit(1);
     if (error) throw error;
+    const server = rows && rows[0] && rows[0].data, local = S.settings, J = JSON.stringify;
+    const role = Cloud.accounts ? Cloud.role : 'owner', full = role === 'owner' || role === 'manager';
+    let merged;
+    if (!server) merged = structuredClone(local);
+    else {
+      merged = structuredClone(server);
+      if (full) for (const k of Object.keys(local)) {
+        if (k === 'counters' || k === 'updatedAt' || k === 'id') continue;
+        const mine = base ? J(local[k]) !== J(base[k]) : (local.updatedAt || '') > (server.updatedAt || '');
+        if (mine && J(local[k]) !== J(server[k])) merged[k] = structuredClone(local[k]);
+      }
+      merged.counters = { ...(server.counters || {}) };
+      for (const [k, v] of Object.entries(local.counters || {})) merged.counters[k] = Math.max(num(v), num(merged.counters[k]));
+    }
+    const changed = !server || J({ ...merged, updatedAt: 0 }) !== J({ ...server, updatedAt: 0 });
+    if (changed) {
+      merged.updatedAt = new Date().toISOString();
+      const { error: e } = await this.client.from('records').upsert([{ owner, coll: 'settings', id: 'settings', data: merged, deleted: false, updated_at: merged.updatedAt }], { onConflict: 'owner,coll,id' });
+      if (e) {
+        if (!isRefusal(e)) throw e;
+        const why = /APPROVAL_NEEDED/.test(e.message) ? 'needs the Owner\'s approval' : e.message.replace(/^[A-Z_]+: /, '');
+        toast(`Settings change not saved — ${why}. Undone on this device.`, 'err');
+        merged = structuredClone(server); merged.counters = { ...(server.counters || {}) };
+        for (const [k, v] of Object.entries(local.counters || {})) merged.counters[k] = Math.max(num(v), num(merged.counters[k]));
+        if (J(merged.counters) !== J(server.counters || {})) {
+          merged.updatedAt = new Date().toISOString();
+          const { error: e2 } = await this.client.from('records').upsert([{ owner, coll: 'settings', id: 'settings', data: merged, deleted: false, updated_at: merged.updatedAt }], { onConflict: 'owner,coll,id' });
+          if (e2) throw e2;
+        } else merged = server;
+      }
+    }
+    S.settings = mergeDeep(structuredClone(DEFAULT_SETTINGS), merged);
+    await DB.put('meta', S.settings);
+    await DB.put('meta', { id: 'settingsBase', data: merged });
   },
   afterPull() {
     const [name] = currentRoute();
@@ -195,9 +301,12 @@ function renderSyncBadge() {
   el.innerHTML = `<span class="sync ${cls}" title="${esc(title)}" onclick="setFilter('settings','tab','cloud');go('#/settings')">${t}</span>`;
 }
 
+const isRefusal = e => ['P0001', '42501'].includes(e.code) || /APPROVAL_NEEDED|row-level security|permission denied|Only the Owner|Advisors cannot/i.test(e.message || '');
+
 /* ---------- Settings → Cloud & devices tab ---------- */
 function cloudSettingsHTML() {
-  if (IS_PREVIEW) return `<div class="card card-pad"><h3>🧪 Preview mode</h3><p class="muted">This is the MendTech Mobile preview. It uses its own test database and never connects to your real cloud data, so you can try anything safely.</p>
+  if (Cloud.accounts) return cloudAccountHTML();
+  if (IS_PREVIEW && !CFG.previewCloud) return `<div class="card card-pad"><h3>🧪 Preview mode</h3><p class="muted">This is the MendTech Mobile preview. It uses its own test database and never connects to your real cloud data, so you can try anything safely.</p>
     <p class="muted">To test with a copy of your real data: in the live app download a backup, then here use <b>Backup & data → Restore from backup</b>. Nothing is sent back to the live app.</p>
     <p class="muted">When you're happy, the live version (same app, cloud sync on) is published over your current site.</p></div>`;
   const c = Sync.cfg;

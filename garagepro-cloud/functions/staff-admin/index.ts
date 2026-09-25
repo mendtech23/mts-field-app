@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
       if (m.role === 'owner') throw new Bad(400, 'The Owner login is changed from Settings → Staff & security');
       return m;
     };
-    const alert = (level: string, text: string) => srv('srv_alert', { p_garage: G, p_level: level, p_kind: 'staff', p_text: text });
+    const alert = (level: string, text: string) => srv('srv_alert', { p_garage: G, p_level: level, p_kind: 'staff', p_text: text, p_who: `${me.name || 'Owner'} (owner)` });
 
     switch (body.action) {
       case 'list': {
@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
           email: `${crypto.randomUUID()}@staff.mendtech.invalid`, password: body.password, email_confirm: true,
           user_metadata: { kind: 'staff', garage: G } }) });
         try {
-          const m = await srv('srv_member_upsert', { p_user: u.id, p_garage: G, p_username: username, p_name: name, p_role: role, p_tech: clean(body.tech_id), p_active: true, p_by: me.user_id });
+          const m = await srv('srv_member_upsert', { p_user: u.id, p_garage: G, p_username: username, p_name: name, p_role: role, p_tech: clean(body.tech_id), p_active: true, p_by: me.user_id, p_title: clean(body.title) });
           await alert('warn', `New ${role} login created: ${name} (${username})`);
           return reply(200, m);
         } catch (e) { await call(`/auth/v1/admin/users/${u.id}`, { method: 'DELETE' }).catch(() => {}); throw e; }
@@ -87,14 +87,15 @@ Deno.serve(async (req) => {
         if (username !== m.username && await srv('srv_login_lookup', { p_login: username })) throw new Bad(400, 'That username is already taken');
         const active = body.active !== undefined ? !!body.active : m.active;
         const next = await srv('srv_member_upsert', { p_user: m.user_id, p_garage: G, p_username: username, p_name: body.name !== undefined ? clean(body.name) || m.name : m.name,
-          p_role: role, p_tech: body.tech_id !== undefined ? clean(body.tech_id) : m.tech_id, p_active: active, p_by: me.user_id });
+          p_role: role, p_tech: body.tech_id !== undefined ? clean(body.tech_id) : m.tech_id, p_active: active, p_by: me.user_id,
+          p_title: body.title !== undefined ? clean(body.title) : m.title });
         if (active !== m.active) {
           await call(`/auth/v1/admin/users/${m.user_id}`, { method: 'PUT', body: JSON.stringify({ ban_duration: active ? 'none' : '876000h' }) });
           if (!active) await srv('srv_kill_sessions', { p_user: m.user_id });
           await alert(active ? 'warn' : 'alert', `${m.name} (${m.username}) login ${active ? 'switched back on' : 'switched OFF and signed out everywhere'}`);
         }
         const changed = [role !== m.role && `role ${m.role} → ${role}`, username !== m.username && `username ${m.username} → ${username}`,
-          next.name !== m.name && `name → ${next.name}`, (next.tech_id || '') !== (m.tech_id || '') && 'linked technician'].filter(Boolean);
+          next.name !== m.name && `name → ${next.name}`, (next.title || '') !== (m.title || '') && `job title → ${next.title || '(none)'}`, (next.tech_id || '') !== (m.tech_id || '') && 'linked technician'].filter(Boolean);
         if (changed.length) await alert('warn', `${m.name} login changed: ${changed.join(', ')}`);
         return reply(200, next);
       }

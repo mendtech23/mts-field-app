@@ -16,13 +16,27 @@ const ROLES = {
 
 const Auth = {
   user: null, idle: null,
-  get active() { return S.staff.some(s => s.active !== false); },
+  /* Level 2 (personal cloud logins) or Level 1 (PIN logins on the device) */
+  get active() { return Cloud.accounts || S.staff.some(s => s.active !== false); },
   role() { if (!this.active) return ROLES.owner; return this.user ? ROLES[this.user.role] || ROLES.technician : ROLES.technician; },
   canPage(p) { if (!this.active) return true; const r = this.role(); return r.pages === '*' || r.pages.includes(p); },
   can(perm) { if (!this.active) return true; return !!this.role()[perm]; },
-  restore() { try { const id = sessionStorage.getItem('gp_user'); this.user = id ? get('staff', id) : null; } catch (e) { } },
-  requireLogin() { if (!this.active) { this.user = null; return false; } if (this.user && this.user.active !== false) return false; this.showLock(); return true; },
+  restore() {
+    if (Cloud.accounts) { const u = Cloud.user(); this.user = u && Cloud.signedIn() && !Cloud.needsCode() && ssGet('gp_unlocked') === u.id ? u : null; return; }
+    try { const id = sessionStorage.getItem('gp_user'); this.user = id ? get('staff', id) : null; } catch (e) { }
+  },
+  requireLogin() {
+    if (Cloud.accounts) {
+      if (document.getElementById('lockScreen')) return true;
+      if (!Cloud.signedIn()) { this.user = null; showCloudLogin(); return true; }
+      if (Cloud.needsCode()) { this.user = null; showCodeScreen(); return true; }
+      if (!this.user) { showCloudLock(); return true; }
+      return false;
+    }
+    if (!this.active) { this.user = null; return false; } if (this.user && this.user.active !== false) return false; this.showLock(); return true;
+  },
   showLock() {
+    if (Cloud.accounts) return showCloudLock();
     if (document.getElementById('lockScreen')) return;   // already showing — don't reset a login in progress
     document.body.classList.add('locked-screen');
     const staff = S.staff.filter(s => s.active !== false).sort((a, b) => a.name.localeCompare(b.name));
@@ -62,23 +76,28 @@ const Auth = {
     el.querySelector('#pinGo').onclick = tryPin;
     el.querySelector('#pinIn').onkeydown = e => { if (e.key === 'Enter') tryPin(); };
   },
-  lock() { this.user = null; try { sessionStorage.removeItem('gp_user'); } catch (e) { } closeAllModals(); this.showLock(); },
+  lock() { this.user = null; ssDel('gp_user'); ssDel('gp_unlocked'); closeAllModals(); this.showLock(); },
   armIdle() {
     const mins = num(S.settings.autoLockMinutes); if (!mins || !this.active) return;
     const reset = () => { clearTimeout(this.idle); this.idle = setTimeout(() => { if (this.user) this.lock(); }, mins * 60000); };
-    ['mousemove', 'keydown', 'touchstart', 'click'].forEach(ev => document.addEventListener(ev, reset, { passive: true }));
+    if (!this.idleOn) { this.idleOn = true; ['mousemove', 'keydown', 'touchstart', 'click'].forEach(ev => document.addEventListener(ev, reset, { passive: true })); }
     reset();
   },
 };
 
 /* ---------- Staff management (Settings → Staff & security) ---------- */
 function staffSettingsHTML() {
+  if (Cloud.accounts) return cloudSecurityHTML();
+  const l2 = Cloud.level2 && Sync.user && (!Auth.active || (Auth.user && Auth.user.role === 'owner')) ? level2WizardHTML() : '';
+  return l2 + pinStaffSettingsHTML();
+}
+function pinStaffSettingsHTML() {
   const st = S.settings, owners = S.staff.filter(s => s.role === 'owner' && s.active !== false).length;
   const lb = st.lastBackup ? daysBetween(st.lastBackup.slice(0, 10), today()) : null;
   const checks = [
     [owners > 0, owners ? `${S.staff.filter(s => s.active !== false).length} active login(s), ${owners} Owner` : 'No staff logins — anyone who opens the app has full access. Add an Owner login first.'],
     [num(st.autoLockMinutes) > 0, num(st.autoLockMinutes) > 0 ? `Auto-lock after ${st.autoLockMinutes} minutes` : 'Auto-lock is off — set 5–10 minutes below'],
-    [IS_PREVIEW || !!(typeof Sync !== 'undefined' && Sync.user), IS_PREVIEW ? 'Preview copy — not connected to the cloud (by design)' : (typeof Sync !== 'undefined' && Sync.user) ? `Cloud backup on — signed in as ${Sync.user.email}` : 'Cloud sync is not signed in on this device'],
+    [(IS_PREVIEW && !CFG.previewCloud) || !!(typeof Sync !== 'undefined' && Sync.user), IS_PREVIEW && !CFG.previewCloud ? 'Preview copy — not connected to the cloud (by design)' : (typeof Sync !== 'undefined' && Sync.user) ? `Cloud backup on — signed in as ${Sync.user.email}` : 'Cloud sync is not signed in on this device'],
     [lb != null && lb <= 31, lb == null ? 'No backup file downloaded yet' : `Last backup file ${lb} day(s) ago`],
     ...(lb == null ? [] : [[!!st.lastBackupEncrypted, st.lastBackupEncrypted ? 'Backup files are password-protected' : 'Last backup file was not password-protected — download a new one']]),
     ...(() => { const weak = S.staff.filter(s => s.active !== false && !isStrongPinHash(s.pinHash)); return weak.length ? [[false, `${weak.length} login(s) still on an old 4-digit PIN (${weak.map(s => s.name).join(', ')}) — they must choose a 6-digit PIN at next sign-in`]] : S.staff.length ? [[true, 'All PINs are 6+ digits with strong hashing; 5 wrong tries lock the login']] : []; })(),
@@ -138,7 +157,7 @@ async function saveDiscountLimit() {
   const v = num($('#s_discountLimit').value);
   if (v < 0 || v > 100) return toast('Enter 0–100', 'err');
   if (v === discountLimit()) return toast('No change');
-  if (!(await ownerApprove(`Change the discount limit from ${discountLimit()}% to ${v}%`, { always: true }))) return;
+  if (!(await ownerApprove(`Change the discount limit from ${discountLimit()}% to ${v}%`, { always: true, action: 'security', target: 'settings' }))) return;
   S.settings.security = Object.assign({}, S.settings.security, { discountLimit: v });
   await saveSettings(); toast('Saved', 'ok'); render();
 }

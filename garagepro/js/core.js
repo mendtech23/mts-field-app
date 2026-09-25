@@ -1,7 +1,7 @@
 /* GaragePro — core: storage, data model, calculations */
 'use strict';
 
-const APP_VERSION = '3.3.0';
+const APP_VERSION = '3.4.0';
 const CFG = Object.assign({ mode: 'live', dbName: 'garagepro', supabaseUrl: '', supabaseKey: '', garageId: '' }, window.GP_CONFIG || {});
 const IS_PREVIEW = CFG.mode === 'preview';
 const COLLECTIONS = ['customers', 'vehicles', 'quotes', 'jobs', 'invoices', 'payments', 'parts',
@@ -526,6 +526,7 @@ function payInfoText(inv, amountText) {
 }
 /* Settings upgrades for existing garages (runs once per version, syncs to all devices) */
 async function migrateSettings() {
+  if (typeof Cloud !== 'undefined' && Cloud.accounts && !['owner', 'manager'].includes(Cloud.role)) return;   // Level 2: only the office updates shared settings
   const st = S.settings; let changed = false;
   if (!st.updatedAt) return;   // fresh device: wait for the real settings to arrive from the cloud
   if ((st.schema || 0) < 21) {

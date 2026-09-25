@@ -127,6 +127,7 @@ function ownerApprove(what, opts = {}) {
 }
 ownerApprove.pending = () => !!(ownerApprove.el && ownerApprove.el.isConnected);
 function ownerApproveNow(what, opts) {
+  if (Cloud.accounts) return cloudApprove(what, opts);   // Level 2: the server checks the Owner's approval PIN
   const me = currentUserName();
   if (!Auth.active) { secLog('approval', `${what} (no staff logins set up)`, opts.level || 'info'); return Promise.resolve({ by: '' }); }
   if (Auth.user && Auth.user.role === 'owner' && !opts.always) { secLog('approval', `${what} — by Owner ${me}`, 'info'); return Promise.resolve({ by: me }); }

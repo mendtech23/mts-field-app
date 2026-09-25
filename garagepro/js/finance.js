@@ -131,7 +131,7 @@ async function closeMonth(mk) {
 }
 async function reopenMonth(mk) {
   if (!(await confirmBox(`Reopen ${monthLabel(mk)}? Invoices, payments and expenses in that month become editable again.`, 'Reopen', true))) return;
-  if (!(await ownerApprove(`Reopen closed month ${monthLabel(mk)}`, { level: 'alert' }))) return;
+  if (!(await ownerApprove(`Reopen closed month ${monthLabel(mk)}`, { level: 'alert', action: 'reopen_month', target: 'settings' }))) return;
   delete S.settings.closedMonths[mk]; await saveSettings(); render();
 }
 function guardClosed(iso, what = 'This record') {

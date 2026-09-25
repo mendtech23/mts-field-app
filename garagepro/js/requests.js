@@ -257,7 +257,7 @@ function printBookingPoster() {
 function downloadBookingConfig() {
   if (!Sync.cfg.url || !Sync.cfg.key || !Sync.user) return toast('Connect cloud sync first (Settings → Cloud & devices), then try again', 'err');
   const st = S.settings, m = st.mob;
-  const cfg = { mode: 'live', dbName: 'garagepro', supabaseUrl: Sync.cfg.url, supabaseKey: Sync.cfg.key, garageId: Sync.user.id,
+  const cfg = { mode: 'live', dbName: 'garagepro', supabaseUrl: Sync.cfg.url, supabaseKey: Sync.cfg.key, garageId: (Cloud.me && Cloud.me.garage_id) || Sync.user.id, ...(Cloud.accounts ? { accounts: true } : {}),
     brand: { name: st.garageName, mobile: st.brandMobile, phone: contactLine(), logo: st.logo, whatsapp: waGarage(), address: st.address,
       services: m.services, workshopServices: m.workshopServices, zones: m.zones.map(z => ({ name: z.name, emirate: z.emirate })), hoursStart: m.hoursStart, hoursEnd: m.hoursEnd, allDay: m.allDay } };
   const txt = `/* GaragePro build settings — generated ${new Date().toLocaleString('en-GB')}. Put this file in the js folder, replacing the old one. */\nwindow.GP_CONFIG = ${JSON.stringify(cfg, null, 2)};\n`;

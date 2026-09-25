@@ -40,6 +40,7 @@ create table if not exists public.members (
   created_by uuid,
   unique (garage_id, username)
 );
+alter table public.members add column if not exists title text;   -- job title the Owner types (e.g. "Senior Mechanic")
 alter table public.members enable row level security;
 revoke insert, update, delete, truncate on public.members from anon, authenticated;
 
@@ -322,7 +323,11 @@ begin
 
   if new.coll in ('quotes','jobs','invoices') and not new.deleted and r <> 'manager' then
     select coalesce(nullif(data->'security'->>'discountLimit','')::numeric, 10) into lim from public.records where owner = g and coll = 'settings' and id = 'settings';
-    if app.discount_pct(new.data) > coalesce(lim, 10) + 0.001 and app.discount_pct(new.data) > app.discount_pct(od) + 0.001 then
+    if app.discount_pct(new.data) > coalesce(lim, 10) + 0.001 and app.discount_pct(new.data) > app.discount_pct(od) + 0.001
+       -- a job / invoice made from an approved quotation or job keeps that discount without asking again
+       and not exists (select 1 from public.records s where s.owner = g and not s.deleted
+                          and ((s.coll = 'quotes' and s.id = new.data->>'quoteId') or (s.coll = 'jobs' and s.id = new.data->>'jobId'))
+                          and app.discount_pct(s.data) + 0.001 >= app.discount_pct(new.data)) then
       perform app.use_approval(g, 'discount', new.id);
     end if;
   end if;
@@ -403,6 +408,7 @@ create or replace function public.whoami() returns jsonb
     'name', coalesce((select name from public.members where user_id = auth.uid()), 'Owner'),
     'username', (select username from public.members where user_id = auth.uid()),
     'tech_id', (select tech_id from public.members where user_id = auth.uid()),
+    'title', (select title from public.members where user_id = auth.uid()),
     'is_garage_login', not exists (select 1 from public.members where user_id = auth.uid()),
     'mfa_enrolled', exists (select 1 from auth.mfa_factors f where f.user_id = auth.uid() and f.status = 'verified'),
     'aal', coalesce(auth.jwt()->>'aal', 'aal1'), 'mfa_ok', app.mfa_ok(), 'session_ok', app.session_ok(),
@@ -513,7 +519,9 @@ create or replace function public.crew_push(p_rows jsonb) returns jsonb
 declare
   g uuid := app.my_garage(); r text := app.my_role(); t text := (select tech_id from public.members where user_id = auth.uid());
   row jsonb; cur public.records; nd jsonb; k text; ok int := 0; rej jsonb := '[]'::jsonb;
-  allowed text[] := array['status','completed','diagnosis','inspection','inspectionType','checkin','ppi','fuelIn','odometer','odometerOut','signatures','updatedAt','updatedBy'];
+  allowed text[] := array['status','completed','diagnosis','inspection','inspectionType','checkin','ppi','fuelIn','odometer','odometerOut','signatures','type','updatedAt','updatedBy'];
+  offers jsonb := (select data->'offers' from public.records where owner = app.my_garage() and coll = 'settings' and id = 'settings');
+  it jsonb;
 begin
   if g is null or r not in ('technician','driver') or not app.session_ok() or t is null then raise exception 'Not allowed'; end if;
   for row in select * from jsonb_array_elements(p_rows) loop
@@ -527,11 +535,22 @@ begin
       foreach k in array allowed loop
         if (row->'data') ? k then nd := jsonb_set(nd, array[k], row->'data'->k); end if;
       end loop;
+      -- starting a health check / pre-purchase inspection adds its line once, at the garage's own price
+      for it in select * from jsonb_array_elements(case when jsonb_typeof(row->'data'->'items') = 'array' then row->'data'->'items' else '[]'::jsonb end) loop
+        if (it->>'hc') = 'true' and not exists (select 1 from jsonb_array_elements(coalesce(nd->'items', '[]')) x where (x->>'hc') = 'true') then
+          nd := jsonb_set(nd, '{items}', coalesce(nd->'items', '[]') || jsonb_build_array(jsonb_build_object('type', 'labour', 'desc', '20-point health check', 'qty', 1, 'rate', coalesce(nullif(offers->>'healthCheckFee', '')::numeric, 0), 'cost', 0, 'hc', true)));
+        elsif (it->>'ppi') = 'true' and not exists (select 1 from jsonb_array_elements(coalesce(nd->'items', '[]')) x where (x->>'ppi') = 'true') then
+          nd := jsonb_set(nd, '{items}', coalesce(nd->'items', '[]') || jsonb_build_array(jsonb_build_object('type', 'labour', 'desc', 'Pre-purchase inspection', 'qty', 1, 'rate', coalesce(nullif(offers->>'ppiPrice', '')::numeric, 0), 'cost', 0, 'ppi', true)));
+        end if;
+      end loop;
       if coalesce(cur.data->>'line', '') = 'mobile' and (row->'data') ? 'mobile' then
-        nd := jsonb_set(nd, '{mobile}', coalesce(nd->'mobile', '{}') || jsonb_build_object(
+        nd := jsonb_set(nd, '{mobile}', coalesce(nd->'mobile', '{}') || jsonb_strip_nulls(jsonb_build_object(
           'status', coalesce(row->'data'->'mobile'->'status', nd->'mobile'->'status'),
           'times', coalesce(row->'data'->'mobile'->'times', nd->'mobile'->'times'),
-          'eta', coalesce(row->'data'->'mobile'->'eta', nd->'mobile'->'eta')));
+          'eta', coalesce(row->'data'->'mobile'->'eta', nd->'mobile'->'eta'),
+          'arrivedGeo', coalesce(row->'data'->'mobile'->'arrivedGeo', nd->'mobile'->'arrivedGeo'),
+          'lat', coalesce(nd->'mobile'->'lat', row->'data'->'mobile'->'lat'),
+          'lng', coalesce(nd->'mobile'->'lng', row->'data'->'mobile'->'lng'))));
         if (row->'data') ? 'status' then nd := jsonb_set(nd, '{status}', row->'data'->'status'); end if;
       end if;
       update public.records set data = nd, updated_at = coalesce((row->>'updated_at')::timestamptz, now()) where owner = g and coll = 'jobs' and id = cur.id;
@@ -590,6 +609,15 @@ begin
   return jsonb_build_object('status', nd->>'status', 'already', false);
 end $$;
 
+-- ---------- a new device asks: does this garage use personal logins yet? (only yes / no, nothing else) ----------
+create or replace function public.garage_mode(p_garage uuid) returns text
+  language sql stable security definer set search_path = public, auth, app as $$
+  select case when exists (select 1 from auth.mfa_factors f where f.user_id = p_garage and f.status = 'verified')
+                or exists (select 1 from public.members m where m.garage_id = p_garage and m.role <> 'owner')
+              then 'accounts' else 'shared' end $$;
+revoke execute on function public.garage_mode(uuid) from public;
+grant execute on function public.garage_mode(uuid) to anon, authenticated;
+
 -- ---------- owner: alert e-mail + functions URL (for instant e-mails) ----------
 create or replace function public.set_alert_config(p_email text, p_functions_url text, p_anon_key text) returns void
   language plpgsql security definer set search_path = public, app as $$
@@ -631,8 +659,13 @@ begin
   if f.fails = 3 and p_garage is not null then perform app.alert(p_garage, 'warn', 'login', format('3 wrong passwords for %s%s', p_who, coalesce(' · ' || p_ip, ''))); end if;
   return jsonb_build_object('fails', f.fails, 'left', 5 - f.fails);
 end $$;
-create or replace function public.srv_alert(p_garage uuid, p_level text, p_kind text, p_text text) returns void
-  language sql security definer set search_path = public, app as $$ select app.alert(p_garage, p_level, p_kind, p_text) $$;
+drop function if exists public.srv_alert(uuid, text, text, text);
+create or replace function public.srv_alert(p_garage uuid, p_level text, p_kind text, p_text text, p_who text default null) returns void
+  language plpgsql security definer set search_path = public, app as $$
+begin
+  if p_who is not null then perform set_config('app.actor', p_who, true); end if;
+  perform app.alert(p_garage, p_level, p_kind, p_text);
+end $$;
 create or replace function public.srv_alert_get(p_id bigint) returns jsonb language sql stable security definer set search_path = public, app as $$
   select to_jsonb(a) || jsonb_build_object('email', (select value from app.config where key = 'alert_email')) from public.alerts a where id = p_id $$;
 create or replace function public.srv_alert_emailed(p_id bigint) returns void language sql security definer set search_path = public, app as $$
@@ -685,15 +718,16 @@ begin
 end $$;
 
 -- staff logins: kept here so the database is the only place that writes members
-create or replace function public.srv_member_upsert(p_user uuid, p_garage uuid, p_username text, p_name text, p_role text, p_tech text, p_active boolean, p_by uuid)
+drop function if exists public.srv_member_upsert(uuid, uuid, text, text, text, text, boolean, uuid);
+create or replace function public.srv_member_upsert(p_user uuid, p_garage uuid, p_username text, p_name text, p_role text, p_tech text, p_active boolean, p_by uuid, p_title text default null)
   returns public.members language plpgsql security definer set search_path = public, app as $$
 declare m public.members;
 begin
   if p_role = 'owner' and exists (select 1 from public.members where user_id = p_user and role <> 'owner') then raise exception 'Cannot make a staff login the Owner'; end if;
-  insert into public.members (user_id, garage_id, username, name, role, tech_id, active, created_by)
-  values (p_user, p_garage, lower(p_username), p_name, p_role, nullif(p_tech, ''), coalesce(p_active, true), p_by)
+  insert into public.members (user_id, garage_id, username, name, role, tech_id, active, created_by, title)
+  values (p_user, p_garage, lower(p_username), p_name, p_role, nullif(p_tech, ''), coalesce(p_active, true), p_by, nullif(trim(p_title), ''))
   on conflict (user_id) do update set username = excluded.username, name = excluded.name, role = excluded.role,
-    tech_id = excluded.tech_id, active = excluded.active
+    tech_id = excluded.tech_id, active = excluded.active, title = excluded.title
   where public.members.garage_id = p_garage and public.members.role <> 'owner'
   returning * into m;
   return m;
@@ -720,9 +754,9 @@ do $$ begin
 end $$;
 
 do $$ declare f text; begin
-  foreach f in array array['srv_login_check(text)', 'srv_login_result(text, boolean, uuid, text, text)', 'srv_alert(uuid, text, text, text)',
+  foreach f in array array['srv_login_check(text)', 'srv_login_result(text, boolean, uuid, text, text)', 'srv_alert(uuid, text, text, text, text)',
     'srv_alert_get(bigint)', 'srv_alert_emailed(bigint)', 'srv_daily()', 'srv_login_lookup(text)', 'srv_kill_sessions(uuid)',
-    'srv_member_upsert(uuid, uuid, text, text, text, text, boolean, uuid)', 'srv_cron_secret()'] loop
+    'srv_member_upsert(uuid, uuid, text, text, text, text, boolean, uuid, text)', 'srv_cron_secret()'] loop
     execute format('revoke execute on function public.%s from public, anon, authenticated', f);
     execute format('grant execute on function public.%s to service_role', f);
   end loop;
