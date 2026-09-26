@@ -1,0 +1,2 @@
+Changing this file deploys the server functions to the LIVE Supabase project (see .github/workflows/deploy-functions-live.yml).
+Last requested: 2026-09-26 00:11 UTC — go-live, owner confirmed the live token was added.
