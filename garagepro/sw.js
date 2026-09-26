@@ -1,5 +1,5 @@
 /* GaragePro service worker — makes the online version work offline and installable */
-const CACHE = 'garagepro-v3.5.0';
+const CACHE = 'garagepro-v3.5.1';
 const FILES = [
   './', './index.html', './book.html', './manifest.webmanifest', './css/app.css', './lib/qrcode.min.js',
   './js/config.js', './js/book.js', './js/mobile.js', './js/requests.js', './js/core.js', './js/icon-paths.js', './js/icons.js', './js/ui.js', './js/documents.js', './js/share.js', './js/pages-main.js', './js/pages-docs.js',

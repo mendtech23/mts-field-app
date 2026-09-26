@@ -10,6 +10,8 @@ function printHTML(html, brand = false) {
   const imgs = [...$('#printRoot').querySelectorAll('img')].filter(i => !i.complete);
   Promise.all(imgs.map(i => new Promise(r => { i.onload = i.onerror = r; }))).then(() => setTimeout(() => window.print(), 60));
 }
+/* after printing (or cancelling), empty the printer copy so nothing is left behind */
+window.addEventListener('afterprint', () => { const r = document.getElementById('printRoot'); if (r) r.innerHTML = ''; document.body.classList.remove('print-brand'); });
 /* mendtech. letterhead: logo left, contact details right, gold/orange rule, then the report title */
 function printHeader(title, meta = []) {
   const st = S.settings;

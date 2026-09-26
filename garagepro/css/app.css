@@ -322,10 +322,12 @@ body.locked-screen #app { filter: blur(6px); pointer-events: none; }
 .printview .grid { gap: 10px; }
 .printview .hero, .printview .crumb { display: none; }
 
+/* the printer copy never shows on screen — only when printing */
+#printRoot { display: none; }
 @media print {
   body * { visibility: hidden; }
   #printRoot, #printRoot * { visibility: visible; }
-  #printRoot { position: absolute; left: 0; top: 0; width: 100%; }
+  #printRoot { display: block; position: absolute; left: 0; top: 0; width: 100%; }
   #printRoot .docv { box-shadow: none; width: 100%; padding: 0; }
   #printRoot .docv .bd-bar { margin: 0; }
   #printRoot .docv * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }

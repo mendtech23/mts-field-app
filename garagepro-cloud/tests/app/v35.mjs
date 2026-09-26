@@ -7,7 +7,7 @@ P.on('pageerror', e => errs.push(e.message)); P.on('console', m => { if (m.type(
 await P.goto('http://localhost:8099/new/index.html'); await P.waitForTimeout(2200);
 const ev = (f, a) => P.evaluate(f, a);
 console.log('\nOther income');
-ok(await ev(() => APP_VERSION === '3.5.0' && Array.isArray(S.incomes) && S.settings.lists.incomeCategory.includes('Scrap sale')), 'v3.5, incomes collection + income types list');
+ok(await ev(() => APP_VERSION === '3.5.1' && Array.isArray(S.incomes) && S.settings.lists.incomeCategory.includes('Scrap sale')), 'v3.5, incomes collection + income types list');
 const nav = await ev(() => [...document.querySelectorAll('#nav .nav-item')].map(a => a.textContent.trim()));
 ok(nav.some(n => /Other income/.test(n)), 'menu: Finance → Other income');
 const mk = await ev(() => monthKey(today()));

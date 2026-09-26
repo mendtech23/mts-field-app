@@ -1,7 +1,7 @@
 /* GaragePro — core: storage, data model, calculations */
 'use strict';
 
-const APP_VERSION = '3.5.0';
+const APP_VERSION = '3.5.1';
 const CFG = Object.assign({ mode: 'live', dbName: 'garagepro', supabaseUrl: '', supabaseKey: '', garageId: '' }, window.GP_CONFIG || {});
 const IS_PREVIEW = CFG.mode === 'preview';
 const COLLECTIONS = ['customers', 'vehicles', 'quotes', 'jobs', 'invoices', 'payments', 'parts',
