@@ -667,13 +667,37 @@ async function setAlertEmail() {
 function refreshSecurityViews() { if (document.getElementById('clSec')) loadCloudSecurity(); else if (document.getElementById('l2wiz')) loadLevel2Wizard(); else render(); }
 
 /* authenticator app on the Owner login (the changeover step, and "add a backup phone") */
+/* adding a phone when one is already set up: Supabase wants a code from the existing phone first (this sign-in must be "aal2") */
+function codeFromExistingPhone() {
+  return new Promise(res => {
+    const m = openModal({ title: 'First, a code from your current phone', size: 'narrow',
+      body: `<p class="small">To add a phone, confirm it's you with the 6-digit code from the authenticator you use now — the entry called <b>${esc(TOTP_ISSUER)}</b> or an old one such as “localhost:3000”.</p>
+        <div class="field"><input id="cf_c" class="inp center" inputmode="numeric" maxlength="6" autocomplete="one-time-code" style="font-size:22px;letter-spacing:.35em"></div><div id="cf_err" class="small red"></div>`,
+      foot: `<button class="btn" data-c>Cancel</button><button class="btn primary" data-s>Continue</button>` });
+    const $ = q => m.el.querySelector(q);
+    $('[data-c]').onclick = () => { m.close(); res(false); };
+    const go = async () => {
+      const code = $('#cf_c').value.replace(/\D/g, '');
+      if (code.length !== 6) return $('#cf_err').textContent = 'Type the 6-digit code';
+      try { await Cloud.verifyCode(code); m.close(); res(true); } catch (e) { $('#cf_err').textContent = e.message; $('#cf_c').value = ''; }
+    };
+    $('[data-s]').onclick = go; $('#cf_c').onkeydown = e => { if (e.key === 'Enter') go(); };
+  });
+}
 async function setupAuthenticator(extra) {
   if (!extra && !(await confirmBox('After this, the Owner login needs your password AND a 6-digit code from your phone. Every device still using the shared garage login stops getting data and asks for a personal login — create the staff logins right after (step 4). Best done after closing time.', 'Continue'))) return;
   const mfa = Sync.client.auth.mfa;
   try {
     const { data: list } = await mfa.listFactors();
     for (const f of ((list && list.all) || []).filter(f => f.status !== 'verified')) await mfa.unenroll({ factorId: f.id });
-    const { data, error } = await mfa.enroll({ factorType: 'totp', issuer: TOTP_ISSUER, friendlyName: `${extra ? 'Backup phone' : 'Owner phone'} ${new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' })} #${Math.random().toString(36).slice(2, 5)}` });
+    const { data: lvl } = await mfa.getAuthenticatorAssuranceLevel();
+    if (lvl && lvl.nextLevel === 'aal2' && lvl.currentLevel !== 'aal2' && !(await codeFromExistingPhone())) return;
+    const enroll = () => mfa.enroll({ factorType: 'totp', issuer: TOTP_ISSUER, friendlyName: `${extra ? 'Backup phone' : 'Owner phone'} ${new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' })} #${Math.random().toString(36).slice(2, 5)}` });
+    let { data, error } = await enroll();
+    if (error && /aal2|assurance/i.test(error.message || error.code || '')) {   // the server wants the current phone's code first
+      if (!(await codeFromExistingPhone())) return;
+      ({ data, error } = await enroll());
+    }
     if (error) throw error;
     const secret = (data.totp.secret || '').replace(/(.{4})/g, '$1 ').trim();
     const m = openModal({ title: extra ? 'Add a backup phone' : 'Set up the authenticator app', size: 'narrow',
