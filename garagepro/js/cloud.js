@@ -6,6 +6,9 @@
 'use strict';
 
 const CLOUD_ROLES = ['manager', 'advisor', 'technician', 'driver'];
+/* the name the entry gets in Google / Microsoft Authenticator — different for live and preview, so they can't be mixed up */
+const TOTP_ISSUER = IS_PREVIEW ? 'mendtech. PREVIEW' : 'mendtech.';
+const isPhone = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
 const lsDel = k => { try { localStorage.removeItem(k); } catch (e) { } };
@@ -95,11 +98,19 @@ const Cloud = {
   async verifyCode(code) {
     const { data: f, error: e1 } = await Sync.client.auth.mfa.listFactors();
     if (e1) throw e1;
-    const t = (f.totp || []).find(x => x.status === 'verified');
-    if (!t) throw new Error('No authenticator app is set up on this login');
-    const { error } = await Sync.client.auth.mfa.challengeAndVerify({ factorId: t.id, code: String(code).replace(/\D/g, '') });
-    if (error) throw new Error(/invalid|expired|code/i.test(error.message) ? 'Wrong or expired code — type the newest code from the app' : error.message);
-    await this.refresh();
+    // every authenticator entry on this login is accepted (main phone, backup phone) — newest first
+    const list = (f.totp || []).filter(x => x.status === 'verified').sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+    if (!list.length) throw new Error('No authenticator app is set up on this login');
+    let last = null;
+    for (const t of list) {
+      const { error } = await Sync.client.auth.mfa.challengeAndVerify({ factorId: t.id, code: String(code).replace(/\D/g, '') });
+      if (!error) { this.rpc('mfa_passed').catch(() => { }); await this.refresh(); return; }
+      last = error;
+      if (error.status === 429 || /rate|too many/i.test(error.message)) break;
+    }
+    if (last && (last.status === 429 || /rate|too many/i.test(last.message))) throw new Error('Too many tries — wait 5 minutes, then use a fresh code');
+    this.rpc('mfa_failed').catch(() => { });   // 3 wrong codes → security alert to the Owner
+    throw new Error(`That code didn't match. Use the code under “${TOTP_ISSUER}” in your authenticator app, and type it before it changes.`);
   },
   /* signed in (and code done): make this device theirs, then start syncing */
   async begin() {
@@ -244,11 +255,12 @@ function showCloudLogin(notice) {
 }
 function showCodeScreen() {
   const el = lockShell(`<p class="muted center" style="margin:0 0 6px">Authenticator code</p>
-    <p class="small muted center" style="margin:0 0 14px">Open Google / Microsoft Authenticator on your phone and type the 6-digit code for <b>mendtech.</b></p>
+    <p class="small muted center" style="margin:0 0 14px">Open Google / Microsoft Authenticator on your phone and type the 6-digit code shown under <b>${esc(TOTP_ISSUER)}</b>.</p>
     <input id="cd_in" class="inp center" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" style="font-size:24px;letter-spacing:.35em">
     <div id="cd_err" class="small center lock-err"></div>
     <button class="btn primary lg" id="cd_go" style="width:100%;justify-content:center">Verify</button>
-    <p class="small center" style="margin:14px 0 0"><a href="#" id="cd_other">Sign in as someone else</a></p>`);
+    <p class="small muted center" style="margin:12px 0 0">Several entries in the app? Older ones may be called “localhost:3000”. Try the newest one; you can delete entries you don't use.</p>
+    <p class="small center" style="margin:10px 0 0"><a href="#" id="cd_other">Sign in as someone else</a></p>`);
   const $e = s => el.querySelector(s), err = t => { $e('#cd_err').textContent = t || ''; };
   let busy = false;
   const go = async () => {
@@ -279,7 +291,8 @@ function showCloudLock() {
   const wait = PinGuard.lockedFor(who.id); if (wait) err(`Locked after too many wrong PINs — sign out and sign in with your password`);
   let busy = false;
   const unlocked = () => { Auth.user = u; ssSet('gp_unlocked', u.id); el.remove(); document.body.classList.remove('locked-screen'); Auth.armIdle();
-    if (!Auth.canPage(currentRoute()[0] || 'dashboard')) location.hash = '#/' + (Auth.role().home || 'dashboard'); render(); };
+    if (!Auth.canPage(currentRoute()[0] || 'dashboard')) location.hash = '#/' + (Auth.role().home || 'dashboard'); render();
+    if (Sync.user && !Sync.interval) { Cloud.hello(); Sync.start(); } else if (!Sync.user) Sync.init(); };   // start syncing now it's unlocked
   const go = async () => {
     if (busy) return; busy = true;
     const v = $e('#lk_in').value;
@@ -402,7 +415,7 @@ async function changeMyPassword() {
 }
 
 /* ---------- Settings → Staff & security (Owner, personal logins) ---------- */
-const CL = { members: null, devices: [], alerts: [], audit: [], hasPin: false, email: '', factors: [], err: '', who: 'all', coll: 'all' };
+const CL = { members: null, devices: [], alerts: [], audit: [], hasPin: false, email: '', factors: [], prefs: { mode: 'security', daily: false }, err: '', who: 'all', coll: 'all' };
 const ROLE_OPTS = () => CLOUD_ROLES.map(r => [r, ROLES[r].label]);
 const agoTxt = iso => { if (!iso) return '—'; const s = (Date.now() - new Date(iso)) / 1000; return s < 90 ? 'just now' : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : fmtDate(iso.slice(0, 10)); };
 const COLL_LABEL = { invoices: 'Invoice', quotes: 'Quotation', jobs: 'Job', payments: 'Payment', customers: 'Customer', vehicles: 'Vehicle', expenses: 'Expense', incomes: 'Other income', parts: 'Part', settings: 'Settings',
@@ -418,15 +431,16 @@ async function loadCloudSecurity() {
   try {
     const sb = Sync.client;
     const q = async p => { const { data, error } = await p; if (error) throw new Error(error.message); return data; };
-    const [members, devices, alerts, audit, hasPin, email, factors] = await Promise.all([
+    const [members, devices, alerts, audit, hasPin, email, prefs, factors] = await Promise.all([
       Cloud.fn('staff-admin', { action: 'list' }).catch(async e => { CL.err = e.message; return q(sb.from('members').select('*').order('created_at', { ascending: true })); }),
       q(sb.from('devices').select('*').order('last_seen', { ascending: false }).limit(100)),
       q(sb.from('alerts').select('*').order('id', { ascending: false }).limit(150)),
       q(sb.from('audit_log').select('*').order('id', { ascending: false }).limit(400)),
       Cloud.rpc('has_owner_pin'), Cloud.rpc('get_alert_email'),
+      Cloud.rpc('get_alert_prefs').catch(() => null),
       sb.auth.mfa.listFactors().then(r => (r.data && r.data.totp) || []).catch(() => [])]);
     if (Array.isArray(members) && !CL.err.startsWith('MFA')) CL.err = CL.err && /404|not found/i.test(CL.err) ? 'The staff-admin function is not deployed yet (setup guide step 4)' : CL.err;
-    Object.assign(CL, { members, devices, alerts, audit, hasPin, email: email || '', factors: factors.filter(f => f.status === 'verified') });
+    Object.assign(CL, { members, devices, alerts, audit, hasPin, email: email || '', prefs: prefs || CL.prefs, factors: factors.filter(f => f.status === 'verified') });
     drawCloudSecurity();
   } catch (e) { box.innerHTML = `<div class="card card-pad red">Could not load security: ${esc(e.message)} <button class="btn sm" onclick="loadCloudSecurity()">Try again</button></div>`; }
 }
@@ -434,12 +448,13 @@ function drawCloudSecurity() {
   const box = document.getElementById('clSec'); if (!box) return;
   const st = S.settings, lb = st.lastBackup ? daysBetween(st.lastBackup.slice(0, 10), today()) : null;
   const staff = (CL.members || []).filter(m => m.role !== 'owner'), active = staff.filter(m => m.active);
-  const unsent = CL.alerts.filter(a => a.level !== 'info' && !a.emailed && Date.now() - new Date(a.at) > 5 * 60000).length;
+  const mailed = a => CL.prefs.mode === 'off' ? false : CL.prefs.mode === 'important' ? a.level !== 'info' : ['lockout', 'pin-fail', 'pw-fail', 'mfa-fail', 'mail-test'].includes(a.kind);
+  const unsent = CL.alerts.filter(a => mailed(a) && !a.emailed && Date.now() - new Date(a.at) > 5 * 60000).length;
   const lastMail = CL.alerts.find(a => a.emailed);
   const checks = [
     [CL.factors.length > 0, CL.factors.length ? `Owner login needs the authenticator code (${CL.factors.length} phone${CL.factors.length > 1 ? 's' : ''})` : 'Authenticator app not set up on the Owner login'],
     [CL.hasPin, CL.hasPin ? 'Owner approval PIN is set (checked by the server)' : 'Owner approval PIN not set — staff cannot get approvals'],
-    [!!CL.email, CL.email ? `Alerts e-mailed to ${CL.email}` : 'No alert e-mail set'],
+    [!!CL.email, CL.email ? `${{ security: 'Security warnings', important: 'Important alerts', off: 'No alerts' }[CL.prefs.mode] || 'Alerts'} e-mailed to ${CL.email}` : 'No alert e-mail set'],
     ...(CL.email ? [[!unsent, unsent ? `${unsent} alert(s) were not e-mailed — check the notify function and the Resend key (setup guide step 5)` : lastMail ? `Last alert e-mail sent ${agoTxt(lastMail.at)}` : 'Alert e-mails ready']] : []),
     [active.length > 0, `${active.length} active staff login(s)${staff.length > active.length ? `, ${staff.length - active.length} switched off` : ''}`],
     [lb != null && lb <= 31, lb == null ? 'No backup file downloaded yet' : `Last backup file ${lb} day(s) ago`],
@@ -482,11 +497,15 @@ function drawCloudSecurity() {
         <div class="card-pad row" style="padding-top:0"><div class="field"><label>Discount limit without approval (%)</label><input class="inp" type="number" id="s_discountLimit" value="${esc(discountLimit())}" style="width:120px"></div>
           <button class="btn" style="align-self:flex-end" onclick="saveDiscountLimit()">Save</button></div></div>
       <div class="card"><div class="card-head"><h3>✉ Alerts &amp; sign-in</h3></div>
-        <div class="card-pad"><div class="small muted mb">Important events are e-mailed at once; everything else comes in a daily summary at 20:00.</div>
-          <div class="row"><span class="grow">${CL.email ? esc(CL.email) : '<span class="red">not set</span>'}</span><button class="btn sm" onclick="setAlertEmail()">Change</button></div>
-          <hr class="sep"><div class="small muted mb">Authenticator app on your Owner login</div>
-          <div class="row"><span class="grow">${CL.factors.length ? CL.factors.map(f => esc(f.friendly_name || 'Phone')).join(', ') : '<span class="red">not set up</span>'}</span>
-            <button class="btn sm" onclick="setupAuthenticator(${CL.factors.length ? 'true' : 'false'})">${CL.factors.length ? 'Add a backup phone' : 'Set up'}</button></div></div></div></div>
+        <div class="card-pad"><div class="row"><span class="grow">${CL.email ? esc(CL.email) : '<span class="red">not set</span>'}</span><button class="btn sm" onclick="setAlertEmail()">Change</button></div>
+          <div class="small muted mt-s mb-s">What to e-mail (everything is always listed in the app under Alerts):</div>
+          ${[['security', 'Security warnings only', 'wrong passwords, wrong approval PINs, wrong authenticator codes, lockouts'], ['important', 'All important alerts', 'also voids, deletions, bank changes, new devices, logins, quotes approved online'], ['off', 'No e-mails', 'check alerts in the app only']]
+            .map(([k, t, d]) => `<label class="row small" style="align-items:flex-start;gap:8px;padding:3px 0;cursor:pointer"><input type="radio" name="al_mode" value="${k}" style="width:auto;margin-top:3px" ${CL.prefs.mode === k ? 'checked' : ''} onchange="saveAlertPrefs()"><span><b>${t}</b><br><span class="muted">${d}</span></span></label>`).join('')}
+          <label class="row small" style="gap:8px;padding:6px 0 0;cursor:pointer"><input type="checkbox" id="al_daily" style="width:auto" ${CL.prefs.daily ? 'checked' : ''} onchange="saveAlertPrefs()"> Also a summary of the day at 20:00</label>
+          <hr class="sep"><div class="small muted mb">Authenticator app on your Owner login (shows as <b>${esc(TOTP_ISSUER)}</b>)</div>
+          ${CL.factors.length ? CL.factors.map(f => `<div class="row small" style="padding:3px 0"><span class="grow">${esc(f.friendly_name || 'Phone')}</span>${CL.factors.length > 1 ? `<button class="btn sm ghost" onclick="removeAuthenticator('${f.id}')">Remove</button>` : ''}</div>`).join('') : '<div class="red small">not set up</div>'}
+          <div class="row mt-s"><button class="btn sm" onclick="setupAuthenticator(${CL.factors.length ? 'true' : 'false'})">${CL.factors.length ? 'Add another phone' : 'Set up'}</button></div>
+          ${CL.factors.length ? '<div class="small muted mt-s">To replace a confusing or old entry: add another phone (it is named correctly), check its code works, then remove the old one here and delete it in the authenticator app.</div>' : ''}</div></div></div>
 
     <div class="card mb"><div class="card-head"><h3>📜 Audit log</h3><div class="actions">
         <select class="inp sm" onchange="CL.who=this.value;drawCloudSecurity()"><option value="all">Everyone</option>${people.map(p => `<option ${CL.who === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select>
@@ -605,6 +624,19 @@ async function importPinStaff() {
     s.el.querySelector('[data-p]').onclick = () => printHTML(`<h2>mendtech. — staff logins</h2>${table([{ h: 'Name', v: r => esc(r.s.name) }, { h: 'Username', v: r => esc(r.user) }, { h: 'Password', v: r => esc(r.pass) }], done)}<p>Cut into strips and hand out privately.</p>`);
   };
 }
+async function saveAlertPrefs() {
+  const mode = (document.querySelector('input[name="al_mode"]:checked') || {}).value || 'security', daily = !!(document.getElementById('al_daily') || {}).checked;
+  try { await Cloud.rpc('set_alert_prefs', { p_mode: mode, p_daily: daily }); CL.prefs = { mode, daily }; toast('Saved', 'ok'); drawCloudSecurity(); }
+  catch (e) { toast(e.message, 'err'); loadCloudSecurity(); }
+}
+async function removeAuthenticator(id) {
+  if (CL.factors.length < 2) return toast('Keep at least one authenticator', 'err');
+  const f = CL.factors.find(x => x.id === id);
+  if (!(await confirmBox(`Remove “${f ? f.friendly_name : 'this entry'}”? Its codes stop working. Delete the matching entry in your authenticator app too.`, 'Remove', true))) return;
+  const { error } = await Sync.client.auth.mfa.unenroll({ factorId: id });
+  if (error) return toast(error.message, 'err');
+  toast('Removed', 'ok'); loadCloudSecurity();
+}
 async function setApprovalPin() {
   const m = openModal({ title: 'Owner approval PIN', size: 'narrow',
     body: `<p style="margin-top:0">Staff ask you to type this PIN when they need your approval. Choose <b>6–8 digits</b> that are not your screen-lock PIN, phone number or birthday.</p>
@@ -641,15 +673,18 @@ async function setupAuthenticator(extra) {
   try {
     const { data: list } = await mfa.listFactors();
     for (const f of ((list && list.all) || []).filter(f => f.status !== 'verified')) await mfa.unenroll({ factorId: f.id });
-    const { data, error } = await mfa.enroll({ factorType: 'totp', friendlyName: `${extra ? 'Backup phone' : 'Owner phone'} ${new Date().toISOString().slice(0, 16).replace('T', ' ')}` });
+    const { data, error } = await mfa.enroll({ factorType: 'totp', issuer: TOTP_ISSUER, friendlyName: `${extra ? 'Backup phone' : 'Owner phone'} ${new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' })} #${Math.random().toString(36).slice(2, 5)}` });
     if (error) throw error;
     const secret = (data.totp.secret || '').replace(/(.{4})/g, '$1 ').trim();
     const m = openModal({ title: extra ? 'Add a backup phone' : 'Set up the authenticator app', size: 'narrow',
       body: `<ol class="small" style="padding-left:18px;line-height:1.7;margin-top:0">
           <li>On your phone install <b>Google Authenticator</b> or <b>Microsoft Authenticator</b> (free).</li>
-          <li>In the app tap <b>+</b> → <b>Scan a QR code</b> and scan this:</li></ol>
-        <div class="center"><img src="${esc(data.totp.qr_code)}" alt="QR code" style="width:200px;height:200px;background:#fff;padding:8px;border-radius:8px"></div>
-        <p class="small muted center">Can't scan? Choose “Enter a setup key” and type:<br><b class="mono">${esc(secret)}</b></p>
+          <li>If the app already has old entries for this garage (for example “localhost:3000”), delete them first so you can't pick the wrong one.</li>
+          <li>${isPhone() ? 'Tap the button below — it opens the authenticator and adds the entry:' : 'In the app tap <b>+</b> → <b>Scan a QR code</b> and scan this:'}</li></ol>
+        ${isPhone() ? `<div class="center" style="margin:10px 0"><a class="btn primary lg" href="${esc(data.totp.uri)}">Add to authenticator on this phone</a></div>` : ''}
+        <div class="center"><img src="${esc(data.totp.qr_code)}" alt="QR code" style="width:200px;height:200px;max-width:100%;background:#fff;padding:8px;border-radius:8px"></div>
+        <p class="small muted center">It appears as <b>${esc(TOTP_ISSUER)}</b> with your e-mail. Can't scan? Choose “Enter a setup key” and type:<br><b class="mono" style="word-break:break-all">${esc(secret)}</b>
+          <button class="btn sm" type="button" onclick="navigator.clipboard.writeText('${esc(data.totp.secret)}').then(()=>toast('Key copied'))">Copy key</button></p>
         <div class="field"><label>3. Type the 6-digit code the app shows</label><input id="au_c" class="inp center" inputmode="numeric" maxlength="6" style="font-size:22px;letter-spacing:.35em"></div><div id="au_err" class="small red"></div>`,
       foot: `<button class="btn" data-c>Cancel</button><button class="btn primary" data-s>Verify</button>` });
     const err = t => { m.el.querySelector('#au_err').textContent = t; };
@@ -658,7 +693,7 @@ async function setupAuthenticator(extra) {
       const code = m.el.querySelector('#au_c').value.replace(/\D/g, '');
       if (code.length !== 6) return err('Type the 6-digit code');
       const { error: e2 } = await mfa.challengeAndVerify({ factorId: data.id, code });
-      if (e2) return err('Wrong or expired code — type the newest one');
+      if (e2) return err(e2.status === 429 || /rate|too many/i.test(e2.message) ? 'Too many tries — wait 5 minutes' : `That code didn't match. Use the newest code under “${TOTP_ISSUER}” and type it before it changes.`);
       m.close();
       await Cloud.refresh();
       if (!extra) {

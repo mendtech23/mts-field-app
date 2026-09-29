@@ -48,7 +48,14 @@ const Sync = {
       if (!this.user && !Cloud.accounts && CFG.garageId) {   // a new device: has the garage switched personal logins on?
         try { const { data: mode } = await this.client.rpc('garage_mode', { p_garage: CFG.garageId }); if (mode === 'accounts') { lsSet('gp_accounts', '1'); this.cfg.enabled = true; this.saveCfg(); } } catch (e) { }
       }
+      if (!this.user && Cloud.accounts && Cloud.stored() && Cloud.me) {   // session kept but not refreshed (weak signal): stay signed in, try again
+        this.setStatus('offline'); clearTimeout(this.retry);
+        this.retry = setTimeout(() => this.init(), navigator.onLine ? 30000 : 5000);
+        if (!this.retryOnline) { this.retryOnline = true; window.addEventListener('online', () => { if (!this.user && Cloud.stored()) this.init(); }); }
+        return;
+      }
       if (!this.user) { this.setStatus(this.enabled || Cloud.accounts ? 'signed-out' : 'off'); if (Cloud.accounts) { Cloud.me = null; Cloud.keep(); Auth.user = null; render(); } return; }
+      clearTimeout(this.retry);
       // Security Level 2: who am I on the server?
       const wasAccounts = Cloud.accounts;
       try { await Cloud.refresh(); } catch (e) { console.warn('whoami', e.message); }   // offline: keep the cached answer
@@ -120,7 +127,7 @@ const Sync = {
       if (changed) this.afterPull();
     } catch (e) {
       console.warn('sync', e);
-      if (/JWT|refresh token|not authenticated|session/i.test(e.message || '') && Cloud.accounts) { const { data } = await this.client.auth.getSession(); if (!data || !data.session) { await Cloud.forget(); showCloudLogin('Please sign in again.'); return; } }
+      if (/JWT|refresh token|not authenticated|session/i.test(e.message || '') && Cloud.accounts) { const { data } = await this.client.auth.getSession(); if ((!data || !data.session) && !Cloud.stored()) { await Cloud.forget(); showCloudLogin('Please sign in again.'); return; } }
       this.setStatus('error', e.message || String(e));
     } finally {
       this.busy = false;

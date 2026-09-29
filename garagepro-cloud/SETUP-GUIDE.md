@@ -106,7 +106,7 @@ Do this exactly as you will on the live day.
    - staff logins (reset a password, switch someone off)
    - devices (press **Sign out** on the test phone and watch it get kicked out)
    - audit log
-6. **Check your e-mail.** You should have instant alerts for the void, the sign-out, new logins and wrong PINs. At 20:00 the daily summary arrives.
+6. **Check your e-mail.** By default you only get security e-mails: wrong passwords, wrong Owner PINs, wrong authenticator codes (3 in a row) and lock-outs. Everything else (voids, sign-outs, new logins) stays in the app under Alerts. You can change this in Settings → Staff & security → E-mail alerts, and switch on the 20:00 daily summary there.
 
 If anything looks wrong, tell Claude what you saw (a screenshot helps). Nothing in the preview can affect the live app.
 
@@ -153,8 +153,8 @@ Until step B6 the app keeps working exactly as today. Staff notice nothing.
   - the customer quote link
 - `functions/login` handles sign-in with a username or e-mail. 5 wrong passwords lock the login and alert the Owner.
 - `functions/staff-admin` lets the Owner (password + authenticator code) create, change, reset, switch off and sign out staff logins.
-- `functions/notify` sends the e-mails: instant alerts, plus the daily summary at 20:00 Dubai time.
+- `functions/notify` sends the e-mails: security alerts straight away, plus (if switched on) the daily summary at 20:00 Dubai time.
 - `tests/` holds the automatic checks used while building. They run against a local copy of Supabase:
-  - 120 database checks
-  - 48 function checks
-  - 45 checks in a real browser
+  - 128 database checks
+  - 50 function checks
+  - 57 checks in a real browser

@@ -95,10 +95,10 @@ r = await fn('staff-admin', { action: 'signout', user_id: raviId }, O); ok(r.sta
 r = await fn('staff-admin', { action: 'list' }, 'not-a-token'); ok(r.status >= 400, 'bad token refused');
 
 console.log('\n5. E-mail alerts');
-const st = await pgNet(); ok(st.length > 3 && st.every(s => s === 200), `pg_net delivered ${st.length} instant e-mails`, st);
+const st = await pgNet(); ok(st.length >= 3 && st.every(s => s === 200), `pg_net delivered ${st.length} instant e-mails`, st);
 let m = await mails(); ok(m.length === st.length && m.every(x => x.to[0] === 'mendtech23@gmail.com' && x.auth === 'Bearer re_test_key'), 'all to mendtech23@gmail.com via Resend', m.map(x => x.to));
 ok(m.some(x => /🔴.*locked for 15 min/.test(x.subject)), 'lockout e-mail subject has 🔴', m.map(x => x.subject));
-ok(m.some(x => /New advisor login created: Sam/.test(x.subject)), 'new login e-mail');
+ok(!m.some(x => /New advisor login created/.test(x.subject)) && m.some(x => /3 wrong passwords for Sam/.test(x.subject)) && m.some(x => /this is a test/.test(x.subject)), 'security mode: wrong passwords + test e-mailed, new logins only in the app', m.map(x => x.subject));
 ok(m.every(x => /mendtech/.test(x.html) && /Dubai/.test(x.html)), 'branded, Dubai time');
 const aid = (await db.query("select id from public.alerts where garage_id=$1 and level='alert' order by id limit 1", [G])).rows[0].id;
 r = await fn('notify', { alert_id: aid }); ok(r.data.skipped === true, 'same alert is never e-mailed twice');
@@ -111,6 +111,9 @@ r = await fn('notify', { daily: true }, undefined);
 const secret = (await db.query("select value from app.config where key='cron_secret'")).rows[0].value;
 await db.query("delete from app.config where key like 'summary%'");
 await fetch(MAIL + '/mails', { method: 'DELETE' });
+await db.query('select app.daily_ping()');
+ok((await db.query('select count(*)::int n from net.calls')).rows[0].n === 0, 'daily summary is off by default (nothing sent)');
+r = await rpc(O, 'set_alert_prefs', { p_mode: 'security', p_daily: true }); ok(r.status === 200, 'owner turns the daily summary on');
 await db.query('select app.daily_ping()');
 const q = (await db.query('select headers from net.calls')).rows; ok(q.length === 1 && q[0].headers['x-cron-secret'] === secret, 'cron job queues the summary with the secret');
 await pgNet(); m = await mails(); const mine = m.find(x => /daily summary/.test(x.subject) && /Who changed what/.test(x.html));

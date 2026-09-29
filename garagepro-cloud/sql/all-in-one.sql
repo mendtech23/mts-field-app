@@ -248,13 +248,23 @@ create or replace function app.who() returns text
   select coalesce((select name || ' (' || role || ')' from public.members where user_id = auth.uid()),
                   case when auth.uid() is null then coalesce(nullif(current_setting('app.actor', true), ''), 'system') else 'Garage login' end) $$;
 
+-- which alerts are e-mailed (the Owner chooses in Settings → Staff & security):
+--   'security' (default) = only wrong passwords / PINs / authenticator codes and lockouts
+--   'important' = every warning and alert · 'off' = none (alerts stay in the app either way)
+create or replace function app.should_email(p_level text, p_kind text) returns boolean
+  language sql stable security definer set search_path = public, app as $$
+  select case coalesce((select value from app.config where key = 'email_mode'), 'security')
+    when 'off' then false
+    when 'important' then p_level in ('alert', 'warn')
+    else p_kind in ('lockout', 'pin-fail', 'pw-fail', 'mfa-fail', 'mail-test') end $$;
+
 create or replace function app.alert(p_garage uuid, p_level text, p_kind text, p_text text, p_device text default null)
   returns void language plpgsql security definer set search_path = public, app, extensions as $$
 declare v_id bigint; v_url text; v_key text;
 begin
   insert into public.alerts (garage_id, level, kind, text, user_name, device)
   values (p_garage, p_level, p_kind, left(p_text, 500), app.who(), p_device) returning id into v_id;
-  if p_level in ('alert', 'warn') then   -- instant e-mail through the notify function (pg_net), if set up
+  if app.should_email(p_level, p_kind) then   -- instant e-mail through the notify function (pg_net), if set up
     select value into v_url from app.config where key = 'functions_url';
     select value into v_key from app.config where key = 'anon_key';
     if v_url is not null then
@@ -707,11 +717,47 @@ begin
   insert into app.config values ('alert_email', p_email) on conflict (key) do update set value = excluded.value;
   if p_functions_url is not null then insert into app.config values ('functions_url', p_functions_url) on conflict (key) do update set value = excluded.value; end if;
   if p_anon_key is not null then insert into app.config values ('anon_key', p_anon_key) on conflict (key) do update set value = excluded.value; end if;
-  perform app.alert(app.my_garage(), 'warn', 'settings', 'Alert e-mail set to ' || p_email);
+  perform app.alert(app.my_garage(), 'warn', 'mail-test', 'Alert e-mail set to ' || p_email || ' — this is a test');
 end $$;
 create or replace function public.get_alert_email() returns text
   language sql stable security definer set search_path = public, app as $$
   select case when app.my_role() = 'owner' then (select value from app.config where key = 'alert_email') end $$;
+
+-- ---------- which e-mails the Owner wants ----------
+create or replace function public.set_alert_prefs(p_mode text, p_daily boolean) returns void
+  language plpgsql security definer set search_path = public, app as $$
+begin
+  if app.my_role() is distinct from 'owner' or not app.mfa_ok() or not app.session_ok() then raise exception 'Only the Owner can change alert settings'; end if;
+  if p_mode not in ('security', 'important', 'off') then raise exception 'Unknown e-mail setting'; end if;
+  insert into app.config values ('email_mode', p_mode) on conflict (key) do update set value = excluded.value;
+  insert into app.config values ('daily_summary', case when p_daily then 'on' else 'off' end) on conflict (key) do update set value = excluded.value;
+end $$;
+create or replace function public.get_alert_prefs() returns jsonb
+  language sql stable security definer set search_path = public, app as $$
+  select case when app.my_role() = 'owner' then jsonb_build_object(
+    'mode', coalesce((select value from app.config where key = 'email_mode'), 'security'),
+    'daily', coalesce((select value from app.config where key = 'daily_summary'), 'off') = 'on') end $$;
+
+-- a wrong authenticator code on the Owner login: 3 within 15 minutes → security alert (e-mailed)
+create table if not exists app.mfa_fails (user_id uuid primary key, fails int not null default 0, first_at timestamptz not null default now());
+revoke all on app.mfa_fails from anon, authenticated;
+create or replace function public.mfa_failed() returns void
+  language plpgsql security definer set search_path = public, app as $$
+declare f app.mfa_fails; g uuid := app.my_garage();
+begin
+  if auth.uid() is null or g is null then return; end if;
+  insert into app.mfa_fails (user_id, fails, first_at) values (auth.uid(), 1, now())
+  on conflict (user_id) do update set
+    fails = case when app.mfa_fails.first_at < now() - interval '15 minutes' then 1 else app.mfa_fails.fails + 1 end,
+    first_at = case when app.mfa_fails.first_at < now() - interval '15 minutes' then now() else app.mfa_fails.first_at end
+  returning * into f;
+  if f.fails = 3 or (f.fails > 3 and f.fails % 5 = 0) then
+    perform app.alert(g, 'alert', 'mfa-fail', format('%s wrong authenticator codes in %s min on the %s login%s', f.fails,
+      greatest(1, ceil(extract(epoch from now() - f.first_at) / 60)), app.who(), coalesce(' · ' || app.req_ip(), '')));
+  end if;
+end $$;
+create or replace function public.mfa_passed() returns void
+  language sql security definer set search_path = public, app as $$ delete from app.mfa_fails where user_id = auth.uid() $$;
 
 -- ---------- server-only helpers used by the functions (service role) ----------
 create table if not exists app.login_fails (key text primary key, fails int not null default 0, locked_until timestamptz, last_at timestamptz);
@@ -725,7 +771,7 @@ declare f app.login_fails; m int;
 begin
   if p_ok then
     select * into f from app.login_fails where key = p_key;
-    if f.fails >= 3 and p_garage is not null then perform app.alert(p_garage, 'warn', 'login', format('%s signed in after %s wrong passwords', p_who, f.fails)); end if;
+    if f.fails >= 3 and p_garage is not null then perform app.alert(p_garage, 'warn', 'pw-fail', format('%s signed in after %s wrong passwords', p_who, f.fails)); end if;
     delete from app.login_fails where key = p_key; return jsonb_build_object('fails', 0);
   end if;
   insert into app.login_fails (key, fails, last_at) values (p_key, 1, now())
@@ -736,7 +782,7 @@ begin
     if p_garage is not null then perform app.alert(p_garage, 'alert', 'lockout', format('Login %s locked for %s min after %s wrong passwords%s', p_who, m, f.fails, coalesce(' · ' || p_ip, ''))); end if;
     return jsonb_build_object('fails', f.fails, 'locked_min', m);
   end if;
-  if f.fails = 3 and p_garage is not null then perform app.alert(p_garage, 'warn', 'login', format('3 wrong passwords for %s%s', p_who, coalesce(' · ' || p_ip, ''))); end if;
+  if f.fails = 3 and p_garage is not null then perform app.alert(p_garage, 'warn', 'pw-fail', format('3 wrong passwords for %s%s', p_who, coalesce(' · ' || p_ip, ''))); end if;
   return jsonb_build_object('fails', f.fails, 'left', 5 - f.fails);
 end $$;
 drop function if exists public.srv_alert(uuid, text, text, text);
@@ -817,6 +863,7 @@ end $$;
 create or replace function app.daily_ping() returns void language plpgsql security definer set search_path = public, app, extensions as $$
 declare v_url text; v_secret text;
 begin
+  if coalesce((select value from app.config where key = 'daily_summary'), 'off') <> 'on' then return; end if;   -- off unless the Owner turns it on
   select value into v_url from app.config where key = 'functions_url';
   select value into v_secret from app.config where key = 'cron_secret';
   if v_url is null then return; end if;
