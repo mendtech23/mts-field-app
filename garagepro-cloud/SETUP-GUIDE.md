@@ -124,7 +124,8 @@ Until step B6 the app keeps working exactly as today. Staff notice nothing.
   2. Netlify → **mendtechauto** → Deploys → drag the `garagepro` folder (live `config.js`).
   3. Reopen the app everywhere. Everything works as before.
 - **B5. Switch on.** Do the four steps from **A9, point 1** on the **Owner PC**, *after closing time*.
-- **B6. Hand out logins.** Everyone signs in once on their own phone, and on the office PC with their own username. They each choose a screen-lock PIN.
+- **B6. Hand out logins.** Everyone signs in once on their own phone, and on the office PC with their own username. They each choose a screen-lock PIN once — it then works on every device they sign in on.
+  - If a device keeps asking for the full sign-in after it is switched off, its browser is deleting site data when it closes. The app spots this and shows how to fix it (Chrome / Edge setting, no private windows, always the same address).
 - **B7. Lock it in.**
   1. Settings → Mobile & booking → **Download config.js**. It now says `accounts: true`.
   2. Put it in the `garagepro/js` folder and publish again. New devices then go straight to the sign-in screen.
@@ -146,7 +147,7 @@ Until step B6 the app keeps working exactly as today. Staff notice nothing.
 - `sql/level2.sql` is the database part. It sets up:
   - who belongs to the garage, and what each role may see and change, enforced by the database itself
   - the Owner approval PIN, checked by the server, with a lockout after 5 wrong tries
-  - the audit log (nobody can edit or delete it)
+  - the audit log (nobody can edit it; only the Owner can clear entries older than 7+ days, which is itself logged and alerted)
   - devices and remote sign-out
   - alerts
   - the technician/driver data (their own jobs only)
@@ -155,6 +156,6 @@ Until step B6 the app keeps working exactly as today. Staff notice nothing.
 - `functions/staff-admin` lets the Owner (password + authenticator code) create, change, reset, switch off and sign out staff logins.
 - `functions/notify` sends the e-mails: security alerts straight away, plus (if switched on) the daily summary at 20:00 Dubai time.
 - `tests/` holds the automatic checks used while building. They run against a local copy of Supabase:
-  - 128 database checks
+  - 149 database checks
   - 50 function checks
   - 57 checks in a real browser

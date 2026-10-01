@@ -7,7 +7,7 @@ P.on('pageerror', e => errs.push(e.message)); P.on('console', m => { if (m.type(
 await P.goto('http://localhost:8099/new/index.html'); await P.waitForTimeout(2200);
 const ev = (f, a) => P.evaluate(f, a);
 console.log('\nOther income');
-ok(await ev(() => APP_VERSION === '3.5.3' && Array.isArray(S.incomes) && S.settings.lists.incomeCategory.includes('Scrap sale')), 'v3.5, incomes collection + income types list');
+ok(await ev(() => APP_VERSION === '3.6.0' && Array.isArray(S.incomes) && S.settings.lists.incomeCategory.includes('Scrap sale')), 'v3.5, incomes collection + income types list');
 const nav = await ev(() => [...document.querySelectorAll('#nav .nav-item')].map(a => a.textContent.trim()));
 ok(nav.some(n => /Other income/.test(n)), 'menu: Finance → Other income');
 const mk = await ev(() => monthKey(today()));
@@ -30,7 +30,7 @@ ok(Math.abs(after.np - before.np - 3500) < 0.01, 'month-end net profit +3,500', 
 ok(Math.abs(after.col - before.col - 19050) < 0.01, 'collected +19,050 (all money received)');
 ok(Math.abs(after.vat - before.vat - 50) < 0.01, 'VAT payable +50');
 ok(Math.abs(after.cash - before.cash - 1050) < 0.01, 'expected cash in drawer +1,050 (the cash one only)');
-await ev(() => go('#/closing')); await P.waitForTimeout(700);
+await ev(() => { setFilter('closing', 'month', monthKey(today())); go('#/closing'); }); await P.waitForTimeout(700);
 ok(/Other income \(profit\)/.test(await P.textContent('#view')) && /Scrap sale/.test(await P.textContent('#view')), 'month-end P&L shows other income by type');
 await P.screenshot({ path: '/tmp/pgt/l2/shots/v35-closing.png' });
 await ev(() => go('#/reports')); await P.waitForTimeout(700);

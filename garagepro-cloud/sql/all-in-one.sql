@@ -1,5 +1,5 @@
 -- mendtech. — ALL database scripts in one (preview or live). Paste everything into Supabase → SQL Editor → Run.
--- Safe to run more than once. Nothing is deleted.
+-- Safe to run more than once. None of your data is deleted.
 
 -- ===== 1. cloud table =====
 -- GaragePro cloud table (run once in Supabase → SQL Editor)
@@ -256,7 +256,7 @@ create or replace function app.should_email(p_level text, p_kind text) returns b
   select case coalesce((select value from app.config where key = 'email_mode'), 'security')
     when 'off' then false
     when 'important' then p_level in ('alert', 'warn')
-    else p_kind in ('lockout', 'pin-fail', 'pw-fail', 'mfa-fail', 'mail-test') end $$;
+    else p_kind in ('lockout', 'pin-fail', 'pw-fail', 'mfa-fail', 'mail-test', 'audit-purge') end $$;
 
 create or replace function app.alert(p_garage uuid, p_level text, p_kind text, p_text text, p_device text default null)
   returns void language plpgsql security definer set search_path = public, app, extensions as $$
@@ -297,7 +297,11 @@ drop policy if exists "owner reads audit" on public.audit_log;
 create policy "owner reads audit" on public.audit_log for select to authenticated
   using (garage_id = (select app.my_garage()) and app.my_role() = 'owner' and app.mfa_ok() and app.session_ok());
 create or replace function app.audit_block() returns trigger language plpgsql as $$
-begin raise exception 'The audit log cannot be changed or deleted'; end $$;
+begin
+  -- only the Owner's clean-up (public.audit_purge) and the nightly keep-for-N-days job may remove old entries
+  if tg_op = 'DELETE' and current_setting('app.audit_purge', true) = 'on' then return old; end if;
+  raise exception 'The audit log cannot be changed or deleted';
+end $$;
 drop trigger if exists audit_no_change on public.audit_log;
 create trigger audit_no_change before update or delete on public.audit_log for each row execute function app.audit_block();
 drop trigger if exists audit_no_truncate on public.audit_log;
@@ -456,6 +460,8 @@ begin
   if tg_op = 'INSERT' then act := case when new.deleted then 'delete' else 'create' end;
   elsif new.deleted and not old.deleted then act := 'delete';
   else act := 'update'; end if;
+  -- less noise (v3.6): the device security log is a log already; photos only when deleted
+  if new.coll = 'secLog' or (new.coll = 'photos' and act <> 'delete') then return new; end if;
   if tg_op = 'UPDATE' and not new.deleted and new.coll <> 'photos' then
     select string_agg(key, ', ') into keys from (
       select key from jsonb_each(coalesce(new.data, '{}')) where key not in ('updatedAt','updatedBy') and (new.data->key) is distinct from (od->key)
@@ -518,7 +524,7 @@ end $$;
 create or replace function public.device_hello(p_label text, p_ua text) returns jsonb
   language plpgsql security definer set search_path = public, app as $$
 declare
-  g uuid := app.my_garage(); s uuid := nullif(auth.jwt()->>'session_id', '')::uuid; d public.devices; seen_before boolean; r text := app.my_role();
+  g uuid := app.my_garage(); s uuid := nullif(auth.jwt()->>'session_id', '')::uuid; d public.devices; seen_before boolean; again int; r text := app.my_role();
 begin
   if g is null then return jsonb_build_object('revoked', true, 'reason', 'This login is switched off'); end if;
   select * into d from public.devices where user_id = auth.uid() and session_id = s;
@@ -528,11 +534,13 @@ begin
     return jsonb_build_object('revoked', false, 'device_id', d.id);
   end if;
   seen_before := exists (select 1 from public.devices where user_id = auth.uid() and label = p_label and not revoked);
+  -- the same kind of device signing in from scratch again and again = its browser is wiping the app's storage
+  again := (select count(*) from public.devices where user_id = auth.uid() and label = left(p_label, 80) and first_seen > now() - interval '10 days');
   insert into public.devices (garage_id, user_id, session_id, label, user_agent, ip)
   values (g, auth.uid(), s, left(p_label, 80), left(p_ua, 300), app.req_ip()) returning * into d;
   perform app.alert(g, case when r = 'owner' or not seen_before then 'warn' else 'info' end, 'login',
     format('%s signed in on %s%s%s', app.who(), coalesce(p_label, 'a device'), case when seen_before then '' else ' (new device)' end, coalesce(' · ' || app.req_ip(), '')), p_label);
-  return jsonb_build_object('revoked', false, 'device_id', d.id);
+  return jsonb_build_object('revoked', false, 'device_id', d.id, 'fresh_again', again);
 end $$;
 
 create or replace function public.revoke_device(p_id uuid) returns void
@@ -859,10 +867,74 @@ begin
   return m;
 end $$;
 
+-- ---------- screen-lock PIN follows the person (v3.6) ----------
+-- Only a strong hash is kept (the same one the device stores). After a full sign-in on a new or wiped device, the app
+-- reuses it instead of asking for a new PIN. The PIN alone never signs anyone in: it only unlocks a signed-in device.
+alter table public.members add column if not exists lock_pin text;
+create or replace function public.set_my_lock_pin(p_hash text) returns void
+  language plpgsql security definer set search_path = public, app as $$
+begin
+  if app.my_garage() is null or not app.session_ok() or not app.mfa_ok() then raise exception 'Not allowed'; end if;
+  if p_hash is null or length(p_hash) > 400 then raise exception 'Bad PIN'; end if;
+  update public.members set lock_pin = p_hash where user_id = auth.uid();
+end $$;
+create or replace function public.get_my_lock_pin() returns text
+  language sql stable security definer set search_path = public, app as $$
+  select case when app.session_ok() and app.mfa_ok() then (select lock_pin from public.members where user_id = auth.uid() and active) end $$;
+
+-- ---------- audit log clean-up (v3.6) ----------
+-- The Owner can delete entries older than N days (never the last 7 days), or set "keep N days" so it happens every night.
+-- Each clean-up is itself written to the log and raises a security alert, so it can't be done quietly.
+create or replace function app.audit_delete_before(p_garage uuid, p_days int) returns int
+  language plpgsql security definer set search_path = public, app as $$
+declare n int;
+begin
+  perform set_config('app.audit_purge', 'on', true);
+  delete from public.audit_log where garage_id = p_garage and at < now() - make_interval(days => p_days);
+  get diagnostics n = row_count;
+  perform set_config('app.audit_purge', 'off', true);
+  return n;
+end $$;
+revoke execute on function app.audit_delete_before(uuid, int) from public, anon, authenticated;
+create or replace function public.audit_purge(p_days int) returns int
+  language plpgsql security definer set search_path = public, app as $$
+declare g uuid := app.my_garage(); n int;
+begin
+  if app.my_role() is distinct from 'owner' or not app.mfa_ok() or not app.session_ok() then raise exception 'Only the Owner can clean the audit log'; end if;
+  if p_days is null or p_days < 7 then raise exception 'The last 7 days are always kept'; end if;
+  n := app.audit_delete_before(g, p_days);
+  insert into public.audit_log (garage_id, user_id, who, coll, rec_id, action, summary, ip)
+  values (g, auth.uid(), app.who(), 'audit', null, 'delete', format('Audit log cleaned: %s entries older than %s days deleted', n, p_days), app.req_ip());
+  if n > 0 then perform app.alert(g, 'warn', 'audit-purge', format('%s deleted %s audit log entries older than %s days', app.who(), n, p_days)); end if;
+  return n;
+end $$;
+create or replace function public.set_audit_keep(p_days int) returns void
+  language plpgsql security definer set search_path = public, app as $$
+begin
+  if app.my_role() is distinct from 'owner' or not app.mfa_ok() or not app.session_ok() then raise exception 'Only the Owner can change this'; end if;
+  if p_days is not null and p_days < 7 then raise exception 'Keep at least 7 days'; end if;
+  if p_days is null then delete from app.config where key = 'audit_keep_days';
+  else insert into app.config values ('audit_keep_days', p_days::text) on conflict (key) do update set value = excluded.value; end if;
+  insert into public.audit_log (garage_id, user_id, who, coll, action, summary, ip)
+  values (app.my_garage(), auth.uid(), app.who(), 'audit', 'update', 'Audit log: keep ' || coalesce(p_days || ' days', 'everything'), app.req_ip());
+end $$;
+create or replace function public.get_audit_keep() returns int
+  language sql stable security definer set search_path = public, app as $$
+  select case when app.my_role() = 'owner' then (select value::int from app.config where key = 'audit_keep_days') end $$;
+create or replace function app.audit_keep() returns void
+  language plpgsql security definer set search_path = public, app as $$
+declare d int := (select value::int from app.config where key = 'audit_keep_days'); g uuid;
+begin
+  if d is null then return; end if;
+  for g in select distinct garage_id from public.audit_log loop perform app.audit_delete_before(g, greatest(d, 7)); end loop;
+end $$;
+revoke execute on function app.audit_keep() from public, anon, authenticated;
+
 -- daily summary: pg_cron calls this at 20:00 Dubai → notify function e-mails the day's summary
 create or replace function app.daily_ping() returns void language plpgsql security definer set search_path = public, app, extensions as $$
 declare v_url text; v_secret text;
 begin
+  perform app.audit_keep();   -- nightly: drop audit entries older than the Owner's "keep" setting
   if coalesce((select value from app.config where key = 'daily_summary'), 'off') <> 'on' then return; end if;   -- off unless the Owner turns it on
   select value into v_url from app.config where key = 'functions_url';
   select value into v_secret from app.config where key = 'cron_secret';

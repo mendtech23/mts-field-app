@@ -117,8 +117,14 @@ const Cloud = {
     await this.ensureScope();
     Auth.user = this.user(); ssSet('gp_unlocked', Auth.user.id);
     document.getElementById('lockScreen')?.remove(); document.body.classList.remove('locked-screen');
-    this.hello();
-    if (!lsGet('gp_lock_' + Auth.user.id)) await askLockPin(Auth.user);
+    keepStorage();
+    const hi = await this.hello();
+    if (hi && hi.revoked) return;
+    if (!lsGet('gp_lock_' + Auth.user.id)) {   // same PIN on every device: take it from the cloud, ask only the very first time
+      const h = await this.rpc('get_my_lock_pin').catch(() => null);
+      if (h) { lsSet('gp_lock_' + Auth.user.id, h); lsSet('gp_pin_up_' + Auth.user.id, '1'); toast('Your usual PIN unlocks this device too', 'ok'); }
+      else await askLockPin(Auth.user);
+    } else this.pinToCloud();
     Sync.start();
     Auth.armIdle();
     if (!Auth.canPage(currentRoute()[0] || 'dashboard')) location.hash = '#/' + (Auth.role().home || 'dashboard');
@@ -147,7 +153,15 @@ const Cloud = {
     try {
       const r = await this.rpc('device_hello', { p_label: deviceLabel(), p_ua: navigator.userAgent.slice(0, 300) });
       if (r && r.revoked) await this.revoked(r.reason);
+      else if (r && r.fresh_again >= 2) setTimeout(showForgetfulHelp, 2500);   // 3rd sign-in from scratch here in 10 days
+      return r;
     } catch (e) { console.warn('device_hello', e.message); }
+  },
+  /* the screen-lock PIN follows the person: upload its hash once (devices that chose it before v3.6) */
+  async pinToCloud() {
+    const u = Auth.user, h = u && lsGet('gp_lock_' + u.id);
+    if (!h || lsGet('gp_pin_up_' + u.id) || !Sync.user) return;
+    try { await this.rpc('set_my_lock_pin', { p_hash: h }); lsSet('gp_pin_up_' + u.id, '1'); } catch (e) { console.warn('pin up', e.message); }
   },
   /* every 5 minutes: am I still allowed in? */
   async heartbeat() {
@@ -221,8 +235,10 @@ function lockShell(inner) {
 function showCloudLogin(notice) {
   closeAllModals();
   const needCfg = !Sync.cfg.url || !Sync.cfg.key;
+  const odd = oddAddress();
   const el = lockShell(`<p class="muted center" style="margin:0 0 14px">Sign in</p>
     ${notice ? `<div class="lock-note">${esc(notice)}</div>` : ''}
+    ${odd ? `<div class="lock-note">${odd}</div>` : ''}
     ${needCfg ? `<div class="field"><label>Cloud address (Owner: from Supabase)</label><input id="cl_url" class="inp" placeholder="https://xxxx.supabase.co"></div>
       <div class="field"><label>Cloud key</label><input id="cl_key" class="inp" placeholder="publishable / anon key"></div>` : ''}
     <div class="field"><label>Username (Owner: your e-mail)</label><input id="cl_user" class="inp" autocomplete="username" autocapitalize="none" spellcheck="false" value="${esc(lsGet('gp_last_login') || '')}"></div>
@@ -292,7 +308,7 @@ function showCloudLock() {
   let busy = false;
   const unlocked = () => { Auth.user = u; ssSet('gp_unlocked', u.id); el.remove(); document.body.classList.remove('locked-screen'); Auth.armIdle();
     if (!Auth.canPage(currentRoute()[0] || 'dashboard')) location.hash = '#/' + (Auth.role().home || 'dashboard'); render();
-    if (Sync.user && !Sync.interval) { Cloud.hello(); Sync.start(); } else if (!Sync.user) Sync.init(); };   // start syncing now it's unlocked
+    if (Sync.user && !Sync.interval) { Cloud.hello(); Sync.start(); Cloud.pinToCloud(); } else if (!Sync.user) Sync.init(); };   // start syncing now it's unlocked
   const go = async () => {
     if (busy) return; busy = true;
     const v = $e('#lk_in').value;
@@ -322,7 +338,7 @@ function askLockPin(u, change) {
   return new Promise(resolve => {
     const m = openModal({
       title: change ? 'Change your screen-lock PIN' : 'Choose a screen-lock PIN', size: 'narrow', sticky: !change,
-      body: `<p style="margin-top:0">${change ? '' : `Hi ${esc(u.name)} — the app locks itself when nobody uses it. `}Choose a PIN of <b>6 to 8 digits</b> to unlock it on <b>this device</b>. Your password is still needed to sign in.</p>
+      body: `<p style="margin-top:0">${change ? '' : `Hi ${esc(u.name)} — the app locks itself when nobody uses it. `}Choose a PIN of <b>6 to 8 digits</b> to unlock it. The same PIN works on every phone or computer you sign in on.</p>
         <div class="field"><label>PIN</label><input id="lp_1" class="inp center" type="password" inputmode="numeric" maxlength="8" style="font-size:20px;letter-spacing:.3em"></div>
         <div class="field"><label>Type it again</label><input id="lp_2" class="inp center" type="password" inputmode="numeric" maxlength="8" style="font-size:20px;letter-spacing:.3em"></div><div id="lp_err" class="small red"></div>`,
       foot: `${change ? '<button class="btn" data-no>Cancel</button>' : ''}<button class="btn primary" data-yes>Save PIN</button>`,
@@ -333,8 +349,9 @@ function askLockPin(u, change) {
       const p1 = m.el.querySelector('#lp_1').value, bad = pinProblem(p1), er = m.el.querySelector('#lp_err');
       if (bad) return er.textContent = bad;
       if (p1 !== m.el.querySelector('#lp_2').value) return er.textContent = 'The two PINs are different';
-      lsSet('gp_lock_' + u.id, await hashPinStrong(p1)); PinGuard.clear('cloud:' + u.id);
-      m.close(); toast('PIN saved', 'ok'); resolve(true);
+      lsSet('gp_lock_' + u.id, await hashPinStrong(p1)); PinGuard.clear('cloud:' + u.id); lsDel('gp_pin_up_' + u.id);
+      m.close(); toast('PIN saved — it works on all your devices', 'ok'); resolve(true);
+      Cloud.pinToCloud();
     };
     m.el.querySelector('[data-yes]').onclick = go;
     m.el.querySelectorAll('input').forEach(i => i.onkeydown = e => { if (e.key === 'Enter') go(); });
@@ -415,7 +432,7 @@ async function changeMyPassword() {
 }
 
 /* ---------- Settings → Staff & security (Owner, personal logins) ---------- */
-const CL = { members: null, devices: [], alerts: [], audit: [], hasPin: false, email: '', factors: [], prefs: { mode: 'security', daily: false }, err: '', who: 'all', coll: 'all' };
+const CL = { members: null, devices: [], alerts: [], audit: [], hasPin: false, email: '', factors: [], prefs: { mode: 'security', daily: false }, keep: null, err: '', who: 'all', coll: 'all' };
 const ROLE_OPTS = () => CLOUD_ROLES.map(r => [r, ROLES[r].label]);
 const agoTxt = iso => { if (!iso) return '—'; const s = (Date.now() - new Date(iso)) / 1000; return s < 90 ? 'just now' : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : fmtDate(iso.slice(0, 10)); };
 const COLL_LABEL = { invoices: 'Invoice', quotes: 'Quotation', jobs: 'Job', payments: 'Payment', customers: 'Customer', vehicles: 'Vehicle', expenses: 'Expense', incomes: 'Other income', parts: 'Part', settings: 'Settings',
@@ -431,16 +448,17 @@ async function loadCloudSecurity() {
   try {
     const sb = Sync.client;
     const q = async p => { const { data, error } = await p; if (error) throw new Error(error.message); return data; };
-    const [members, devices, alerts, audit, hasPin, email, prefs, factors] = await Promise.all([
+    const [members, devices, alerts, audit, hasPin, email, prefs, factors, keep] = await Promise.all([
       Cloud.fn('staff-admin', { action: 'list' }).catch(async e => { CL.err = e.message; return q(sb.from('members').select('*').order('created_at', { ascending: true })); }),
       q(sb.from('devices').select('*').order('last_seen', { ascending: false }).limit(100)),
       q(sb.from('alerts').select('*').order('id', { ascending: false }).limit(150)),
       q(sb.from('audit_log').select('*').order('id', { ascending: false }).limit(400)),
       Cloud.rpc('has_owner_pin'), Cloud.rpc('get_alert_email'),
       Cloud.rpc('get_alert_prefs').catch(() => null),
-      sb.auth.mfa.listFactors().then(r => (r.data && r.data.totp) || []).catch(() => [])]);
+      sb.auth.mfa.listFactors().then(r => (r.data && r.data.totp) || []).catch(() => []),
+      Cloud.rpc('get_audit_keep').catch(() => null)]);
     if (Array.isArray(members) && !CL.err.startsWith('MFA')) CL.err = CL.err && /404|not found/i.test(CL.err) ? 'The staff-admin function is not deployed yet (setup guide step 4)' : CL.err;
-    Object.assign(CL, { members, devices, alerts, audit, hasPin, email: email || '', prefs: prefs || CL.prefs, factors: factors.filter(f => f.status === 'verified') });
+    Object.assign(CL, { members, devices, alerts, audit, hasPin, email: email || '', prefs: prefs || CL.prefs, factors: factors.filter(f => f.status === 'verified'), keep });
     drawCloudSecurity();
   } catch (e) { box.innerHTML = `<div class="card card-pad red">Could not load security: ${esc(e.message)} <button class="btn sm" onclick="loadCloudSecurity()">Try again</button></div>`; }
 }
@@ -510,10 +528,13 @@ function drawCloudSecurity() {
     <div class="card mb"><div class="card-head"><h3>📜 Audit log</h3><div class="actions">
         <select class="inp sm" onchange="CL.who=this.value;drawCloudSecurity()"><option value="all">Everyone</option>${people.map(p => `<option ${CL.who === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select>
         <select class="inp sm" onchange="CL.coll=this.value;drawCloudSecurity()"><option value="all">Everything</option>${colls.map(c => `<option value="${esc(c)}" ${CL.coll === c ? 'selected' : ''}>${esc(COLL_LABEL[c] || c)}</option>`).join('')}</select></div></div>
-      <div class="card-pad muted small" style="padding-bottom:0">Every change, by whom and when (last ${CL.audit.length}). Nobody can edit or delete this list — not even you.</div>
-      ${table([{ h: 'When', v: a => `<span class="small">${esc(new Date(a.at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }))}</span>` },
+      <div class="card-pad muted small row" style="padding-bottom:0;flex-wrap:wrap;gap:8px"><span class="grow">Every change, by whom and when (newest ${CL.audit.length}). Nobody can change it; only you can clear old entries, and that is logged and alerted too.</span>
+        <label class="row" style="gap:6px">Keep <select class="inp sm" onchange="saveAuditKeep(this.value)">${[['', 'everything'], ['30', '30 days'], ['90', '3 months'], ['180', '6 months'], ['365', '1 year']]
+          .map(([v, t]) => `<option value="${v}" ${String(CL.keep || '') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+        <button class="btn sm danger" onclick="purgeAudit()">Delete old entries…</button></div>
+      <div style="max-height:460px;overflow:auto">${table([{ h: 'When', v: a => `<span class="small">${esc(new Date(a.at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }))}</span>` },
         { h: 'Who', v: a => esc(a.who || 'system') }, { h: 'What', v: a => `${pill(a.action === 'delete' ? 'Deleted' : a.action === 'create' ? 'Added' : 'Changed', a.action === 'delete' ? 'red' : a.action === 'create' ? 'green' : '')} ${esc(COLL_LABEL[a.coll] || a.coll)}` },
-        { h: 'Details', v: a => `<span class="small">${esc(a.summary || '')}</span>` }], aud.slice(0, 200), { empty: 'Nothing yet.' })}</div>
+        { h: 'Details', v: a => `<span class="small">${esc(a.summary || '')}</span>` }], aud.slice(0, 200), { empty: 'Nothing yet.' })}</div></div>
     ${cloudLocalLockHTML()}`;
   if (typeof checkSecurityHeaders === 'function') checkSecurityHeaders();
 }
@@ -628,6 +649,23 @@ async function saveAlertPrefs() {
   const mode = (document.querySelector('input[name="al_mode"]:checked') || {}).value || 'security', daily = !!(document.getElementById('al_daily') || {}).checked;
   try { await Cloud.rpc('set_alert_prefs', { p_mode: mode, p_daily: daily }); CL.prefs = { mode, daily }; toast('Saved', 'ok'); drawCloudSecurity(); }
   catch (e) { toast(e.message, 'err'); loadCloudSecurity(); }
+}
+async function saveAuditKeep(v) {
+  try { await Cloud.rpc('set_audit_keep', { p_days: v ? +v : null }); CL.keep = v ? +v : null; toast(v ? `Audit entries older than ${v} days are deleted every night` : 'Audit log keeps everything', 'ok'); }
+  catch (e) { toast(e.message, 'err'); loadCloudSecurity(); }
+}
+function purgeAudit() {
+  const m = openModal({ title: 'Delete old audit entries', size: 'narrow', body: `
+    <p style="margin-top:0">Entries older than the age you choose are deleted for good. The last 7 days are always kept. The clean-up itself is written to the log and sent to you as a security alert.</p>
+    <div class="field"><label>Delete everything older than</label><select id="ap_d" class="inp">${[[7, '1 week'], [30, '1 month'], [90, '3 months'], [180, '6 months'], [365, '1 year']].map(([d, t]) => `<option value="${d}" ${d === 30 ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+    <p class="small muted">Tip: download a backup first if you might need the old history.</p>`,
+    foot: `<button class="btn" data-no>Cancel</button><button class="btn danger" data-yes>Delete</button>` });
+  m.el.querySelector('[data-no]').onclick = () => m.close();
+  m.el.querySelector('[data-yes]').onclick = async () => {
+    const d = +m.el.querySelector('#ap_d').value;
+    try { const n = await Cloud.rpc('audit_purge', { p_days: d }); m.close(); toast(`${n} old entr${n === 1 ? 'y' : 'ies'} deleted`, 'ok'); loadCloudSecurity(); }
+    catch (e) { toast(e.message, 'err'); }
+  };
 }
 async function removeAuthenticator(id) {
   if (CL.factors.length < 2) return toast('Keep at least one authenticator', 'err');
@@ -790,4 +828,33 @@ async function crewSync() {
     if (ph) { ph.fromCloud = true; await DB.put('photos', ph); changed++; }
   }
   return changed;
+}
+
+/* ---------- staying signed in ----------
+   The sign-in and PIN live in this browser's storage. Ask the browser to keep it, spot addresses that always start
+   empty, and explain the fix when a browser keeps wiping it (set to clear site data on close, private window…). */
+function keepStorage() { try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => { }); } catch (e) { } }
+function oddAddress() {
+  const h = location.hostname, site = h.replace(/^[0-9a-f]{20,}--/, '').replace(/^deploy-preview-\d+--/, '');
+  if (location.protocol === 'file:') return 'This is a copy of the app saved on this computer. It can\'t stay signed in — open the web address instead.';
+  if (site !== h) return `This is a one-off Netlify address, so it never remembers you. Open <b>https://${esc(site)}</b> instead (bookmark it).`;
+  return '';
+}
+function showForgetfulHelp() {
+  const ua = navigator.userAgent, edge = /Edg\//.test(ua), samsung = /SamsungBrowser/.test(ua), safari = /Safari\//.test(ua) && !/Chrome|Android/.test(ua);
+  const site = location.hostname;
+  const steps = edge ? `<li>Edge → <b>⋯ → Settings → Privacy, search, and services</b> → <b>Clear browsing data → Choose what to clear every time you close the browser</b>.</li>
+      <li>Turn <b>off</b> “Cookies and other site data” — or keep it on and add <b>${esc(site)}</b> under “Don't clear”.</li>`
+    : samsung ? `<li>Samsung Internet → <b>☰ → Settings → Personal browsing data</b>: turn off anything that deletes data when the app closes.</li>`
+    : safari ? `<li>Use the app from the <b>Home Screen icon</b> every time, not from Safari tabs, and don't use Private browsing.</li>`
+    : `<li>Chrome → <b>⋮ → Settings → Privacy and security → Third-party cookies</b> (or “Site settings → On-device site data”).</li>
+      <li>Turn <b>off</b> “Delete data sites have saved to your device when you close all windows” — or add <b>${esc(site)}</b> under “Allowed to save data on your device”.</li>`;
+  const m = openModal({ title: 'This browser keeps forgetting you', size: 'narrow', body: `
+    <p style="margin-top:0">You've had to sign in from scratch on this ${/Android|iPhone|iPad/.test(ua) ? 'phone' : 'computer'} several times. The app saves your sign-in and PIN, but this browser deletes them when it closes. Fix it once:</p>
+    <ol class="small" style="padding-left:18px;line-height:1.7">${steps}
+      <li>Don't use a <b>private / incognito</b> window, and don't run cleaner tools (CCleaner etc.) on this site.</li>
+      <li>Always open the same address: <b>https://${esc(site)}</b> — and either always the installed app icon or always the browser, not a mix.</li></ol>
+    <p class="small muted">After that you only type your PIN when you open the app.</p>`,
+    foot: `<button class="btn primary" data-ok>OK</button>` });
+  m.el.querySelector('[data-ok]').onclick = () => m.close();
 }

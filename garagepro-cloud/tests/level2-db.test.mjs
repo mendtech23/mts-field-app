@@ -174,6 +174,35 @@ const n0 = audit.length; const cu = (await read(O, '&coll=eq.customers&id=eq.c1'
 await upsert(O, [{ ...cu, data: { ...cu.data, updatedAt: now() } }]);
 ok((await http('GET', '/rest/v1/audit_log?select=id', { token: O })).data.length === n0, 'timestamp-only re-sync does not spam the log');
 
+console.log('\n5b. Audit log clean-up (v3.6)');
+const oldIds = (await db.query("insert into public.audit_log (garage_id, at, who, coll, action, summary) values ($1, now() - interval '40 days', 'old', 'jobs', 'update', 'old 40d'), ($1, now() - interval '100 days', 'old', 'jobs', 'update', 'old 100d') returning id", [G])).rows.map(x => x.id);
+r = await rpc(M.t, 'audit_purge', { p_days: 30 }); ok(r.status >= 400, 'manager cannot clean the audit log', r.data);
+r = await rpc(O, 'audit_purge', { p_days: 3 }); ok(r.status >= 400 && /7 days/.test(JSON.stringify(r.data)), 'the last 7 days are always kept', r.data);
+r = await rpc(O, 'audit_purge', { p_days: 60 }); ok(r.data === 1, 'owner deletes entries older than 60 days', r.data);
+let left = (await db.query('select id from public.audit_log where id = any($1)', [oldIds])).rows.map(x => +x.id);
+ok(left.length === 1 && left[0] === +oldIds[0], 'only the older entry went', left);
+ok((await db.query("select count(*)::int n from public.audit_log where garage_id=$1 and coll='audit' and summary like 'Audit log cleaned: 1 %'", [G])).rows[0].n === 1, 'the clean-up is itself logged');
+ok((await db.query("select count(*)::int n from public.alerts where garage_id=$1 and kind='audit-purge'", [G])).rows[0].n === 1, 'and raises a security alert');
+ok((await db.query("select app.should_email('warn','audit-purge') e")).rows[0].e === true, 'which is e-mailed in "security only" mode');
+r = await rpc(O, 'set_audit_keep', { p_days: 30 }); ok(r.status < 300, 'owner sets keep 30 days', r.data);
+r = await rpc(O, 'get_audit_keep'); ok(r.data === 30, 'keep setting read back', r.data);
+r = await rpc(A.t, 'set_audit_keep', { p_days: 7 }); ok(r.status >= 400, 'advisor cannot change it');
+await db.query('select app.audit_keep()');
+ok((await db.query('select count(*)::int n from public.audit_log where id = any($1)', [oldIds])).rows[0].n === 0, 'nightly job removes entries older than 30 days');
+ok((await db.query('select count(*)::int n from public.audit_log where garage_id=$1', [G])).rows[0].n > 10, 'recent entries stay');
+try { await db.query('delete from public.audit_log where garage_id=$1', [G]); ok(false, 'plain delete'); } catch (e) { ok(/cannot be changed/.test(e.message), 'a plain delete is still blocked'); }
+r = await rpc(O, 'set_audit_keep', { p_days: null }); ok((await rpc(O, 'get_audit_keep')).data === null, 'back to keep everything');
+r = await upsert(O, [rec('secLog', 'sl9', { what: 'pin ok' }), rec('photos', 'ph9', { jobId: 'j1', data: 'x' })]);
+ok((await db.query("select count(*)::int n from public.audit_log where garage_id=$1 and rec_id in ('sl9','ph9')", [G])).rows[0].n === 0, 'security-log entries and new photos are not audited (less noise)');
+
+console.log('\n5c. Screen PIN follows the person, forgetful browsers (v3.6)');
+r = await rpc(M.t, 'get_my_lock_pin'); ok(r.data === null, 'no PIN in the cloud yet', r.data);
+r = await rpc(M.t, 'set_my_lock_pin', { p_hash: 'pbkdf2$1$aa$bb' }); ok(r.status < 300, 'manager saves PIN hash', r.data);
+r = await rpc(M.t, 'get_my_lock_pin'); ok(r.data === 'pbkdf2$1$aa$bb', 'and gets it back on another device', r.data);
+r = await rpc(A.t, 'get_my_lock_pin'); ok(r.data === null, 'nobody else gets it', r.data);
+r = await rpc(null, 'get_my_lock_pin'); ok(r.data === null || r.status >= 400, 'anonymous gets nothing', r.data);
+
+
 console.log('\n8. Alerts, e-mail hook');
 r = await rpc(O, 'set_alert_config', { p_email: 'mendtech23@gmail.com', p_functions_url: 'http://localhost:8200/functions/v1', p_anon_key: K.anon }); ok(r.status === 200, 'owner sets alert e-mail', r.data);
 r = await rpc(A.t, 'set_alert_config', { p_email: 'evil@x.com', p_functions_url: null, p_anon_key: null }); ok(r.status >= 400, 'advisor cannot change the alert e-mail');
@@ -252,6 +281,11 @@ await new Promise(res => setTimeout(res, 100));
 r = await http('POST', `/auth/v1/factors/${fac.id}/verify`, { token: O3, body: { challenge_id: ch.id, code: '000000' } }); ok(!r.data.access_token, 'wrong code refused');
 r = await read(O2); ok(r.data.length > 15, 'with password + code: full access', r.data.length);
 r = await read(M.t); ok(r.data.length > 10, 'staff are not affected by the owner MFA');
+
+console.log('\n13. Browser that keeps forgetting (v3.6)');
+const F = await mk('desk', 'advisor'); let fa;
+for (let i = 0; i < 3; i++) { const t = (await login(F.email, 'Staff#12345')).access_token; fa = (await rpc(t, 'device_hello', { p_label: 'Front desk PC', p_ua: 'x' })).data; }
+ok(fa.fresh_again === 2, 'third fresh sign-in on the same kind of device: 2 earlier ones are reported', fa);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 await db.end(); process.exit(fail ? 1 : 0);
