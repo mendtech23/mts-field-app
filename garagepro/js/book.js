@@ -30,7 +30,7 @@
         const g = db.transaction('meta').objectStore('meta').get('settings');
         g.onsuccess = () => { const st = g.result; db.close(); if (!st) return resolve(null);
           const m = st.mob || {};
-          resolve({ name: st.garageName, mobile: st.brandMobile, phone: [st.phone ? 'Call ' + st.phone : '', st.whatsapp ? 'WhatsApp ' + st.whatsapp : ''].filter(Boolean).join(' · '), whatsapp: st.whatsapp || st.mobile || st.phone, logo: st.logo, services: m.services, workshopServices: m.workshopServices, hoursStart: m.hoursStart, hoursEnd: m.hoursEnd, allDay: m.allDay, address: st.address }); };
+          resolve({ name: st.garageName, mobile: st.brandMobile, phone: [st.phone ? 'Call ' + st.phone : '', st.whatsapp ? 'WhatsApp ' + st.whatsapp : ''].filter(Boolean).join(' · '), whatsapp: st.whatsapp || st.mobile || st.phone, logo: st.logo, services: m.services, workshopServices: m.workshopServices, hoursStart: m.hoursStart, hoursEnd: m.hoursEnd, allDay: m.allDay, address: st.address, mapLink: st.mapLink }); };
         g.onerror = () => { db.close(); resolve(null); };
       };
     });
@@ -45,6 +45,11 @@
     document.title = `Book a service — ${type === 'mobile' ? (b.mobile || b.name) : b.name}`;
     if (b.address) $('#wsAddr').textContent = b.address;
     $('#footTxt').textContent = ['mendtech. auto · mobile', b.phone].filter(Boolean).join(' · ');
+    if (b.mapLink && /^https:\/\//.test(b.mapLink)) {   // the workshop's Google Maps pin
+      const f = document.createElement('div'); f.innerHTML = `<a href="${b.mapLink.replace(/"/g, '%22')}" target="_blank" rel="noopener">📍 Find our workshop on Google Maps</a>`; $('#footTxt').appendChild(f);
+      $('#dirLink').href = $('#dirBtn').href = b.mapLink;
+    }
+    $('#dirLink').classList.toggle('hidden', !(b.mapLink && type === 'workshop'));
     const list = type === 'mobile' ? b.services : b.workshopServices;
     $('#svc').innerHTML = (list || []).map(s => `<button type="button" class="chip ${s === service ? 'on' : ''}">${esc(s)}</button>`).join('');
     $('#svc').querySelectorAll('.chip').forEach(c => c.onclick = () => { service = c.textContent; $('#svc').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c)); });
@@ -141,6 +146,7 @@
       const wa = waDigits(b.whatsapp || b.phone);
       $('#waBtn').href = wa ? `https://wa.me/${wa}?text=${encodeURIComponent(msg)}` : '#';
       if (!wa) $('#waBtn').style.display = 'none';
+      if (b.mapLink && type === 'workshop') $('#dirBtn').classList.remove('hidden');
       $('#f').classList.add('hidden'); $('#done').classList.remove('hidden'); window.scrollTo(0, 0);
     } catch (x) { fail(x.message); }
     finally { $('#send').disabled = false; $('#send').textContent = 'Send request'; }

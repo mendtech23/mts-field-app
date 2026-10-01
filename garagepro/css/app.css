@@ -527,6 +527,7 @@ body.role-driver .totals, body.role-driver [data-prices] { display: none; }
 .bd-signs img { height: 44px; max-width: 100%; object-fit: contain; object-position: left bottom; margin-bottom: 2px; }
 .bd-signs span { display: block; border-top: 1.2px solid var(--st); padding-top: 8px; color: var(--ink); font-size: 10px; }
 .bd-contact { display: flex; justify-content: space-between; gap: 20px; margin-top: 22px; color: var(--mu); font-size: 9px; }
+.bd-contact { align-items: center; } .bd-find { display: flex; align-items: center; gap: 7px; flex: none; line-height: 1.35; } .bd-find svg { width: 44px; height: 44px; flex: none; } .bd-find b { color: var(--ink); }
 .bd-bar { display: flex; height: 7px; position: relative; z-index: 1; margin: 0 -48px; }
 .bd-bar i { flex: 0 0 64%; background: var(--n); } .bd-bar i:nth-child(2) { flex-basis: 18%; background: var(--g); } .bd-bar i:nth-child(3) { flex-basis: 18%; background: var(--o); }
 /* letterhead (statements, vehicle history, reports) */
@@ -557,6 +558,7 @@ body.role-driver .totals, body.role-driver [data-prices] { display: none; }
 .poster-cta { font-family: 'Space Grotesk', 'Inter', sans-serif; font-weight: 700; font-size: 26px; color: var(--n); }
 .poster-svc { color: var(--ink); font-size: 14px; margin-top: 10px; }
 .poster-link { color: var(--mu); font-size: 11px; margin-top: 8px; word-break: break-all; }
+.poster-find { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 26px; text-align: left; font-size: 13px; color: var(--ink); } .poster-find svg { width: 110px; height: 110px; flex: none; } .poster-find span { color: var(--mu); font-size: 11px; }
 
 /* Technicians / drivers: no search, no front-desk buttons */
 body.role-restricted .search-wrap, body.role-restricted #tbMobile, body.role-restricted #topbar .btn.primary, body.role-restricted #topbar > .btn { display: none !important; }

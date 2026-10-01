@@ -53,6 +53,8 @@ textarea { min-height: 80px; resize: vertical; }
 .done .tick { width: 70px; height: 70px; border-radius: 50%; background: var(--green); color: #fff; font-size: 38px; display: grid; place-items: center; margin: 0 auto 12px; }
 .ref { font-family: Consolas, monospace; font-size: 18px; font-weight: 700; background: var(--soft); padding: 6px 12px; border-radius: 8px; display: inline-block; margin: 8px 0; }
 .foot { text-align: center; font-size: 12px; color: var(--ink3); margin-top: 20px; }
+.dir { display: block; text-align: center; margin: 10px 0 2px; font-size: 14px; font-weight: 600; color: var(--ink); text-decoration: none; } .dir.hidden, .btn.hidden { display: none; }
+.foot a { color: inherit; }
 .banner { background: #fef3c7; color: #92400e; border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-bottom: 12px; }
 </style>
 </head>
@@ -68,6 +70,7 @@ textarea { min-height: 80px; resize: vertical; }
         <button type="button" class="choice on" data-type="mobile">🚐<b>We come to you</b><span>Dubai & Sharjah</span></button>
         <button type="button" class="choice" data-type="workshop">🔧<b>Workshop visit</b><span id="wsAddr">Bring your car to us</span></button>
       </div>
+      <a class="dir hidden" id="dirLink" target="_blank" rel="noopener">📍 Get directions to our workshop</a>
       <label>What do you need?</label><div class="chips" id="svc"></div>
       <label for="notes">Tell us more (optional)</label><textarea id="notes" maxlength="800" placeholder="e.g. car won't start, battery warning light, flat rear tyre"></textarea>
       <label for="photo">Add a photo (optional)</label><input id="photo" type="file" accept="image/*">
@@ -107,7 +110,7 @@ textarea { min-height: 80px; resize: vertical; }
     <div class="tick">✓</div><h2 style="font-size:20px;margin:0">Request received</h2>
     <p class="sub">Thank you! We'll confirm the time with you shortly on WhatsApp or by phone.</p>
     <div class="ref" id="refNo"></div>
-    <div style="display:grid;gap:10px;margin-top:14px"><a class="btn wa" id="waBtn" target="_blank" rel="noopener" style="text-decoration:none">Chat with us on WhatsApp</a><button class="btn ghost" onclick="location.reload()">Book another service</button></div>
+    <div style="display:grid;gap:10px;margin-top:14px"><a class="btn wa" id="waBtn" target="_blank" rel="noopener" style="text-decoration:none">Chat with us on WhatsApp</a><a class="btn ghost hidden" id="dirBtn" target="_blank" rel="noopener" style="text-decoration:none;text-align:center">📍 Directions to our workshop</a><button class="btn ghost" onclick="location.reload()">Book another service</button></div>
   </div>
 </div>
 <script src="js/config.js"></script>

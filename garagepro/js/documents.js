@@ -48,7 +48,7 @@ function bdHead(title, meta, left = '', plain = false) {
 }
 function bdFoot(signs, plain = false) {
   return `<footer class="bd-foot">${signs ? `<div class="bd-signs" style="grid-template-columns:repeat(${signs.length},1fr)">${signs.map(s => `<div>${s.img ? `<img src="${s.img}" alt="">` : ''}<span>${s.label}</span></div>`).join('')}</div>` : ''}
-    ${plain ? '' : `<div class="bd-contact"><span>${esc(brandContact())}</span><span>${esc(brandFooterNote())}</span></div>`}</footer>${plain ? '' : '<div class="bd-bar"><i></i><i></i><i></i></div>'}`;
+    ${plain ? '' : `<div class="bd-contact">${garageMapLink() ? `<span class="bd-find">${qrSVG(garageMapLink(), 44)}<span><b>Find us</b><br>Scan for directions</span></span>` : ''}<span>${esc(brandContact())}</span><span>${esc(brandFooterNote())}</span></div>`}</footer>${plain ? '' : '<div class="bd-bar"><i></i><i></i><i></i></div>'}`;
 }
 const bdDoc = (inner, cls = '') => `<div class="bdoc ${cls}">${/\bplain\b/.test(cls) ? '' : '<img class="bd-wm" src="img/brand/watermark.svg" alt="">'}<div class="bd-body">${inner}</div></div>`;
 const typeLabel = it => it.type === 'part' ? 'Parts' : it.type === 'labour' ? 'Labour' : 'Other';
@@ -271,7 +271,8 @@ function brandPDF(opts = {}) {
     },
     watermark() { const I = window.GP_BRAND_IMG || {}; if (I.watermark && !plain) pdf.addImage(I.watermark, 'PNG', 172 * PX, 478 * PX, 486 * PX, 486 * PX / 1.712, 'wm', 'FAST'); },
     bar() { if (plain) return; const y = K.H - 7 * PX; api.fill(BRAND.navy); pdf.rect(0, y, K.W * 0.64, 7 * PX, 'F'); api.fill(BRAND.gold); pdf.rect(K.W * 0.64, y, K.W * 0.18, 7 * PX, 'F'); api.fill(BRAND.orange); pdf.rect(K.W * 0.82, y, K.W * 0.18 + 0.1, 7 * PX, 'F'); },
-    contact() { if (plain) return; const y = K.H - 7 * PX - 16 * PX - 1; api.font('reg', 9, BRAND.mute); api.txt(brandContact(), K.M, y); api.txt(brandFooterNote(), K.R, y, { align: 'right' }); },
+    contact() { if (plain) return; const y = K.H - 7 * PX - 16 * PX - 1; api.font('reg', 9, BRAND.mute); api.txt(brandContact(), K.M, y); api.txt(brandFooterNote(), K.R, y, { align: 'right' });
+      const map = garageMapLink(); if (map) { api.font('semi', 8.5, BRAND.navy); pdf.textWithLink('Find us on Google Maps', K.M, y + 3.9, { url: map }); } },
     signTop: () => K.H - 7 * PX - 16 * PX - 1 - 22 * PX - 8 * PX - 3,   // y of the signature lines
     signs(list) {
       const y = api.signTop(), gap = 34 * PX, w = (K.R - K.M - gap * (list.length - 1)) / list.length;

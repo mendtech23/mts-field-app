@@ -251,14 +251,15 @@ function printBookingPoster() {
       <div class="poster-qr">${qrSVG(link, 300)}</div>
       <div class="poster-cta">Scan to book a service</div>
       <div class="poster-svc">Battery · Tyres · Jump start · Minor service at your location · AC · Diagnostics</div>
-      <div class="poster-link">${esc(link)}</div></div>
+      <div class="poster-link">${esc(link)}</div>
+      ${garageMapLink() ? `<div class="poster-find">${qrSVG(garageMapLink(), 110)}<div><b>Find our workshop</b><br>${esc(S.settings.address || '')}<br><span>Scan for directions</span></div></div>` : ''}</div>
     <div class="bd-grow"></div>${bdFoot(null)}`), true);
 }
 function downloadBookingConfig() {
   if (!Sync.cfg.url || !Sync.cfg.key || !Sync.user) return toast('Connect cloud sync first (Settings → Cloud & devices), then try again', 'err');
   const st = S.settings, m = st.mob;
   const cfg = { mode: IS_PREVIEW ? 'preview' : 'live', dbName: IS_PREVIEW ? CFG.dbName || 'garagepro-preview' : 'garagepro', ...(CFG.previewCloud ? { previewCloud: true } : {}), supabaseUrl: Sync.cfg.url, supabaseKey: Sync.cfg.key, garageId: (Cloud.me && Cloud.me.garage_id) || Sync.user.id, ...(Cloud.accounts ? { accounts: true } : {}),
-    brand: { name: st.garageName, mobile: st.brandMobile, phone: contactLine(), logo: st.logo, whatsapp: waGarage(), address: st.address,
+    brand: { name: st.garageName, mobile: st.brandMobile, phone: contactLine(), logo: st.logo, whatsapp: waGarage(), address: st.address, mapLink: garageMapLink(),
       services: m.services, workshopServices: m.workshopServices, zones: m.zones.map(z => ({ name: z.name, emirate: z.emirate })), hoursStart: m.hoursStart, hoursEnd: m.hoursEnd, allDay: m.allDay } };
   const txt = `/* GaragePro build settings — generated ${new Date().toLocaleString('en-GB')}. Put this file in the js folder, replacing the old one. */\nwindow.GP_CONFIG = ${JSON.stringify(cfg, null, 2)};\n`;
   downloadBlob(new Blob([txt], { type: 'text/javascript' }), 'config.js');

@@ -1,7 +1,7 @@
 /* GaragePro — core: storage, data model, calculations */
 'use strict';
 
-const APP_VERSION = '3.6.0';
+const APP_VERSION = '3.6.1';
 const CFG = Object.assign({ mode: 'live', dbName: 'garagepro', supabaseUrl: '', supabaseKey: '', garageId: '' }, window.GP_CONFIG || {});
 const IS_PREVIEW = CFG.mode === 'preview';
 const COLLECTIONS = ['customers', 'vehicles', 'quotes', 'jobs', 'invoices', 'payments', 'parts',
@@ -143,7 +143,7 @@ const DEFAULT_SETTINGS = {
     quote: 'Dear {customer},\n\nPlease find your quotation {number} for {vehicle} ({plate}).\nTotal: {amount} (incl. VAT)\nValid until: {validUntil}\n\n{items}\n\n{approveLine}\n\n{garage}\n{garagePhone}',
     invoice: 'Dear {customer},\n\nYour invoice {number} for {vehicle} ({plate}) is ready.\nTotal: {amount}\nPaid: {paid}\nBalance due: {balance}\n\n{payInfo}\n\nThank you for choosing {garage}.\n{garagePhone}',
     receipt: 'Dear {customer},\n\nWe have received your payment of {amount} ({method}) against invoice {number}. Receipt no. {receipt}.\nRemaining balance: {balance}\n\nThank you!\n{garage}',
-    ready: 'Dear {customer},\n\nGood news! Your {vehicle} ({plate}) is ready for collection.\nAmount due: {balance}\n\nOpening hours: 8am - 7pm.\n{garage}\n{garagePhone}',
+    ready: 'Dear {customer},\n\nGood news! Your {vehicle} ({plate}) is ready for collection.\nAmount due: {balance}\n\nOpening hours: 8am - 7pm.\n{directions}\n{garage}\n{garagePhone}',
     jobUpdate: 'Dear {customer},\n\nUpdate on your {vehicle} ({plate}), job {number}: status is now "{status}".\n\n{garage}\n{garagePhone}',
     serviceDue: 'Dear {customer},\n\nYour {vehicle} ({plate}) is due for: {item}.\nLast recorded odometer: {odometer} km.\n\nReply to book a slot that suits you.\n{garage}\n{garagePhone}',
     regExpiry: 'Dear {customer},\n\nReminder: the registration of your {vehicle} ({plate}) expires on {date}. We can do the pre-registration test and service for you.\n\n{garage}\n{garagePhone}',
@@ -151,13 +151,13 @@ const DEFAULT_SETTINGS = {
     payment: 'Dear {customer},\n\nA friendly reminder that invoice {number} for {vehicle} ({plate}) has an outstanding balance of {balance}.\n\n{payInfo}\n\nThank you.\n{garage}\n{garagePhone}',
     inspection: 'Dear {customer},\n\nInspection results for your {vehicle} ({plate}):\n\n{items}\n\nWe will send a quotation for the recommended work.\n{garage}\n{garagePhone}',
     thanks: 'Dear {customer},\n\nThank you for visiting {garage}. We hope you are happy with the work on your {vehicle}. We would love your feedback!\n\n{garagePhone}',
-    booking: 'Dear {customer},\n\nYour appointment at {garage} is confirmed:\n📅 {date} at {time}\n🚗 {vehicle} {plate}\n🔧 {item}\n\nLocation: {address}\nSee you then!\n{garagePhone}',
+    booking: 'Dear {customer},\n\nYour appointment at {garage} is confirmed:\n📅 {date} at {time}\n🚗 {vehicle} {plate}\n🔧 {item}\n\nLocation: {address}\n{directions}\nSee you then!\n{garagePhone}',
     bookingReminder: 'Dear {customer},\n\nReminder: your appointment at {garage} is tomorrow, {date} at {time}, for your {vehicle} {plate}.\n\nReply if you need to change the time.\n{garagePhone}',
     mobileReceived: 'Dear {customer},\n\nThank you for contacting {brand}. We have received your request ({number}) for your {vehicle} {plate}: {item}.\n\nLocation: {location}\nWhen: {when}\n\nWe will confirm the technician and arrival time shortly.\n{garagePhone}',
     mobileOnWay: 'Dear {customer},\n\nOur {brand} technician {tech} is on the way to you now.\nEstimated arrival: {eta}\nLocation: {location}\n\nIf anything changes, just reply to this message.\n{garagePhone}',
     mobileArrived: 'Dear {customer},\n\nOur {brand} technician {tech} has arrived at your location. See you shortly!\n{garagePhone}',
     mobileCompleted: 'Dear {customer},\n\nThe work on your {vehicle} {plate} is complete ({number}).\nTotal: {amount}\n\n{payInfo}\n\nThank you for choosing {brand}!\n{garagePhone}',
-    needsWorkshop: 'Dear {customer},\n\nOur technician has checked your {vehicle} {plate}. This repair needs our workshop equipment, so we have booked it in at {garage}: {date} {time}.\n\nAddress: {address}\nWe can arrange recovery if needed — just reply.\n{garagePhone}',
+    needsWorkshop: 'Dear {customer},\n\nOur technician has checked your {vehicle} {plate}. This repair needs our workshop equipment, so we have booked it in at {garage}: {date} {time}.\n\nAddress: {address}\n{directions}\nWe can arrange recovery if needed — just reply.\n{garagePhone}',
     followUp: 'Dear {customer},\n\nWhen we checked your {vehicle} ({plate}) on {date}, we recommended:\n{item}\n\nWould you like us to book this in? We can also come to you.\n{garagePhone}',
     review: 'Dear {customer},\n\nThank you for choosing {garage}! If you are happy with the work on your {vehicle}, a quick Google review would help us a lot:\n{reviewLink}\n\nThank you!\n{garagePhone}',
     requestDeclined: 'Dear {customer},\n\nThank you for your request to {brand}. Unfortunately we cannot take this job at the requested time. Please reply with another time that suits you, or call us on {garagePhone}.\n\nSorry for the inconvenience.',
@@ -502,8 +502,11 @@ function baseCtx(v, c) {
     customer: c ? c.name : 'Customer', plate: v ? v.plate : '', vehicle: vehicleLabel(v), vin: v ? v.vin : '',
     odometer: v ? fmtNum(currentOdo(v)) : '', garage: st.garageName, garagePhone: contactLine(), whatsapp: st.whatsapp || '', phone: st.phone || '',
     bank: st.bankDetails || '', payInfo: payInfoText(null, ''), payLink: st.payStripeLink || '', brand: st.garageName, reviewLink: (st.offers || {}).googleReviewLink || '',
+    mapLink: garageMapLink(), directions: garageMapLink() ? '📍 Directions: ' + garageMapLink() : '',
   };
 }
+/* the workshop's Google Maps pin (Settings → Garage details), used in messages, the booking page and documents */
+const garageMapLink = () => (S.settings && S.settings.mapLink) || (CFG.brand || {}).mapLink || '';
 /* Contact line used in messages and documents: calls + WhatsApp */
 function contactLine(sep = ' · ') {
   const st = S.settings;
@@ -573,6 +576,12 @@ async function migrateSettings() {
     const t = st.templates && st.templates.quote;
     if (t && !t.includes('{approveLine}') && t.includes('Reply YES to approve and we will start the work.')) st.templates.quote = t.replace('Reply YES to approve and we will start the work.', '{approveLine}');
     st.schema = 36; changed = true;
+  }
+  if (st.schema < 37) {   // v3.6.1: workshop location — Google Maps pin in messages, booking page and documents
+    if (!st.mapLink && CFG.brand && CFG.brand.mapLink) st.mapLink = CFG.brand.mapLink;
+    const T = st.templates || {}, add = (k, after) => { if (T[k] && !T[k].includes('{directions}') && T[k].includes(after)) T[k] = T[k].replace(after, after + '\n{directions}'); };
+    add('ready', 'Opening hours: 8am - 7pm.'); add('booking', 'Location: {address}'); add('needsWorkshop', 'Address: {address}');
+    st.schema = 37; changed = true;
   }
   if (changed) await saveSettings();
 }
