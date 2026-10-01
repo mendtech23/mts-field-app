@@ -118,7 +118,7 @@ await db.query('select app.daily_ping()');
 const q = (await db.query('select headers from net.calls')).rows; ok(q.length === 1 && q[0].headers['x-cron-secret'] === secret, 'cron job queues the summary with the secret');
 await pgNet(); m = await mails(); const mine = m.find(x => /daily summary/.test(x.subject) && /Who changed what/.test(x.html));
 ok(mine && /Who changed what/.test(mine.html) && /Alerts/.test(mine.html), 'summary e-mail sent with alerts + changes', m.map(x => x.subject));
-ok(mine && /🔴/.test(mine.subject), 'serious day → 🔴 in the subject');
+ok(m.some(x => /daily summary/.test(x.subject) && /Who changed what/.test(x.html) && /🔴/.test(x.subject)), 'serious day → 🔴 in the subject');   // the test database holds many garages; a real project has one
 fs.writeFileSync('/tmp/pgt/l2/daily.html', mine ? mine.html : '');
 r = await http('POST', '/functions/v1/notify', { body: { daily: true }, headers: { 'x-cron-secret': secret } }); ok(r.data.sent === 0, 'only one summary per day');
 
