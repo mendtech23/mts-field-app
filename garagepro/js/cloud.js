@@ -121,7 +121,7 @@ const Cloud = {
     const hi = await this.hello();
     if (hi && hi.revoked) return;
     if (!lsGet('gp_lock_' + Auth.user.id)) {   // same PIN on every device: take it from the cloud, ask only the very first time
-      const h = await this.rpc('get_my_lock_pin').catch(() => null);
+      const h = lsGet('gp_pin_reset_' + Auth.user.id) ? null : await this.rpc('get_my_lock_pin').catch(() => null);   // forgot the PIN → choose a new one
       if (h) { lsSet('gp_lock_' + Auth.user.id, h); lsSet('gp_pin_up_' + Auth.user.id, '1'); toast('Your usual PIN unlocks this device too', 'ok'); }
       else await askLockPin(Auth.user);
     } else this.pinToCloud();
@@ -302,9 +302,9 @@ function showCloudLock() {
       : `<input id="lk_in" class="inp" type="password" placeholder="Your password" autocomplete="current-password">`}
     <div id="lk_err" class="small center lock-err"></div>
     <button class="btn primary lg" id="lk_go" style="width:100%;justify-content:center">Unlock</button>
-    <p class="small center" style="margin:14px 0 0"><a href="#" id="lk_out">Not ${esc(u.name)}? Sign out</a></p>`);
+    <p class="small center" style="margin:14px 0 0">${pinHash ? '<a href="#" id="lk_forgot">Forgot PIN?</a> · ' : ''}<a href="#" id="lk_out">Not ${esc(u.name)}? Sign out</a></p>`);
   const $e = s => el.querySelector(s), err = t => { $e('#lk_err').textContent = t || ''; };
-  const wait = PinGuard.lockedFor(who.id); if (wait) err(`Locked after too many wrong PINs — sign out and sign in with your password`);
+  const wait = PinGuard.lockedFor(who.id); if (wait) err(`Locked after too many wrong PINs — press “Forgot PIN?” and sign in with your password`);
   let busy = false;
   const unlocked = () => { Auth.user = u; ssSet('gp_unlocked', u.id); el.remove(); document.body.classList.remove('locked-screen'); Auth.armIdle();
     if (!Auth.canPage(currentRoute()[0] || 'dashboard')) location.hash = '#/' + (Auth.role().home || 'dashboard'); render();
@@ -317,7 +317,7 @@ function showCloudLock() {
         const r = await PinGuard.check(who, v);
         if (r.ok) return unlocked();
         $e('#lk_in').value = '';
-        if (PinGuard.lockedFor(who.id)) { await Cloud.signOut(true); showCloudLogin('Too many wrong PINs — sign in with your password.'); return; }
+        if (PinGuard.lockedFor(who.id)) { pinForgotten(u); await Cloud.signOut(true); showCloudLogin('Too many wrong PINs — sign in with your password, then choose a new PIN.'); return; }
         err(r.msg);
       } else {
         const s = Cloud.stored();
@@ -331,8 +331,11 @@ function showCloudLock() {
   $e('#lk_go').onclick = go;
   $e('#lk_in').onkeydown = e => { if (e.key === 'Enter') go(); };
   $e('#lk_out').onclick = e => { e.preventDefault(); Cloud.signOut(); };
+  if ($e('#lk_forgot')) $e('#lk_forgot').onclick = async e => { e.preventDefault(); pinForgotten(u); await Cloud.signOut(true); showCloudLogin('Sign in with your password, then choose a new PIN.'); };
   setTimeout(() => $e('#lk_in').focus(), 50);
 }
+/* forgot the screen PIN: drop it here; after the password sign-in the person chooses a new one (it replaces the old one everywhere) */
+function pinForgotten(u) { lsSet('gp_pin_reset_' + u.id, '1'); lsDel('gp_lock_' + u.id); }
 /* PIN for unlocking this device quickly (the password is still needed to sign in) */
 function askLockPin(u, change) {
   return new Promise(resolve => {
@@ -349,7 +352,7 @@ function askLockPin(u, change) {
       const p1 = m.el.querySelector('#lp_1').value, bad = pinProblem(p1), er = m.el.querySelector('#lp_err');
       if (bad) return er.textContent = bad;
       if (p1 !== m.el.querySelector('#lp_2').value) return er.textContent = 'The two PINs are different';
-      lsSet('gp_lock_' + u.id, await hashPinStrong(p1)); PinGuard.clear('cloud:' + u.id); lsDel('gp_pin_up_' + u.id);
+      lsSet('gp_lock_' + u.id, await hashPinStrong(p1)); PinGuard.clear('cloud:' + u.id); lsDel('gp_pin_up_' + u.id); lsDel('gp_pin_reset_' + u.id);
       m.close(); toast('PIN saved — it works on all your devices', 'ok'); resolve(true);
       Cloud.pinToCloud();
     };
