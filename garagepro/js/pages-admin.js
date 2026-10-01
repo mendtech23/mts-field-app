@@ -89,11 +89,16 @@ const expenseFields = () => [
   { k: 'reference', label: 'Reference / bill no.' }];
 function editExpense(id) {
   const e = get('expenses', id);
-  openForm({
+  const m = openForm({
     title: e ? 'Edit expense' : 'New expense', fields: expenseFields(), data: e || {},
     onSave: async vals => { if ((e && guardClosed(e.date, 'This expense')) || guardClosed(vals.date, 'That date')) return false; await save('expenses', e ? Object.assign(e, vals) : vals); render(); },
     onDelete: e ? async () => { if (guardClosed(e.date, 'This expense')) return false; if (!(await confirmBox('Delete expense?', 'Delete', true))) return false; await remove('expenses', e.id); render(); return true; } : null,
   });
+  if (e && e.wage) {   // a wage payment: reprint the receipt the technician signs
+    const b = document.createElement('button'); b.className = 'btn'; b.textContent = '🖨 Wage receipt';
+    b.onclick = () => { m.close(); showWageReceipt(e.wage); };
+    m.el.querySelector('[data-close2]').before(b);
+  }
 }
 PAGES.expenses = () => {
   const m = getFilter('expenses', 'month', monthKey(today()));

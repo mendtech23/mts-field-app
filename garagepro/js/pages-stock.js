@@ -250,7 +250,7 @@ function techStats(t, month) {
 PAGES.technicians = () => {
   const m = getFilter('technicians', 'month', monthKey(today()));
   const months = [...new Set([monthKey(today()), ...S.jobs.map(j => monthKey(j.date))])].sort().reverse();
-  view().innerHTML = pageHead('Technicians', 'Productivity: hours billed, labour revenue and contribution per person.', `<button class="btn primary" onclick="editTech()">＋ Add technician</button>`) +
+  view().innerHTML = pageHead('Technicians', 'Productivity: hours billed, labour revenue and contribution per person.', `${Auth.canPage('expenses') ? '<button class="btn" onclick="wageReceipt()">🧾 Wage receipt</button>' : ''}<button class="btn primary" onclick="editTech()">＋ Add technician</button>`) +
     `<div class="filters"><select class="inp" onchange="setFilter('technicians','month',this.value)"><option value="">All time</option>${months.map(x => `<option value="${x}" ${x === m ? 'selected' : ''}>${new Date(x + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</option>`).join('')}</select></div>
     <div class="card">${table([{ h: 'Name', v: t => `<b>${esc(t.name)}</b> ${t.active === false ? pill('Inactive') : ''}` }, { h: 'Trade', v: t => esc(t.trade || '') }, { h: 'Phone', v: t => esc(t.phone || '') },
       { h: 'Jobs', cls: 'num', v: t => techStats(t, m).jobs }, { h: 'Completed', cls: 'num', v: t => techStats(t, m).delivered }, { h: 'Hours billed', cls: 'num', v: t => fmtNum(techStats(t, m).hours) },
@@ -258,3 +258,58 @@ PAGES.technicians = () => {
       { h: 'Contribution', cls: 'num', v: t => { const c = techStats(t, m).contribution; return `<b class="${c < 0 ? 'red' : 'green'}">${money(c, false)}</b>`; } }],
       S.technicians, { click: t => `editTech('${t.id}')`, empty: 'No technicians yet.' })}</div>`;
 };
+
+/* =================== WAGE RECEIPT ===================
+   A one-page slip the technician signs to say he received his wages (and any extra / advance deducted).
+   Saving also records the net amount as a "Salaries & Wages" expense, so the P&L stays right; reprint it from that expense. */
+const wageNet = w => r2(num(w.basic) + num(w.additional) - num(w.deduction));
+function wageReceipt(techId) {
+  const techs = S.technicians.filter(t => t.active !== false || t.id === techId);
+  if (!techs.length) return toast('Add the technician first (＋ Add technician)', 'err');
+  const lastMonth = (() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }); })();
+  openForm({
+    title: '🧾 Wage receipt', saveLabel: 'Save & print',
+    fields: [
+      { k: 'techId', label: 'Paid to', type: 'select', options: techs.map(t => [t.id, t.name]), req: true },
+      { k: 'period', label: 'Wages for', req: true, def: lastMonth, placeholder: 'e.g. October 2026 or 1–15 Oct' },
+      { k: 'basic', label: 'Wages (AED)', type: 'number', req: true },
+      { k: 'date', label: 'Date paid', type: 'date', req: true, def: today() },
+      { k: 'additional', label: 'Additional (AED)', type: 'number', help: 'Overtime, bonus, commission… leave 0 if none' },
+      { k: 'addNote', label: 'Additional — for what', placeholder: 'e.g. 10 h overtime' },
+      { k: 'deduction', label: 'Less: advance / deduction (AED)', type: 'number', help: 'Leave 0 if none' },
+      { k: 'dedNote', label: 'Deduction — for what', placeholder: 'e.g. advance paid 12 Oct' },
+      { k: 'method', label: 'Paid by', type: 'select', options: S.settings.lists.paymentMethod, def: 'Cash' },
+      { k: 'record', label: 'Also record as a “Salaries & Wages” expense', type: 'checkbox', def: true }],
+    data: { techId: techId || techs[0].id },
+    onSave: async vals => {
+      const t = get('technicians', vals.techId), net = wageNet(vals);
+      if (net <= 0) throw new Error('The amount received must be more than 0');
+      const w = { number: 'WR-' + String(S.expenses.filter(e => e.wage).length + 1).padStart(4, '0'), techId: t.id, name: t.name, trade: t.trade || '', phone: t.phone || '',
+        period: vals.period, date: vals.date, basic: num(vals.basic), additional: num(vals.additional), addNote: vals.addNote || '', deduction: num(vals.deduction), dedNote: vals.dedNote || '', method: vals.method || '' };
+      if (vals.record) await save('expenses', { date: w.date, category: 'Salaries & Wages', description: `${w.name} — wages ${w.period}`, amount: net, vat: 0, paidTo: w.name, method: w.method, reference: w.number, wage: w });
+      setTimeout(() => showWageReceipt(w), 50); render();
+    },
+  });
+}
+function wageReceiptHTML(w) {
+  const net = wageNet(w), row = (n, d, note, a) => `<tr><td class="c-n">${n}</td><td class="c-d">${esc(d)}${note ? `<small>${esc(note)}</small>` : ''}</td><td class="c-a">${a}</td></tr>`;
+  let n = 0;
+  return bdDoc(`${bdHead('WAGE RECEIPT', [['Receipt no.', w.number], ['Date', fmtDate(w.date)], ['Wages for', w.period]])}
+    <div class="bd-two"><div><div class="bd-sec">Paid to</div>${bdField('Name', w.name)}${bdField('Trade', w.trade)}${bdField('Phone', w.phone)}</div>
+      <div><div class="bd-sec">Payment</div>${bdField('Paid by', w.method)}${bdField('Date', fmtDate(w.date))}</div></div>
+    <table class="bd-items"><thead><tr><th class="c-n">#</th><th class="c-d">Description</th><th class="c-a">Amount</th></tr></thead><tbody>
+      ${row(++n, `Wages — ${w.period}`, '', money(w.basic, false))}
+      ${num(w.additional) ? row(++n, 'Additional', w.addNote, money(w.additional, false)) : ''}
+      ${num(w.deduction) ? row(++n, 'Less: advance / deduction', w.dedNote, '− ' + money(w.deduction, false)) : ''}</tbody></table>
+    <div class="bd-after"><div class="bd-left"><p class="bd-p">I, <b>${esc(w.name)}</b>, confirm that I have received the amount shown as my wages for <b>${esc(w.period)}</b>${num(w.deduction) ? ', after the deduction listed above' : ''}.</p>
+        <p class="bd-words">Amount in words: ${esc(amountInWords(net))}</p></div>
+      <div class="bd-right"><div class="bd-tot"><div class="grand"><span>RECEIVED</span><b>${money(net)}</b></div></div></div></div>
+    <div class="bd-grow"></div>${bdFoot([{ label: `Paid by · ${BRAND_TXT}` }, { label: `${esc(w.name)} · signature &amp; date` }])}`);
+}
+function showWageReceipt(w) {
+  const m = openModal({ title: `Wage receipt ${esc(w.number)}`, size: 'xwide', body: `<div class="bd-stage">${wageReceiptHTML(w)}</div>`,
+    foot: `<button class="btn" data-close2>Close</button><button class="btn primary" data-print>🖨 Print</button>` });
+  fitDocs(m.el);
+  m.el.querySelector('[data-close2]').onclick = () => m.close();
+  m.el.querySelector('[data-print]').onclick = () => printHTML(wageReceiptHTML(w), true);
+}
