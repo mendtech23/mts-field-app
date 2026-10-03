@@ -1,0 +1,62 @@
+import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const ok = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + m + (c || x === undefined ? '' : ' ' + JSON.stringify(x).slice(0, 400))); if (!c) process.exitCode = 1; };
+const errs = []; const P = await (await b.newContext({ viewport: { width: 1300, height: 1100 } })).newPage(); P.on('pageerror', e => errs.push(e.message));
+await P.goto('http://localhost:8099/new/index.html'); await P.waitForTimeout(2500);
+const mk = await P.evaluate(() => monthKey(today()));
+const before = await P.evaluate(mk => { const r = monthData(mk); return { np: r.np, cash: r.cashExpected, pay: r.payablesValue }; }, mk);
+const supId = await P.evaluate(async () => (await save('suppliers', { name: 'Al Noor Spares', terms: '30 days credit' })).id);
+// 1. part-paid bill through the form
+await P.evaluate(() => go('#/expenses')); await P.waitForTimeout(400);
+await P.evaluate(() => editExpense()); await P.waitForTimeout(400);
+await P.evaluate(sid => { const set = (k, v) => { const el = document.getElementById('f_' + k); el.value = v; };
+  set('category', 'Workshop Consumables'); set('description', 'Brake pads + filters stock'); set('amount', '2000'); set('vat', '95.24');
+  set('supplierId', sid); set('payType', 'part'); set('paidNow', '1000'); set('method', 'Cash'); set('dueDate', today()); }, supId);
+await P.click('.modal [data-save]'); await P.waitForTimeout(800);
+let e1 = await P.evaluate(() => S.expenses.find(e => e.description === 'Brake pads + filters stock'));
+ok(e1 && e1.payments.length === 1 && e1.payments[0].amount === 1000 && e1.paidTo === 'Al Noor Spares', 'part-paid bill saved: 1000 paid, supplier name filled', e1);
+ok(await P.evaluate(id => expBalance(get('expenses', id)) === 1000 && expState(get('expenses', id)) === 'Part paid', e1.id), 'owed 1000, status Part paid');
+// 2. all-on-credit bill
+await P.evaluate(async sid => { await save('expenses', { date: today(), category: 'Tools & Equipment', description: 'Torque wrench', amount: 500, vat: 0, supplierId: sid, paidTo: 'Al Noor Spares', method: '', payments: [], dueDate: addDays(today(), 10) }); }, supId);
+let after = await P.evaluate(mk => { const r = monthData(mk); return { np: r.np, cash: r.cashExpected, pay: r.payablesValue }; }, mk);
+ok(Math.abs((before.np - after.np) - (2000 - 95.24 + 500)) < 0.01, 'P&L counts the full bills (net of VAT)', { before, after });
+ok(Math.abs((before.cash - after.cash) - 1000) < 0.01, 'cash drawer only drops by the 1000 actually paid in cash');
+ok(Math.abs((after.pay - before.pay) - 1500) < 0.01, 'month-end: 1500 owed to suppliers');
+await P.evaluate(() => render()); await P.waitForTimeout(400);
+const txt = await P.evaluate(() => document.getElementById('view').innerText);
+ok(/Owed to suppliers/.test(txt) && /1,500\.00/.test(txt) && /Al Noor Spares/.test(txt), 'expenses page: owed KPI + supplier card');
+const dash = await P.evaluate(() => { go('#/dashboard'); return new Promise(r => setTimeout(() => r(document.getElementById('view').innerText), 300)); });
+ok(/supplier bill\(s\)/.test(dash), 'dashboard shows the bill due today');
+// 3. pay the supplier 1200: clears the older bill (1000) then 200 off the next
+await P.evaluate(() => { setFilter('expenses', 'show', 'all'); go('#/suppliers'); }); await P.waitForTimeout(400);
+ok(/We owe/i.test(await P.evaluate(() => document.getElementById('view').innerText)), 'suppliers page shows what we owe');
+await P.evaluate(sid => paySupplier('s:' + sid), supId); await P.waitForTimeout(300);
+await P.evaluate(() => { document.getElementById('f_amount').value = '1200'; document.getElementById('f_method').value = 'Bank transfer – WIO'; document.getElementById('f_ref').value = 'TRF-55'; });
+await P.click('.modal [data-save]'); await P.waitForTimeout(800);
+const st = await P.evaluate(() => S.expenses.filter(e => e.paidTo === 'Al Noor Spares').map(e => ({ d: e.description, bal: expBalance(e), st: expState(e) })));
+ok(st.find(x => x.d.startsWith('Brake')).bal === 0 && st.find(x => x.d === 'Torque wrench').bal === 300, 'payment cleared the oldest bill first, 300 left', st);
+const after2 = await P.evaluate(mk => monthData(mk).cashExpected, mk);
+ok(Math.abs(after2 - after.cash) < 0.01, 'bank payment does not touch the cash drawer');
+// 4. single-bill payment + overpay guard
+const tw = await P.evaluate(() => S.expenses.find(e => e.description === 'Torque wrench').id);
+await P.evaluate(id => recordBillPayment(id), tw); await P.waitForTimeout(300);
+await P.evaluate(() => { document.getElementById('f_amount').value = '400'; }); await P.click('.modal [data-save]'); await P.waitForTimeout(500);
+ok(await P.evaluate(() => /Only AED 300/.test([...document.querySelectorAll('.toast')].map(t => t.innerText).join(' '))), 'cannot pay more than is owed');
+await P.evaluate(() => { document.getElementById('f_amount').value = '300'; document.getElementById('f_method').value = 'Cash'; }); await P.click('.modal [data-save]'); await P.waitForTimeout(600);
+ok(await P.evaluate(() => owedToSuppliers()) === 0, 'all supplier bills paid');
+// 5. edit form round-trip keeps payments; plain expense stays plain
+await P.evaluate(id => editExpense(id), e1.id); await P.waitForTimeout(400);
+ok(await P.evaluate(() => document.getElementById('f_payType').value === 'part' && /Payments/.test(document.querySelector('.modal').innerText)), 'edit shows how it was paid + payment history');
+await P.click('.modal [data-save]'); await P.waitForTimeout(500);
+ok(await P.evaluate(id => !document.querySelector('.modal') && get('expenses', id).payments.length === 2 && expBalance(get('expenses', id)) === 0, e1.id), 'saving again works and keeps the later payment');
+await P.evaluate(() => editExpense()); await P.waitForTimeout(300);
+await P.evaluate(() => { const set = (k, v) => document.getElementById('f_' + k).value = v; set('category', 'Utilities'); set('description', 'DEWA'); set('amount', '300'); set('method', 'Cash'); });
+await P.click('.modal [data-save]'); await P.waitForTimeout(500);
+ok(await P.evaluate(() => { const e = S.expenses.find(x => x.description === 'DEWA'); return !e.payments && expState(e) === 'Paid'; }), 'normal expense is saved exactly as before (paid in full)');
+await P.evaluate(() => { closeAllModals(); go('#/expenses'); }); await P.waitForTimeout(300);
+await P.screenshot({ path: '/tmp/pgt/t/credit/expenses.png', fullPage: false });
+await P.setViewportSize({ width: 390, height: 800 }); await P.evaluate(() => editExpense()); await P.waitForTimeout(400);
+ok(await P.evaluate(() => document.documentElement.scrollWidth <= 392), 'fits a phone');
+await P.screenshot({ path: '/tmp/pgt/t/credit/form-phone.png', fullPage: false });
+ok(!errs.length, 'no page errors', errs);
+await b.close();

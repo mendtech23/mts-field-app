@@ -182,7 +182,7 @@ PAGES.dashboard = () => {
       ${Auth.can('finance') ? kpi('Revenue this month', money(revenue, false), `GP ${money(revenue - cogs, false)} · collected ${money(collected, false)}<br>This week ${money(wkRev, false)} ${trend(wkRev, pwRev)}`, '#/reports') : kpi('Vehicles on file', S.vehicles.length, '', '#/vehicles')}
       ${Auth.canPage('invoices') ? kpi('Outstanding', money(outstanding, false), 'unpaid invoices', '#/invoices') : kpi('Low stock parts', low.length, '', '#/parts')}
     </div>
-    ${todaysBookingsHTML()}${Auth.canPage('dispatch') ? mobileTodayHTML() : ''}
+    ${supplierDueHTML()}${todaysBookingsHTML()}${Auth.canPage('dispatch') ? mobileTodayHTML() : ''}
     <div class="grid g3">
       <div class="card span2"><div class="card-head"><h3>🔧 Workshop board</h3><div class="actions"><button class="btn sm" onclick="go('#/jobs')">All jobs</button></div></div>
         ${table([
@@ -603,4 +603,13 @@ function sendStatement(cid) {
   const lines = open.map(i => `• ${i.number} (${fmtDate(i.date)}, ${(vehicleOf(i) || {}).plate || ''}) — ${money(invoiceState(i).balance)}`).join('\n');
   const text = `Dear ${c.name},\n\nStatement of account from ${S.settings.garageName} as of ${fmtDate(today())}:\n\n${lines}\n\nTotal outstanding: ${money(customerBalance(cid))}\n\n${payInfoText(null, money(customerBalance(cid)))}\n\nThank you.\n${S.settings.phone}`;
   openMessageDialog({ customer: c, vehicle: S.vehicles.find(v => v.customerId === cid), type: 'payment', text, subject: 'Statement of account — ' + S.settings.garageName });
+}
+
+/* dashboard: supplier bills overdue or due in the next 3 days (Owner / Manager) */
+function supplierDueHTML() {
+  if (!Auth.canPage('expenses') || typeof unpaidBills !== 'function') return '';
+  const t = today(), soon = unpaidBills().filter(e => e.dueDate && e.dueDate <= addDays(t, 3)); if (!soon.length) return '';
+  const over = soon.filter(e => e.dueDate < t), amt = soon.reduce((a, e) => a + expBalance(e), 0);
+  return `<div class="card card-pad mb click" style="border-color:var(--${over.length ? 'red' : 'amber'})" onclick="setFilter('expenses','show','unpaid');go('#/expenses')">
+    🧾 <b>${soon.length} supplier bill(s) ${over.length ? `— ${over.length} overdue` : 'due in the next 3 days'}</b> · ${money(amt)} to pay <span class="small muted">· tap to see and pay</span></div>`;
 }

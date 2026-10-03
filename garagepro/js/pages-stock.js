@@ -191,11 +191,12 @@ function editSupplier(id) {
 }
 PAGES.suppliers = () => {
   const val = stockTable();
-  view().innerHTML = pageHead('Suppliers', 'Who you buy parts from.', `<button class="btn primary" onclick="editSupplier()">＋ Add supplier</button>`) +
+  view().innerHTML = pageHead('Suppliers', 'Who you buy parts from — and what you owe them.', `<button class="btn primary" onclick="editSupplier()">＋ Add supplier</button>`) + (Auth.canPage('expenses') ? supplierDebtsCard() : '') +
     `<div class="card">${table([{ h: 'Code', v: s => `<span class="small muted">${esc(s.code || '')}</span>` }, { h: 'Supplier', v: s => `<b>${esc(s.name)}</b>` }, { h: 'Contact', v: s => esc(s.contact || '') }, { h: 'Phone', v: s => esc(s.phone || '') },
       { h: 'Email', v: s => esc(s.email || '') }, { h: 'Supplies', v: s => esc(s.category || '') }, { h: 'Terms', v: s => esc(s.terms || '') },
       { h: 'Parts', cls: 'num', v: s => S.parts.filter(p => p.supplierId === s.id).length }, { h: 'Stock value', cls: 'num', v: s => money(val.filter(r => r.p.supplierId === s.id).reduce((a, r) => a + r.value, 0), false) },
-      { h: 'Open POs', cls: 'num', v: s => S.purchaseOrders.filter(p => p.supplierId === s.id && p.status === 'Ordered').length }],
+      { h: 'Open POs', cls: 'num', v: s => S.purchaseOrders.filter(p => p.supplierId === s.id && p.status === 'Ordered').length },
+      ...(Auth.canPage('expenses') ? [{ h: 'We owe', cls: 'num', v: s => { const d = supplierDebts().find(x => x.key === 's:' + s.id); return d ? `<b class="red">${money(d.owed, false)}</b> <button class="btn sm" onclick="event.stopPropagation();paySupplier('s:${s.id}')">Pay</button>` : ''; } }] : [])],
       S.suppliers, { click: s => `editSupplier('${s.id}')`, empty: 'No suppliers yet.' })}</div>`;
 };
 

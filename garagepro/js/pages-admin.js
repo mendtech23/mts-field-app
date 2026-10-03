@@ -82,36 +82,144 @@ PAGES.reminders = () => {
 /* =================== EXPENSES =================== */
 const expenseFields = () => [
   { k: 'date', label: 'Date', type: 'date', req: true, def: today() }, { k: 'category', label: 'Category', type: 'select', options: S.settings.lists.expenseCategory, req: true },
-  { k: 'description', label: 'Description', req: true, span: 2 }, { k: 'amount', label: 'Amount (total paid)', type: 'number', req: true },
+  { k: 'description', label: 'Description', req: true, span: 2 }, { k: 'amount', label: 'Amount (full bill)', type: 'number', req: true },
   { k: 'vat', label: 'VAT included (input VAT)', type: 'number', help: 'For your VAT return — leave 0 if none' },
-  { k: 'paidTo', label: 'Paid to' }, { k: 'method', label: 'Payment method', type: 'select', options: S.settings.lists.paymentMethod },
+  { k: 'supplierId', label: 'Supplier (optional)', type: 'select', options: () => S.suppliers.map(x => [x.id, x.name]) }, { k: 'paidTo', label: 'Paid to', help: 'Or type the name if they are not in Suppliers' },
+  { section: 'Payment' },
+  { k: 'payType', label: 'How was it paid?', type: 'select', blank: false, def: 'full', options: [['full', 'Paid in full'], ['part', 'Part paid now, rest on credit'], ['credit', 'All on credit (pay later)']] },
+  { k: 'paidNow', label: 'Amount paid now', type: 'number', help: 'Only for “Part paid”' },
+  { k: 'method', label: 'Payment method', type: 'select', options: S.settings.lists.paymentMethod, help: 'For the amount paid now' },
+  { k: 'dueDate', label: 'Credit due date', type: 'date', help: 'When the rest must be paid (for credit)' },
+  { section: 'More' },
   { k: 'vanId', label: 'For a van? (van costs)', type: 'select', options: () => S.settings.mob.vans.map(v => [v.id, v.name + (v.plate ? ' · ' + v.plate : '')]) },
   { k: 'reference', label: 'Reference / bill no.' }];
+/* how the bill was paid when it was entered, worked back from its payments (for the edit form) */
+function expPayType(e) {
+  if (!e || !Array.isArray(e.payments)) return { payType: 'full', paidNow: '' };
+  const first = e.payments.find(p => p.initial), later = e.payments.filter(p => !p.initial).reduce((a, p) => a + num(p.amount), 0);
+  const init = first ? num(first.amount) : 0;
+  if (!later && init >= num(e.amount) - 0.005) return { payType: 'full', paidNow: '' };
+  return init > 0 ? { payType: 'part', paidNow: init } : { payType: 'credit', paidNow: '' };
+}
 function editExpense(id) {
   const e = get('expenses', id);
+  const later = e && Array.isArray(e.payments) ? e.payments.filter(p => !p.initial) : [];
   const m = openForm({
-    title: e ? 'Edit expense' : 'New expense', fields: expenseFields(), data: e || {},
-    onSave: async vals => { if ((e && guardClosed(e.date, 'This expense')) || guardClosed(vals.date, 'That date')) return false; await save('expenses', e ? Object.assign(e, vals) : vals); render(); },
-    onDelete: e ? async () => { if (guardClosed(e.date, 'This expense')) return false; if (!(await confirmBox('Delete expense?', 'Delete', true))) return false; await remove('expenses', e.id); render(); return true; } : null,
+    title: e ? (e.payments ? 'Edit expense / bill' : 'Edit expense') : 'New expense', fields: expenseFields(), data: e ? { ...e, ...expPayType(e) } : {},
+    onSave: async vals => {
+      if ((e && guardClosed(e.date, 'This expense')) || guardClosed(vals.date, 'That date')) return false;
+      const amount = num(vals.amount), laterSum = later.reduce((a, p) => a + num(p.amount), 0);
+      if (amount <= 0) throw new Error('Amount must be more than 0');
+      if (num(vals.vat) > amount) throw new Error('VAT cannot be more than the amount');
+      const init = vals.payType === 'full' ? r2(amount - laterSum) : vals.payType === 'part' ? num(vals.paidNow) : 0;
+      if (vals.payType === 'part' && (init <= 0 || (!later.length && init >= amount - 0.005))) throw new Error('For “Part paid”, the amount paid now must be more than 0 and less than the bill');
+      if (init + laterSum > amount + 0.005) throw new Error(`The payments (${money(init + laterSum)}) are more than the bill`);
+      if (init < -0.005) throw new Error(`Payments already recorded (${money(laterSum)}) are more than this amount`);
+      const o = e ? Object.assign(e, vals) : vals;
+      if (o.supplierId && !o.paidTo) o.paidTo = (get('suppliers', o.supplierId) || {}).name || '';
+      if (vals.payType === 'full' && !later.length) delete o.payments;   // plain expense, paid on its date
+      else o.payments = [...(init > 0.005 ? [{ date: o.date, amount: r2(init), method: o.method || '', initial: true }] : []), ...later];
+      if (vals.payType === 'full') o.dueDate = '';
+      delete o.payType; delete o.paidNow;
+      await save('expenses', o); render();
+      if (expBalance(o) > 0.005) toast(`Saved — ${money(expBalance(o))} owed to ${expSupplierName(o) || 'the supplier'}`, 'ok');
+    },
+    onDelete: e ? async () => { if (guardClosed(e.date, 'This expense')) return false; if (!(await confirmBox(e.payments ? 'Delete this bill and its payments?' : 'Delete expense?', 'Delete', true))) return false; await remove('expenses', e.id); render(); return true; } : null,
   });
+  if (e && e.payments && e.payments.length) {   // payment history under the form
+    const h = document.createElement('div'); h.className = 'card-pad small';
+    h.innerHTML = `<b>Payments</b> · paid ${money(expPaid(e))} of ${money(e.amount)}${expBalance(e) > 0.005 ? ` · <span class="red">owed ${money(expBalance(e))}</span>` : ' · settled'}
+      <div class="muted">${e.payments.map(p => `${fmtDate(p.date)} — ${money(p.amount)}${p.method ? ' · ' + esc(p.method) : ''}${p.ref ? ' · ' + esc(p.ref) : ''}${p.initial ? ' (when bought)' : ''}`).join('<br>')}</div>`;
+    m.el.querySelector('.modal-body').appendChild(h);
+  }
+  if (e && expBalance(e) > 0.005) {
+    const b = document.createElement('button'); b.className = 'btn primary'; b.textContent = '💳 Record payment';
+    b.onclick = () => { m.close(); recordBillPayment(e.id); };
+    m.el.querySelector('[data-close2]').before(b);
+  }
   if (e && e.wage) {   // a wage payment: reprint the receipt the technician signs
     const b = document.createElement('button'); b.className = 'btn'; b.textContent = '🖨 Wage receipt';
     b.onclick = () => { m.close(); showWageReceipt(e.wage); };
     m.el.querySelector('[data-close2]').before(b);
   }
 }
+/* pay (part of) one bill bought on credit */
+function recordBillPayment(id) {
+  const e = get('expenses', id), bal = expBalance(e);
+  openForm({
+    title: `Pay ${expSupplierName(e) || 'supplier'} — ${esc(e.description || '')}`, saveLabel: 'Save payment',
+    fields: [{ k: 'amount', label: `Amount (owed ${money(bal)})`, type: 'number', req: true, def: bal }, { k: 'date', label: 'Date paid', type: 'date', req: true, def: today() },
+      { k: 'method', label: 'Payment method', type: 'select', options: S.settings.lists.paymentMethod, def: e.method || '' }, { k: 'ref', label: 'Reference (cheque no., transfer ref…)' }],
+    onSave: async v => {
+      if (guardClosed(v.date, 'That date')) return false;
+      const a = r2(num(v.amount)); if (a <= 0) throw new Error('Amount must be more than 0');
+      if (a > bal + 0.005) throw new Error(`Only ${money(bal)} is owed on this bill`);
+      e.payments = [...(e.payments || []), { date: v.date, amount: a, method: v.method || '', ref: v.ref || '' }];
+      await save('expenses', e); toast(expBalance(e) > 0.005 ? `Paid ${money(a)} — ${money(expBalance(e))} still owed` : 'Bill fully paid', 'ok'); render();
+    },
+  });
+}
+/* who we owe: unpaid bills grouped by supplier (by the supplier record, else by the name typed) */
+function supplierDebts() {
+  const g = {};
+  for (const e of unpaidBills()) {
+    const key = e.supplierId ? 's:' + e.supplierId : 'n:' + (e.paidTo || '—').trim().toLowerCase();
+    const r = g[key] = g[key] || { key, name: expSupplierName(e) || '—', bills: [], owed: 0, due: '' };
+    r.bills.push(e); r.owed = r2(r.owed + expBalance(e));
+    if (e.dueDate && (!r.due || e.dueDate < r.due)) r.due = e.dueDate;
+  }
+  return Object.values(g).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999') || b.owed - a.owed);
+}
+/* one payment to a supplier, applied to their oldest unpaid bills first */
+function paySupplier(key) {
+  const d = supplierDebts().find(x => x.key === key); if (!d) return;
+  openForm({
+    title: `Pay ${esc(d.name)} — owed ${money(d.owed)}`, saveLabel: 'Save payment',
+    fields: [{ k: 'amount', label: 'Amount paid', type: 'number', req: true, def: d.owed, help: `${d.bills.length} unpaid bill(s); the payment clears the oldest first` },
+      { k: 'date', label: 'Date paid', type: 'date', req: true, def: today() }, { k: 'method', label: 'Payment method', type: 'select', options: S.settings.lists.paymentMethod },
+      { k: 'ref', label: 'Reference (cheque no., transfer ref…)' }],
+    onSave: async v => {
+      if (guardClosed(v.date, 'That date')) return false;
+      let left = r2(num(v.amount)); if (left <= 0) throw new Error('Amount must be more than 0');
+      if (left > d.owed + 0.005) throw new Error(`Only ${money(d.owed)} is owed to ${d.name}`);
+      for (const e of d.bills.slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''))) {
+        if (left <= 0.005) break;
+        const a = r2(Math.min(left, expBalance(e)));
+        e.payments = [...(e.payments || []), { date: v.date, amount: a, method: v.method || '', ref: v.ref || '' }]; await save('expenses', e); left = r2(left - a);
+      }
+      const rest = supplierDebts().find(x => x.key === key);
+      toast(rest ? `Saved — ${money(rest.owed)} still owed to ${d.name}` : `${d.name} fully paid`, 'ok'); render();
+    },
+  });
+}
+function supplierDebtsCard() {
+  const list = supplierDebts(); if (!list.length) return '';
+  const total = r2(list.reduce((a, d) => a + d.owed, 0)), t = today();
+  return `<div class="card mb"><div class="card-head"><h3>🧾 Owed to suppliers <span class="badge">${money(total)}</span></h3></div>
+    ${table([{ h: 'Supplier', v: d => `<b>${esc(d.name)}</b>` }, { h: 'Bills', cls: 'num', v: d => d.bills.length },
+      { h: 'Next due', v: d => d.due ? `<span class="${d.due < t ? 'red' : d.due <= addDays(t, 3) ? 'amber' : ''}">${fmtDate(d.due)}${d.due < t ? ' · overdue' : ''}</span>` : '<span class="muted">no date</span>' },
+      { h: 'Owed', cls: 'num', v: d => `<b>${money(d.owed, false)}</b>` },
+      { h: '', v: d => `<button class="btn sm primary" onclick="event.stopPropagation();paySupplier('${esc(d.key)}')">Pay</button>` }], list, {})}</div>`;
+}
 PAGES.expenses = () => {
-  const m = getFilter('expenses', 'month', monthKey(today()));
+  const m = getFilter('expenses', 'month', monthKey(today())), show = getFilter('expenses', 'show', 'all');
   const months = [...new Set([monthKey(today()), ...S.expenses.map(e => monthKey(e.date))])].sort().reverse();
-  const list = S.expenses.filter(e => !m || monthKey(e.date) === m).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const list = S.expenses.filter(e => show === 'unpaid' ? expBalance(e) > 0.005 : (!m || monthKey(e.date) === m)).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const byCat = {}; list.forEach(e => byCat[e.category] = (byCat[e.category] || 0) + num(e.amount));
-  const total = list.reduce((a, e) => a + num(e.amount), 0);
-  view().innerHTML = pageHead('Expenses & overheads', 'Rent, salaries, utilities, tools — everything that isn\'t a part on a job. Feeds the P&L.', `<button class="btn primary" onclick="editExpense()">＋ Add expense</button>`) +
-    `<div class="filters"><select class="inp" onchange="setFilter('expenses','month',this.value)"><option value="">All time</option>${months.map(x => `<option value="${x}" ${x === m ? 'selected' : ''}>${new Date(x + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</option>`).join('')}</select></div>
-    <div class="grid g6 mb"><div class="kpi"><div class="lbl">Total</div><div class="val">${money(total, false)}</div></div>${Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => `<div class="kpi"><div class="lbl">${esc(k)}</div><div class="val" style="font-size:19px">${money(v, false)}</div></div>`).join('')}</div>
-    <div class="card">${table([{ h: 'Date', v: e => fmtDate(e.date) }, { h: 'Category', v: e => esc(e.category) }, { h: 'Description', v: e => esc(e.description) }, { h: 'Paid to', v: e => esc(e.paidTo || '') },
-      { h: 'Method', v: e => esc(e.method || '') }, { h: 'VAT', cls: 'num', v: e => num(e.vat) ? money(e.vat, false) : '' }, { h: 'Amount', cls: 'num', v: e => `<b>${money(e.amount, false)}</b>` }],
-      list, { click: e => `editExpense('${e.id}')`, empty: 'No expenses recorded for this period.', foot: [{ v: 'Total' }, {}, {}, {}, {}, { cls: 'num', v: money(list.reduce((a, e) => a + num(e.vat), 0), false) }, { cls: 'num', v: money(total, false) }] })}</div>`;
+  const total = list.reduce((a, e) => a + num(e.amount), 0), owed = owedToSuppliers(), t = today();
+  const pill2 = e => { const st = expState(e); if (st === 'Paid') return ''; const od = e.dueDate && e.dueDate < t;
+    return `${pill(st, st === 'On credit' ? 'red' : 'amber')}${e.dueDate ? `<div class="small ${od ? 'red' : 'muted'}">due ${fmtDate(e.dueDate)}${od ? ' · overdue' : ''}</div>` : ''}`; };
+  view().innerHTML = pageHead('Expenses & overheads', 'Rent, salaries, utilities, tools — everything that isn\'t a part on a job. Feeds the P&L. Bought on credit? Choose “part paid” or “on credit” and record the payments later.', `<button class="btn primary" onclick="editExpense()">＋ Add expense</button>`) +
+    `<div class="filters"><select class="inp" onchange="setFilter('expenses','show',this.value)"><option value="all">All expenses</option><option value="unpaid" ${show === 'unpaid' ? 'selected' : ''}>Unpaid bills only</option></select>
+      ${show === 'unpaid' ? '' : `<select class="inp" onchange="setFilter('expenses','month',this.value)"><option value="">All time</option>${months.map(x => `<option value="${x}" ${x === m ? 'selected' : ''}>${new Date(x + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</option>`).join('')}</select>`}</div>
+    <div class="grid g6 mb"><div class="kpi"><div class="lbl">Total</div><div class="val">${money(total, false)}</div></div>
+      <div class="kpi click" onclick="setFilter('expenses','show','unpaid')"><div class="lbl">Owed to suppliers</div><div class="val ${owed > 0 ? 'red' : 'green'}">${money(owed, false)}</div><div class="hint">${unpaidBills().length} unpaid bill(s)</div></div>
+      ${Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, v]) => `<div class="kpi"><div class="lbl">${esc(k)}</div><div class="val" style="font-size:19px">${money(v, false)}</div></div>`).join('')}</div>
+    ${supplierDebtsCard()}
+    <div class="card">${table([{ h: 'Date', v: e => fmtDate(e.date) }, { h: 'Category', v: e => esc(e.category) }, { h: 'Description', v: e => esc(e.description) }, { h: 'Paid to', v: e => esc(expSupplierName(e)) },
+      { h: 'Method', v: e => esc(e.method || '') }, { h: 'Status', v: pill2 }, { h: 'VAT', cls: 'num', v: e => num(e.vat) ? money(e.vat, false) : '' }, { h: 'Amount', cls: 'num', v: e => `<b>${money(e.amount, false)}</b>` },
+      { h: 'Owed', cls: 'num', v: e => expBalance(e) > 0.005 ? `<span class="red">${money(expBalance(e), false)}</span>` : '' }],
+      list, { click: e => `editExpense('${e.id}')`, empty: show === 'unpaid' ? 'No unpaid bills. 🎉' : 'No expenses recorded for this period.', foot: [{ v: 'Total' }, {}, {}, {}, {}, {}, { cls: 'num', v: money(list.reduce((a, e) => a + num(e.vat), 0), false) }, { cls: 'num', v: money(total, false) }, { cls: 'num', v: money(list.reduce((a, e) => a + Math.max(0, expBalance(e)), 0), false) }] })}</div>`;
 };
 
 /* =================== REPORTS =================== */
@@ -357,7 +465,7 @@ async function exportExcel() {
     Payments: S.payments.map(p => ({ Receipt: p.number, Date: p.date, Invoice: (get('invoices', p.invoiceId) || {}).number, Customer: cn(p.customerId), Amount: num(p.amount), Method: p.method, Reference: p.reference })),
     Stock: stockTable().map(r => ({ Code: r.p.code, Part: r.p.name, 'Part no': r.p.partNumber, Category: r.p.category, 'On hand': r.onHand, Cost: num(r.p.cost), Price: num(r.p.price), Value: r.value, 'Reorder level': num(r.p.reorderLevel), Bin: r.p.bin })),
     'Other income': S.incomes.map(i => ({ Date: i.date, Type: i.category, Description: i.description, Amount: num(i.amount), VAT: num(i.vat), Cost: num(i.cost), Profit: incomeProfit(i), 'Received from': i.receivedFrom, Method: i.method, Reference: i.reference })),
-    Expenses: S.expenses.map(e => ({ Date: e.date, Category: e.category, Description: e.description, Amount: num(e.amount), VAT: num(e.vat), 'Paid to': e.paidTo, Method: e.method })),
+    Expenses: S.expenses.map(e => ({ Date: e.date, Category: e.category, Description: e.description, Amount: num(e.amount), VAT: num(e.vat), 'Paid to': expSupplierName(e), Method: e.method, Paid: expPaid(e), Owed: expBalance(e), 'Due date': e.dueDate || '' })),
   };
   for (const [name, rows] of Object.entries(sheets)) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), name);
   XLSX.writeFile(wb, `GaragePro_export_${today()}.xlsx`);

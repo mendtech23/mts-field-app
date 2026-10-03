@@ -12,7 +12,7 @@ const partnerLines = pid => {
 function partnerTotals(pid) {
   const lines = partnerLines(pid), cost = r2(lines.reduce((a, x) => a + num(x.it.qty) * num(x.it.cost), 0));
   const sales = r2(lines.reduce((a, x) => a + lineTotal(x.it), 0));
-  const paid = r2(S.expenses.filter(e => e.partnerId === pid).reduce((a, e) => a + num(e.amount), 0));
+  const paid = r2(S.expenses.filter(e => e.partnerId === pid).reduce((a, e) => a + expPaid(e), 0));
   return { jobs: lines.length, sales, cost, margin: r2(sales - cost), paid, owed: r2(cost - paid) };
 }
 
