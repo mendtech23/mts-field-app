@@ -38,7 +38,7 @@ const NAV = [
   { g: 'Customers', items: [['customers', '👤', 'Customers'], ['vehicles', '🚗', 'Vehicles'], ['reminders', '🔔', 'Reminders & follow-ups', () => reminderList().length], ['followups', '📣', 'Campaigns'], ['renewals', '🪪', 'Registration renewals', () => typeof renewalsDue === 'function' ? renewalsDue() : 0], ['partners', '🤝', 'Partners']] },
   { g: 'Stock', items: [['parts', '📦', 'Parts & Stock', () => stockTable().filter(r => r.low).length], ['pos', '🚚', 'Purchase Orders'], ['suppliers', '🏭', 'Suppliers']] },
   { g: 'Setup', items: [['labour', '⏱', 'Labour Catalogue'], ['packages', '📦', 'Service Packages'], ['technicians', '👷', 'Technicians']] },
-  { g: 'Finance', items: [['kpi', '📈', 'KPI dashboard'], ['expenses', '💸', 'Expenses'], ['incomes', '💰', 'Other income'], ['reports', '📊', 'Reports & P&L'], ['closing', '🔒', 'Month-end closing']] },
+  { g: 'Finance', items: [['kpi', '📈', 'KPI dashboard'], ['money', '🏦', 'Cash & bank'], ['expenses', '💸', 'Expenses'], ['fixedcosts', '📌', 'Fixed costs'], ['incomes', '💰', 'Other income'], ['reports', '📊', 'Reports & P&L'], ['closing', '🔒', 'Month-end closing']] },
   { g: null, items: [['settings', '⚙', 'Settings & Backup']] },
 ];
 const ROUTE_NAV = { partner: 'partners', vehicle: 'vehicles', customer: 'customers', quote: 'quotes', job: 'jobs', invoice: 'invoices', po: 'pos', search: 'lookup', package: 'packages' };
@@ -113,11 +113,11 @@ document.addEventListener('keydown', e => {
   if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); $('#globalSearch').focus(); }
 });
 
-function confirmBox(msg, okLabel = 'Yes, continue', danger = false) {
+function confirmBox(msg, okLabel = 'Yes, continue', danger = false, noLabel = 'Cancel') {
   return new Promise(resolve => {
     const m = openModal({
       title: 'Please confirm', size: 'narrow', body: `<div style="white-space:pre-wrap">${msg}</div>`,
-      foot: `<button class="btn" data-no>Cancel</button><button class="btn ${danger ? 'danger' : 'primary'}" data-yes>${okLabel}</button>`
+      foot: `<button class="btn" data-no>${esc(noLabel)}</button><button class="btn ${danger ? 'danger' : 'primary'}" data-yes>${okLabel}</button>`
     });
     m.el.querySelector('[data-no]').onclick = () => { m.close(); resolve(false); };
     m.el.querySelector('[data-yes]').onclick = () => { m.close(); resolve(true); };

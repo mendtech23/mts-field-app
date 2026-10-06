@@ -122,5 +122,19 @@ ok(m.some(x => /daily summary/.test(x.subject) && /Who changed what/.test(x.html
 fs.writeFileSync('/tmp/pgt/l2/daily.html', mine ? mine.html : '');
 r = await http('POST', '/functions/v1/notify', { body: { daily: true }, headers: { 'x-cron-secret': secret } }); ok(r.data.sent === 0, 'only one summary per day');
 
+console.log('\n9. v3.8: day report and weekly backup e-mails');
+await fetch(MAIL + '/mails', { method: 'DELETE' }); await db.query('delete from net.calls');
+r = await rpc(O, 'send_day_report', { p_subject: 'mendtech. day report — test', p_html: '<p>Sales AED 160.00</p>' }); ok(r.status < 300, 'day report queued', r.data);
+await pgNet(); let mm = await mails(); const rep = mm.find(x => /day report — test/.test(x.subject));
+ok(rep && /Sales AED 160/.test(rep.html) && /Day report/.test(rep.html), 'day report e-mailed to the alert address', mm.map(x => x.subject));
+await pgNet(); ok((await mails()).filter(x => /day report — test/.test(x.subject)).length === 1, 'sent once');
+r = await http('POST', '/functions/v1/notify', { body: { backup: true } }); ok(r.status === 403, 'backup e-mail needs the cron secret');
+await rpc(O, 'set_backup_prefs', { p_weekly: true }); await db.query('select app.weekly_backup_ping()'); await pgNet();
+mm = await mails(); const bk = mm.find(x => /weekly backup/.test(x.subject));
+ok(bk && Array.isArray(bk.attachments) && /mendtech_backup_.*\.json/.test(bk.attachments[0].filename), 'weekly backup e-mailed with a file attached', mm.map(x => x.subject));
+let bj = null; try { bj = JSON.parse(Buffer.from(bk.attachments[0].content, 'base64').toString('utf8')); } catch (e) { }
+ok(bj && bj.app === 'GaragePro' && bj.noPhotos === true && bj.settings && Array.isArray(bj.photos), 'the file is a GaragePro backup the app can restore (no photos)', bj && Object.keys(bj));
+await rpc(O, 'set_backup_prefs', { p_weekly: false });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await db.end(); process.exit(fail ? 1 : 0);

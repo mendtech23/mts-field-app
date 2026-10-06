@@ -82,7 +82,7 @@ function docHTML(kind, doc, extra = {}) {
   for (const it of doc.items || []) {
     n++;
     rows += `<tr><td class="c-n">${n}</td><td class="c-d">${esc(it.desc)}${it.partNo ? `<small>${esc(it.partNo)}</small>` : ''}</td><td class="c-t">${typeLabel(it)}</td>
-      <td class="c-q">${fmtNum(it.qty)}${it.type === 'labour' ? ' h' : ''}</td><td class="c-u">${money(it.rate, false)}</td><td class="c-a">${money(lineTotal(it), false)}</td></tr>`;
+      <td class="c-q">${qtyText(it)}</td><td class="c-u">${money(it.rate, false)}</td><td class="c-a">${money(lineTotal(it), false)}</td></tr>`;
   }
   for (let i = n; i < 8; i++) rows += `<tr class="pad"><td class="c-n"></td><td></td><td></td><td></td><td></td><td></td></tr>`;
   const disc = t.discount ? `− ${money(t.discount)}` : '—';
@@ -133,7 +133,7 @@ function jobCardHTML(j, extra = {}) {
   const notes = [j.diagnosis, ...inspectionFlags(j).map(p => `${p.result === 'Replace' ? 'REPLACE' : 'ATTENTION'}: ${p.point}${p.note ? ' — ' + p.note : ''}`)].filter(Boolean).join('\n');
   const hide = !!extra.hidePrices, its = j.items || [];
   const work = its.length ? `<div class="bd-sec">Work &amp; parts</div><table class="bd-items sm"><thead><tr><th class="c-n">#</th><th class="c-d">Description</th><th class="c-t">Type</th><th class="c-q">Qty</th>${hide ? '' : '<th class="c-u">Unit</th><th class="c-a">Amount</th>'}</tr></thead><tbody>
-    ${its.map((it, i) => `<tr><td class="c-n">${i + 1}</td><td class="c-d">${esc(it.desc)}</td><td class="c-t">${typeLabel(it)}</td><td class="c-q">${fmtNum(it.qty)}${it.type === 'labour' ? ' h' : ''}</td>${hide ? '' : `<td class="c-u">${money(it.rate, false)}</td><td class="c-a">${money(lineTotal(it), false)}</td>`}</tr>`).join('')}</tbody></table>
+    ${its.map((it, i) => `<tr><td class="c-n">${i + 1}</td><td class="c-d">${esc(it.desc)}</td><td class="c-t">${typeLabel(it)}</td><td class="c-q">${qtyText(it)}</td>${hide ? '' : `<td class="c-u">${money(it.rate, false)}</td><td class="c-a">${money(lineTotal(it), false)}</td>`}</tr>`).join('')}</tbody></table>
     ${hide ? '' : `<div class="bd-after"><div></div><div class="bd-right"><div class="bd-tot sm"><div class="grand"><span>ESTIMATE (incl. VAT)</span><b>${money(calcDoc(j).total)}</b></div></div></div></div>`}` : '';
   const sg = j.signatures || {};
   const meta = { cols: 2, rows: [['Job no.', j.number], ['Date in', fmtDate(j.date)], ['Technician', tech], ['Time in', ck.timeIn || (j.createdAt ? new Date(j.createdAt).toTimeString().slice(0, 5) : '')]] };
@@ -292,7 +292,7 @@ function pdfItems(B, startY, items, { hide = false, pad = 0, desc = true } = {})
   const { pdf, K, face } = B;
   const body = (items || []).map((it, i) => {
     const d = it.desc + (it.partNo ? '\n' + it.partNo : '');
-    const row = [i + 1, d, typeLabel(it), fmtNum(it.qty) + (it.type === 'labour' ? ' h' : '')];
+    const row = [i + 1, d, typeLabel(it), qtyText(it)];
     if (!hide) row.push(money(it.rate, false), money(lineTotal(it), false));
     return row;
   });

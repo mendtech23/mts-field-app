@@ -4,7 +4,7 @@
 const PHOTO_STAGES = ['Before', 'During', 'After'];
 const STAGE_COLOR = { Before: 'red', During: 'amber', After: 'green' };
 
-function compressImage(file, maxSide = 1600, quality = 0.78) {
+function compressImage(file, maxSide = 1280, quality = 0.7) {   // v3.8: smaller photos (about a third of the cloud space), still sharp on phones and in reports
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {

@@ -287,5 +287,45 @@ const F = await mk('desk', 'advisor'); let fa;
 for (let i = 0; i < 3; i++) { const t = (await login(F.email, 'Staff#12345')).access_token; fa = (await rpc(t, 'device_hello', { p_label: 'Front desk PC', p_ua: 'x' })).data; }
 ok(fa.fresh_again === 2, 'third fresh sign-in on the same kind of device: 2 earlier ones are reported', fa);
 
+console.log('\n14. v3.8: money collections, cloud space, feedback link, day report, weekly backup');
+r = await upsert(M.t, [rec('transfers', 'tr1', { kind: 'deposit', amount: 100, from: 'cash', to: 'bank', date: '2026-10-06' }), rec('fixedCosts', 'fc1', { name: 'Rent', amount: 5000, every: 1 })]);
+ok(r.status < 300, 'manager saves bank moves and fixed costs', r.data);
+r = await upsert(A.t, [rec('transfers', 'tr2', { amount: 1 })]); ok(r.status >= 400, 'service advisor cannot write bank moves');
+r = await read(A.t, '&coll=in.(transfers,fixedCosts,cashups)'); ok(Array.isArray(r.data) && r.data.length === 0, 'service advisor sees no money records', r.data);
+r = await rpc(O2, 'cloud_usage'); ok(r.data && r.data.db_bytes > 0 && r.data.limit_bytes === 524288000, 'owner sees cloud space used', r.data);
+r = await rpc(M.t, 'cloud_usage'); ok(r.data === null, 'manager does not', r.data);
+// feedback link on a job
+const tok = 'fbTok_' + run + '_abcdefghijklmnop';
+const jrow = (await db.query("select data from public.records where owner=$1 and coll='jobs' limit 1", [G])).rows[0];
+await db.query("update public.records set data = data || jsonb_build_object('feedbackToken', $2::text) where owner=$1 and coll='jobs' and id=$3", [G, tok, jrow.data.id]);
+await db.query("update public.records set data = jsonb_set(coalesce(data, '{}'), '{offers}', coalesce(data->'offers', '{}') || '{\"googleReviewLink\":\"https://g.page/r/x/review\"}') where owner=$1 and coll='settings'", [G]);
+r = await rpc(null, 'public_feedback', { p_token: tok }); ok(r.data && r.data.number && r.data.done === false && !r.data.phone, 'customer opens the feedback link (no phone numbers shown)', r.data);
+r = await rpc(null, 'public_feedback', { p_token: 'short' }); ok(r.data === null, 'a short token gets nothing');
+r = await rpc(null, 'public_feedback_submit', { p_token: tok, p_rating: 9, p_comment: '' }); ok(r.status >= 400, 'rating must be 1–5');
+const alertsBefore = (await db.query("select count(*)::int n from public.alerts where garage_id=$1 and kind='feedback'", [G])).rows[0].n;
+r = await rpc(null, 'public_feedback_submit', { p_token: tok, p_rating: 2, p_comment: 'Car still pulls left' }); ok(r.data && r.data.ok && !r.data.review, 'low rating saved, no review link offered', r.data);
+const fbRow = (await db.query("select data from public.records where owner=$1 and coll='jobs' and id=$2", [G, jrow.data.id])).rows[0].data;
+ok(fbRow.feedback && fbRow.feedback.rating === 2 && /pulls left/.test(fbRow.feedback.comment), 'rating stored on the job (syncs to the app)');
+ok((await db.query("select count(*)::int n from public.alerts where garage_id=$1 and kind='feedback' and level='warn'", [G])).rows[0].n === alertsBefore + 1, 'low rating raises an alert for the Owner');
+r = await rpc(null, 'public_feedback_submit', { p_token: tok, p_rating: 5, p_comment: '' }); ok(r.data && r.data.already === true, 'only one answer per link');
+const tok2 = tok + 'B';
+await db.query("update public.records set data = (data || jsonb_build_object('feedbackToken', $2::text)) - 'feedback' where owner=$1 and coll='jobs' and id=$3", [G, tok2, jrow.data.id]);
+r = await rpc(null, 'public_feedback_submit', { p_token: tok2, p_rating: 5, p_comment: 'Great' }); ok(r.data && r.data.review === 'https://g.page/r/x/review', '4–5 stars → Google review link offered', r.data);
+// day report
+await db.query('delete from net.calls');
+r = await rpc(A.t, 'send_day_report', { p_subject: 'x', p_html: 'x' }); ok(r.status >= 400, 'service advisor cannot send the day report');
+r = await rpc(M.t, 'send_day_report', { p_subject: 'Day report', p_html: '<p>Sales 160</p>' }); ok(r.status < 300 && Number(r.data) > 0, 'manager sends the day report', r.data);
+const call = (await db.query('select body from net.calls order by id desc limit 1')).rows[0];
+ok(call && Number(call.body.report_id) === Number(r.data), 'it is queued for the e-mail function');
+// weekly backup
+r = await rpc(M.t, 'set_backup_prefs', { p_weekly: true }); ok(r.status >= 400, 'only the Owner switches the weekly backup');
+r = await rpc(O2, 'set_backup_prefs', { p_weekly: true }); ok(r.status < 300, 'owner switches it on');
+r = await rpc(O2, 'get_alert_prefs'); ok(r.data && r.data.backup === true, 'setting read back', r.data);
+await db.query('delete from net.calls'); await db.query('select app.weekly_backup_ping()');
+ok((await db.query("select count(*)::int n from net.calls where body->>'backup' = 'true'")).rows[0].n === 1, 'weekly job queues the backup e-mail');
+const bk = (await db.query('select public.srv_backup_data() d')).rows[0].d.find(x => x.garage_id === G);
+ok(bk && bk.colls.invoices && bk.colls.transfers && !bk.colls.photos && bk.settings, 'backup data: every collection except photos', bk && Object.keys(bk.colls));
+r = await rpc(O2, 'set_backup_prefs', { p_weekly: false });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await db.end(); process.exit(fail ? 1 : 0);

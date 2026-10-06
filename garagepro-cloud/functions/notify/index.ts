@@ -22,7 +22,7 @@ const dubai = (d: string | Date) => new Date(d).toLocaleString('en-GB', { timeZo
 const DOT: Record<string, string> = { alert: '#C62828', warn: '#D97A2B', info: '#6C7488' };
 const COLL: Record<string, string> = { invoices: 'Invoices', quotes: 'Quotations', jobs: 'Jobs', payments: 'Payments', customers: 'Customers', vehicles: 'Vehicles',
   expenses: 'Expenses', incomes: 'Other income', parts: 'Parts', settings: 'Settings', photos: 'Photos', staff: 'PIN logins', technicians: 'Technicians', renewals: 'Renewals', partners: 'Partners', campaigns: 'Campaigns',
-  stockAdjustments: 'Stock movements', labour: 'Labour items', packages: 'Service packages', bookings: 'Bookings', suppliers: 'Suppliers', purchaseOrders: 'Purchase orders', messages: 'Messages', secLog: 'Security log' };
+  stockAdjustments: 'Stock movements', transfers: 'Bank moves', cashups: 'Day closings', fixedCosts: 'Fixed costs', labour: 'Labour items', packages: 'Service packages', bookings: 'Bookings', suppliers: 'Suppliers', purchaseOrders: 'Purchase orders', messages: 'Messages', secLog: 'Security log' };
 const ACT: Record<string, string> = { create: 'added', update: 'changed', delete: 'deleted' };
 
 function frame(title: string, inner: string) {
@@ -36,10 +36,10 @@ function frame(title: string, inner: string) {
       <p style="color:#6C7488;font-size:12px;margin:22px 0 0">You get this because this address is set in Settings → Staff &amp; security → Alert e-mail. If something here was not you or your team, open the app → Settings → Staff &amp; security and sign that device out.</p>
     </div></div></body></html>`;
 }
-async function send(to: string, subject: string, html: string) {
+async function send(to: string, subject: string, html: string, attachments?: { filename: string; content: string }[]) {
   if (!RESEND) throw new Error('RESEND_API_KEY is not set');
   const r = await fetch(RESEND_URL, { method: 'POST', headers: { Authorization: 'Bearer ' + RESEND, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: FROM, to: [to], subject, html }) });
+    body: JSON.stringify({ from: FROM, to: [to], subject, html, ...(attachments ? { attachments } : {}) }) });
   if (!r.ok) throw new Error('Resend ' + r.status + ' ' + await r.text());
 }
 
@@ -59,6 +59,34 @@ Deno.serve(async (req) => {
           <tr><td style="padding:6px 0;color:#6C7488">When</td><td style="padding:6px 0">${esc(dubai(a.at))} (Dubai)</td></tr></table>`));
       await srv('srv_alert_emailed', { p_id: a.id });
       return Response.json({ sent: true });
+    }
+    if (body.report_id) {   // owner's day report, written by the app when the day is closed (v3.8)
+      const r = await srv('srv_report_get', { p_id: Number(body.report_id) });
+      if (!r || r.sent || !r.email) return Response.json({ skipped: true });
+      await send(r.email, String(r.subject || 'Day report').slice(0, 150), frame('Day report', String(r.html || '')));
+      await srv('srv_report_sent', { p_id: r.id });
+      return Response.json({ sent: true });
+    }
+    if (body.backup) {   // weekly backup by e-mail, a file the app can restore (Settings → Backup & data) — photos left out (v3.8)
+      const secret = await srv('srv_cron_secret', {});
+      if (!secret || req.headers.get('x-cron-secret') !== secret) return new Response('Forbidden', { status: 403 });
+      const list = await srv('srv_backup_data', {}) || [];
+      let sent = 0;
+      for (const g of list) {
+        if (!g.email) continue;
+        const day = new Date().toISOString().slice(0, 10);
+        const data: Record<string, unknown> = { app: 'GaragePro', version: 'cloud-backup', exportedAt: new Date().toISOString(), noPhotos: true, settings: g.settings || {}, photos: [], ...(g.colls || {}) };
+        const json = JSON.stringify(data), bytes = new TextEncoder().encode(json);
+        let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+        const counts = Object.entries(g.colls || {}).map(([k, v]) => `${COLL[k] || k}: ${(v as unknown[]).length}`).join(' · ');
+        await send(g.email, `mendtech. weekly backup — ${day}`, frame('Weekly backup', `
+          <p style="font-size:14px;margin:0 0 10px">Your weekly backup is attached (${Math.round(bytes.length / 1024)} KB, photos not included).</p>
+          <p style="font-size:13px;color:#4B5265;margin:0 0 10px">${esc(counts)}</p>
+          <p style="font-size:13px;color:#4B5265;margin:0">Keep this e-mail. To restore: open the app → Settings → Backup &amp; data → Restore from backup, and choose the attached file. It is not password-protected, so do not forward it.</p>`),
+          [{ filename: `mendtech_backup_${day}.json`, content: btoa(bin) }]);
+        sent++;
+      }
+      return Response.json({ sent });
     }
     if (body.daily) {
       const secret = await srv('srv_cron_secret', {});

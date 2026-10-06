@@ -15,7 +15,7 @@ ok(await P.evaluate(() => garageMapLink()) === MAP, 'fresh install uses the link
 const up = await P.evaluate(async () => { const s = S.settings; delete s.mapLink; s.schema = 36;
   s.templates.ready = s.templates.ready.replace('\n{directions}', ''); s.templates.booking = 'My own text. Location: {address}\nBye'; s.templates.needsWorkshop = 'Edited, no address line';
   await migrateSettings(); return { map: s.mapLink, schema: s.schema, ready: s.templates.ready.includes('{directions}'), booking: s.templates.booking, nw: s.templates.needsWorkshop }; });
-ok(up.map === MAP && up.schema === 37 && up.ready && up.booking === 'My own text. Location: {address}\n{directions}\nBye' && up.nw === 'Edited, no address line', 'upgrade: link saved, own template text kept, directions added only where the address line is', up);
+ok(up.map === MAP && up.schema >= 37 && up.ready && up.booking === 'My own text. Location: {address}\n{directions}\nBye' && up.nw === 'Edited, no address line', 'upgrade: link saved, own template text kept, directions added only where the address line is', up);
 ok(st.ready.includes('{directions}') && st.booking.includes('{directions}'), 'templates carry {directions}');
 const msg = await P.evaluate(() => { const j = S.jobs[0]; return fillTemplate(S.settings.templates.ready, baseCtx(vehicleOf(j), customerOf(j))); });
 ok(msg.includes('📍 Directions: ' + MAP), '"car ready" message has the directions link', msg);

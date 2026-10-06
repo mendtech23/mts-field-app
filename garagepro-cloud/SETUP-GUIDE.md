@@ -154,8 +154,8 @@ Until step B6 the app keeps working exactly as today. Staff notice nothing.
   - the customer quote link
 - `functions/login` handles sign-in with a username or e-mail. 5 wrong passwords lock the login and alert the Owner.
 - `functions/staff-admin` lets the Owner (password + authenticator code) create, change, reset, switch off and sign out staff logins.
-- `functions/notify` sends the e-mails: security alerts straight away, plus (if switched on) the daily summary at 20:00 Dubai time.
+- `functions/notify` sends the e-mails: security alerts straight away, the day report when the day is closed in Cash & bank, and (if switched on) the daily summary at 20:00 and the weekly backup file on Sunday evening.
 - `tests/` holds the automatic checks used while building. They run against a local copy of Supabase:
-  - 149 database checks
-  - 50 function checks
-  - 57 checks in a real browser
+  - 170 database checks
+  - 56 function checks
+  - 57 checks in a real browser, plus the v3.8 money, feedback and restore checks

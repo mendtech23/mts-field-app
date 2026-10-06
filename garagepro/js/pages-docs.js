@@ -57,7 +57,7 @@ async function newDoc(kind) {
     let d;
     if (kind === 'quote') d = { ...base, number: await nextNo('quote'), status: 'Draft', validUntil: addDays(today(), num(S.settings.quoteValidDays) || 14) };
     if (kind === 'job') d = { ...base, number: await nextNo('job'), status: 'Booked', type: S.settings.lists.jobType[0], promised: addDays(today(), 1) };
-    if (kind === 'invoice') d = { ...base, number: await nextNo('invoice'), dueDate: addDays(today(), num(S.settings.invoiceDueDays)) };
+    if (kind === 'invoice') d = { ...base, number: await nextNo('invoice'), dueDate: addDays(today(), invoiceDueDaysFor(v.customerId)) };
     await save(KINDS[kind].coll, d);
     go(`#/${kind}/${d.id}`);
   }, `New ${KINDS[kind].label.toLowerCase()} — which vehicle?`);
@@ -68,11 +68,11 @@ function itemsHTML() {
   const d = ED.doc, st = S.settings;
   const svcOpts = sel => `<option value="">—</option>${st.serviceItems.map(s => `<option ${s.name === sel ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}`;
   const rows = (d.items || []).map((it, i) => `<tr>
-    <td class="type"><select class="inp sm" onchange="edItem(${i},'type',this.value,true)">${[['part', 'Part'], ['labour', 'Labour'], ['other', 'Other']].map(([k, l]) => `<option value="${k}" ${it.type === k ? 'selected' : ''}>${l}</option>`).join('')}</select></td>
+    <td class="type"><select class="inp sm" onchange="edItemType(${i},this.value)">${[['part', 'Part'], ['labour', 'Labour / hour'], ['labourFixed', 'Labour fixed price'], ['other', 'Other']].map(([k, l]) => `<option value="${k}" ${(it.type === 'labour' && it.fixed ? 'labourFixed' : it.type) === k ? 'selected' : ''}>${l}</option>`).join('')}</select></td>
     <td><input class="inp" value="${esc(it.desc)}" oninput="edItem(${i},'desc',this.value)" placeholder="Description">
       ${it.partId ? `<div class="small faint">${esc(it.partNo || '')} · ${edStockLoc() ? 'on van' : 'in stock'}: ${fmtNum(onHandOf(it.partId, edStockLoc() || undefined))}</div>` : ''}</td>
     <td style="width:150px"><select class="inp sm" title="Service item — keeps the service schedule up to date" onchange="edItem(${i},'serviceItem',this.value)">${svcOpts(it.serviceItem)}</select></td>
-    <td class="qty"><input class="inp right" type="number" step="any" value="${esc(it.qty)}" oninput="edItem(${i},'qty',this.value)"></td>
+    <td class="qty"><input class="inp right" type="number" step="any" value="${esc(it.qty)}" oninput="edItem(${i},'qty',this.value)" title="${it.type === 'labour' ? (it.fixed ? 'Number of jobs (fixed price each)' : 'Hours') : 'Quantity'}">${it.type === 'labour' && it.fixed ? `<input class="inp right small" type="number" step="any" value="${esc(it.hours ?? '')}" placeholder="hrs" title="Hours it took (optional, for technician reports — not shown to the customer)" oninput="edItem(${i},'hours',this.value)" style="margin-top:4px">` : ''}</td>
     <td class="rate"><input class="inp right" type="number" step="any" value="${esc(it.rate)}" oninput="edItem(${i},'rate',this.value)"></td>
     <td class="tot num" id="lt_${i}">${money(lineTotal(it), false)}</td>
     <td class="del"><button class="icon-btn" style="font-size:15px" title="Remove" onclick="edDelItem(${i})">✕</button></td></tr>`).join('');
@@ -100,6 +100,15 @@ function edItem(i, k, v, redraw) {
   it[k] = (k === 'qty' || k === 'rate') ? v : v;
   edChanged();
   if (redraw) drawItems(); else edTotals();
+}
+/* Part / Labour per hour / Labour fixed price / Other */
+function edItemType(i, v) {
+  const it = ED.doc.items[i];
+  if (v === 'labourFixed') {
+    if (!(it.type === 'labour' && it.fixed)) { if (it.type === 'labour') { if (!num(it.hours)) it.hours = num(it.qty) || ''; it.rate = r2(num(it.qty) * num(it.rate)) || it.rate; it.qty = 1; } }
+    it.type = 'labour'; it.fixed = true;
+  } else { if (it.fixed && v === 'labour') { const h = num(it.hours); if (h > 0) { it.rate = r2(lineTotal(it) / h); it.qty = h; } } it.type = v; delete it.fixed; }
+  edChanged(); drawItems();
 }
 function edDelItem(i) { ED.doc.items.splice(i, 1); edChanged(); drawItems(); }
 function drawItems() { $('#edItems').innerHTML = itemsHTML(); edTotals(); }
@@ -319,8 +328,8 @@ PAGES.job = id => {
 function jobSideHTML(j) {
   const q = j.quoteId && get('quotes', j.quoteId);
   const labourByTech = {};
-  for (const it of j.items || []) if (it.type === 'labour') { const t = techName(it.technicianId || j.technicianId) || 'Unassigned'; labourByTech[t] = (labourByTech[t] || 0) + num(it.qty); }
-  return signaturesCardHTML(j) + `<div class="card mb"><div class="card-head"><h3>Job info</h3></div><div class="card-pad"><dl class="kv" style="grid-template-columns:110px 1fr">
+  for (const it of j.items || []) if (it.type === 'labour') { const t = techName(it.technicianId || j.technicianId) || 'Unassigned'; labourByTech[t] = (labourByTech[t] || 0) + labourHours(it); }
+  return signaturesCardHTML(j) + qualityCardHTML(j) + `<div class="card mb"><div class="card-head"><h3>Job info</h3></div><div class="card-pad"><dl class="kv" style="grid-template-columns:110px 1fr">
     <dt>Days in shop</dt><dd>${daysBetween(j.date, j.completed || today())}</dd>
     ${q ? `<dt>From quote</dt><dd><a onclick="go('#/quote/${q.id}')">${esc(q.number)}</a></dd>` : ''}
     <dt>Hours</dt><dd>${Object.entries(labourByTech).map(([t, h]) => `${esc(t)}: ${fmtNum(h)} h`).join('<br>') || '—'}</dd>
@@ -343,14 +352,14 @@ async function jobStatus(s) {
     if (await confirmBox(`Job is ready. Send the customer a “ready for collection” message now?`, 'Yes, send message')) openSendDialog('job', j);
   } else if (s === 'Delivered' && !jobInvoice(j)) {
     if (await confirmBox('This job has no invoice yet. Create the invoice now?', 'Create invoice')) createInvoiceFromJob();
-  }
+  } else if (s === 'Delivered') offerFeedbackOnDelivery(j);
 }
 async function makeInvoiceFromJob(j) {
   if (isMobile(j)) applyCalloutRules(j);
   const inv = await save('invoices', {
     number: await nextNo('invoice'), date: today(), jobId: j.id, vehicleId: j.vehicleId, customerId: j.customerId, odometer: j.odometer, line: j.line || 'auto',
     items: applyHealthCheckRule(structuredClone(j.items || [])), discount: j.discount, discountType: j.discountType, ...discountFields(j), vatRate: j.vatRate ?? S.settings.vatRate,
-    workDone: j.diagnosis || (isMobile(j) ? (j.mobile || {}).problem || '' : ''), lpo: j.lpo || '', dueDate: addDays(today(), num(S.settings.invoiceDueDays)),
+    workDone: j.diagnosis || (isMobile(j) ? (j.mobile || {}).problem || '' : ''), lpo: j.lpo || '', dueDate: addDays(today(), invoiceDueDaysFor(j.customerId)),
   });
   j.invoiceId = inv.id; await save('jobs', j);
   toast(`Invoice ${inv.number} created`, 'ok');
@@ -446,7 +455,7 @@ PAGES.invoice = id => {
   const locked = isClosedPeriod(inv.date);
   view().classList.toggle('locked', locked);
   view().innerHTML = (locked ? `<div class="card card-pad mb" style="background:var(--graySoft)">🔒 ${monthLabel(monthKey(inv.date))} is closed — this invoice is read-only. You can still print and send it, or <a onclick="go('#/closing')">reopen the month</a>.</div>` : '') +
-    (inv.void ? `<div class="card card-pad mb" style="background:var(--redSoft);border-color:#fecaca">This invoice is <b>VOID</b> — it's excluded from revenue and balances. <button class="btn sm" onclick="voidInvoice(false)">Restore</button></div>` : '') +
+    (inv.void ? '' : customerCreditNote(inv.customerId)) + (inv.void ? `<div class="card card-pad mb" style="background:var(--redSoft);border-color:#fecaca">This invoice is <b>VOID</b> — it's excluded from revenue and balances. <button class="btn sm" onclick="voidInvoice(false)">Restore</button></div>` : '') +
     docShell({
       kind: 'invoice', title: docTitle('invoice') === 'TAX INVOICE' ? 'Tax Invoice' : 'Invoice', status: pill(s.status) + ' ' + lineBadge(inv),
       actions: `<button class="btn" onclick="previewDoc('invoice',ED.doc)">👁 Preview / Print</button><button class="btn wa" onclick="edFlush().then(()=>openSendDialog('invoice',ED.doc))">Send WhatsApp / Email</button>

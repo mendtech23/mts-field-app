@@ -15,6 +15,9 @@ const customerFields = () => [
   { k: 'trn', label: 'TRN (VAT no.)' },
   { k: 'contactPerson', label: 'Contact person' },
   { k: 'noMarketing', label: 'No marketing messages (leave out of campaigns and follow-ups)', type: 'checkbox', span: 2 },
+  { section: 'Credit account (companies / fleets)' },
+  { k: 'creditDays', label: 'Payment terms (days)', type: 'number', help: 'Invoices are due this many days after the invoice date. Empty = your normal terms' },
+  { k: 'creditLimit', label: 'Credit limit (AED)', type: 'number', help: 'You are warned when they owe more than this' },
   { k: 'notes', label: 'Notes', type: 'textarea', span: 'all' },
 ];
 const vehicleFields = (withOwner = true) => [
@@ -584,7 +587,7 @@ PAGES.customer = id => {
   const bal = customerBalance(c.id);
   const billed = invs.filter(i => !i.void).reduce((a, i) => a + invoiceState(i).total, 0);
   view().innerHTML = `<div class="crumb"><a onclick="go('#/customers')">Customers</a> / ${esc(c.name)}</div>` +
-    pageHead(esc(c.name), `${esc(c.type || '')} · ${esc(c.code || '')}`, `<button class="btn" onclick="editCustomer('${c.id}')">Edit</button>
+    customerCreditNote(c.id) + pageHead(esc(c.name), `${esc(c.type || '')} · ${esc(c.code || '')}${num(c.creditDays) > 0 ? ` · credit ${num(c.creditDays)} days` : ''}${num(c.creditLimit) > 0 ? ` · limit ${money(c.creditLimit)}` : ''}`, `<button class="btn" onclick="editCustomer('${c.id}')">Edit</button>
       <button class="btn wa" onclick="openMessageDialog({customer:get('customers','${c.id}'),vehicle:S.vehicles.find(v=>v.customerId==='${c.id}')})">💬 Message</button>
       <button class="btn" onclick="printStatement('${c.id}')">🖨 Statement</button>
       ${bal > 0 ? `<button class="btn" onclick="sendStatement('${c.id}')">Send statement</button>` : ''}`) +
@@ -603,13 +606,4 @@ function sendStatement(cid) {
   const lines = open.map(i => `• ${i.number} (${fmtDate(i.date)}, ${(vehicleOf(i) || {}).plate || ''}) — ${money(invoiceState(i).balance)}`).join('\n');
   const text = `Dear ${c.name},\n\nStatement of account from ${S.settings.garageName} as of ${fmtDate(today())}:\n\n${lines}\n\nTotal outstanding: ${money(customerBalance(cid))}\n\n${payInfoText(null, money(customerBalance(cid)))}\n\nThank you.\n${S.settings.phone}`;
   openMessageDialog({ customer: c, vehicle: S.vehicles.find(v => v.customerId === cid), type: 'payment', text, subject: 'Statement of account — ' + S.settings.garageName });
-}
-
-/* dashboard: supplier bills overdue or due in the next 3 days (Owner / Manager) */
-function supplierDueHTML() {
-  if (!Auth.canPage('expenses') || typeof unpaidBills !== 'function') return '';
-  const t = today(), soon = unpaidBills().filter(e => e.dueDate && e.dueDate <= addDays(t, 3)); if (!soon.length) return '';
-  const over = soon.filter(e => e.dueDate < t), amt = soon.reduce((a, e) => a + expBalance(e), 0);
-  return `<div class="card card-pad mb click" style="border-color:var(--${over.length ? 'red' : 'amber'})" onclick="setFilter('expenses','show','unpaid');go('#/expenses')">
-    🧾 <b>${soon.length} supplier bill(s) ${over.length ? `— ${over.length} overdue` : 'due in the next 3 days'}</b> · ${money(amt)} to pay <span class="small muted">· tap to see and pay</span></div>`;
 }

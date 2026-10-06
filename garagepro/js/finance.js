@@ -5,13 +5,43 @@ function monthEnd(mk) { const d = new Date(mk + '-01T00:00:00'); d.setMonth(d.ge
 function monthLabel(mk) { return new Date(mk + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }); }
 /* ---------- bills bought on credit (v3.7) ----------
    An expense without `payments` was paid in full on its date (as before). An expense with `payments` = a bill:
-   `amount` is the full bill (it counts in the P&L on its date), `payments` = what was paid and when, the rest is owed. */
-const expPaid = (e, upTo) => Array.isArray(e.payments) ? r2(e.payments.filter(p => !upTo || p.date <= upTo).reduce((a, p) => a + num(p.amount), 0)) : (!upTo || e.date <= upTo ? num(e.amount) : 0);
+   `amount` is the full bill (it counts in the P&L on its date), `payments` = what was paid and when, the rest is owed.
+   v3.8: received purchase orders are supplier bills too (stock, not expenses), and a payment can be a (post-dated) cheque:
+   it settles the bill when given, leaves the bank on the cheque date, and a bounced cheque counts as not paid. */
+const payOk = p => p && p.status !== 'Bounced';
+const payDate = p => p.chequeDate || p.date;   // when the money actually leaves the account
+const expPaid = (e, upTo) => Array.isArray(e.payments) ? r2(e.payments.filter(p => payOk(p) && (!upTo || p.date <= upTo)).reduce((a, p) => a + num(p.amount), 0)) : (!upTo || e.date <= upTo ? num(e.amount) : 0);
 const expBalance = (e, upTo) => r2(num(e.amount) - expPaid(e, upTo));
 const expState = e => expBalance(e) <= 0.005 ? 'Paid' : expPaid(e) > 0 ? 'Part paid' : 'On credit';
 const expSupplierName = e => (e.supplierId && (get('suppliers', e.supplierId) || {}).name) || e.paidTo || '';
 const unpaidBills = () => S.expenses.filter(e => expBalance(e) > 0.005);
-const owedToSuppliers = () => r2(unpaidBills().reduce((a, e) => a + expBalance(e), 0));
+/* purchase orders: payments, or the older "paid on" date */
+const poPays = o => Array.isArray(o.payments) ? o.payments : o.paidDate ? [{ date: o.paidDate, amount: poTotal(o), method: o.paidMethod || '', legacy: true }] : [];
+/* every supplier bill (expenses + received POs) in one shape */
+function billOf(src, kind) {
+  if (kind === 'po') return { kind, src, id: src.id, date: src.receivedDate || src.date, due: src.dueDate || '', amount: poTotal(src), pays: poPays(src), supplierId: src.supplierId || '',
+    name: (get('suppliers', src.supplierId) || {}).name || 'Supplier', desc: `Purchase order ${src.number || ''}`, ref: src.ref || src.number || '', method: src.paidMethod || '' };
+  return { kind: 'exp', src, id: src.id, date: src.date, due: src.dueDate || '', amount: num(src.amount), supplierId: src.supplierId || '', name: expSupplierName(src) || src.category || '—', desc: src.description || src.category || '', ref: src.reference || '', method: src.method || '',
+    pays: Array.isArray(src.payments) ? src.payments : [{ date: src.date, amount: num(src.amount), method: src.method || '', initial: true }] };
+}
+const allBills = () => [...S.expenses.map(e => billOf(e, 'exp')), ...S.purchaseOrders.filter(o => o.status === 'Received').map(o => billOf(o, 'po'))];
+const billPaid = (b, upTo) => r2(b.pays.filter(p => payOk(p) && (!upTo || p.date <= upTo)).reduce((a, p) => a + num(p.amount), 0));
+const billBalance = (b, upTo) => r2(b.amount - billPaid(b, upTo));
+const openBills = () => allBills().filter(b => billBalance(b) > 0.005);
+const owedToSuppliers = () => r2(openBills().reduce((a, b) => a + billBalance(b), 0));
+/* add a payment to a bill (expense or purchase order) */
+async function addBillPayment(b, pay) {
+  pay = { id: uid(), ...pay, amount: r2(num(pay.amount)) };
+  if (/cheque/i.test(pay.method || '')) { pay.chequeDate = pay.chequeDate || pay.date; pay.status = 'Pending'; } else { delete pay.chequeNo; delete pay.chequeDate; }
+  const o = b.src;
+  if (b.kind === 'po') {
+    if (!Array.isArray(o.payments)) o.payments = poPays(o).map(p => ({ ...p }));
+    o.payments.push(pay);
+    const nb = billOf(o, 'po'); o.paidDate = billBalance(nb) <= 0.005 ? pay.date : ''; o.paidMethod = pay.method || o.paidMethod || '';
+    await save('purchaseOrders', o);
+  } else { o.payments = [...(Array.isArray(o.payments) ? o.payments : []), pay]; await save('expenses', o); }
+  return pay;
+}
 function poTotal(o) { return r2((o.items || []).reduce((a, it) => a + num(it.qty) * num(it.cost), 0)); }
 
 function monthData(mk) {
@@ -26,12 +56,11 @@ function monthData(mk) {
   const pays = S.payments.filter(p => inM(p.date));
   const methods = {};
   pays.forEach(p => { const m = p.method || 'Other'; (methods[m] = methods[m] || { in: 0, out: 0 }).in += num(p.amount); });
-  // money out = what was actually paid in the month (a bill bought on credit counts when it is paid)
-  S.expenses.forEach(e => {
-    const out = (m, a) => { m = m || 'Other'; (methods[m] = methods[m] || { in: 0, out: 0 }).out += num(a); };
-    if (!Array.isArray(e.payments)) { if (inM(e.date)) out(e.method, e.amount); }
-    else e.payments.forEach(p => { if (inM(p.date)) out(p.method || (p.initial ? e.method : ''), p.amount); });
-  });
+  // money out = what was actually paid in the month (a bill bought on credit counts when it is paid; a cheque on its date)
+  for (const bl of allBills()) for (const p of bl.pays) {
+    if (!payOk(p) || !inM(payDate(p))) continue;
+    const m = p.method || (p.initial ? bl.method : '') || 'Other'; (methods[m] = methods[m] || { in: 0, out: 0 }).out += num(p.amount);
+  }
   oth.list.forEach(i => { const m = i.method || 'Other'; (methods[m] = methods[m] || { in: 0, out: 0 }).in += num(i.amount); });
   // receivables as at month end
   const aging = [0, 0, 0, 0]; const debtors = {};
@@ -45,13 +74,13 @@ function monthData(mk) {
   // work in progress: jobs opened by month end and not invoiced by month end
   const wip = S.jobs.filter(j => j.status !== 'Cancelled' && j.date <= end && (() => { const inv = jobInvoice(j); return !inv || inv.date > end; })());
   // supplier payables: received POs not paid by month end
-  const payables = S.purchaseOrders.filter(o => o.status === 'Received' && (o.receivedDate || o.date) <= end && !(o.paidDate && o.paidDate <= end));
-  const bills = S.expenses.filter(e => e.date && e.date <= end && expBalance(e, end) > 0.005);   // bought on credit, not paid by month end
+  const owed = allBills().filter(b => b.date && b.date <= end && billBalance(b, end) > 0.005);   // supplier bills and POs not paid by month end
+  const payables = owed.filter(b => b.kind === 'po'), bills = owed.filter(b => b.kind === 'exp');
   const byLine = { auto: 0, mobile: 0 };
   invs.forEach(i => { byLine[lineOf(i)] += calcDoc(i).net; });
   const r = { mk, start, end, invs, sales, exps, expByCat, expNet, expVat, oth, pays, methods, aging, debtors, wip, payables, bills, byLine };
   r.gp = r2(sales.net - sales.cost); r.np = r2(r.gp - expNet + oth.profit); r.collected = r2(pays.reduce((a, p) => a + num(p.amount), 0) + oth.amount);
-  r.receivables = r2(aging.reduce((a, b) => a + b, 0)); r.wipValue = r2(wip.reduce((a, j) => a + calcDoc(j).net, 0)); r.payablesValue = r2(payables.reduce((a, o) => a + poTotal(o), 0) + bills.reduce((a, e) => a + expBalance(e, end), 0));
+  r.receivables = r2(aging.reduce((a, b) => a + b, 0)); r.wipValue = r2(wip.reduce((a, j) => a + calcDoc(j).net, 0)); r.payablesValue = r2(owed.reduce((a, b) => a + billBalance(b, end), 0));
   r.cashExpected = r2(((methods.Cash || {}).in || 0) - ((methods.Cash || {}).out || 0));
   return r;
 }
@@ -120,7 +149,7 @@ PAGES.closing = () => {
         ${table([{ h: 'Top debtors', v: ([id]) => custLink(get('customers', id)) }, { h: '', cls: 'num', v: ([, v]) => m(v) }], Object.entries(r.debtors).sort((a, b) => b[1] - a[1]).slice(0, 6), { empty: 'Nobody owes you money 🎉' })}</div>
       <div class="card"><div class="card-head"><h3>📦 Balance-sheet items</h3></div><div class="card-pad totals" style="width:100%">
         ${line('Work in progress (not yet invoiced)', money(r.wipValue))}<div class="small faint">${r.wip.length} job(s): ${esc(r.wip.map(j => j.number).slice(0, 8).join(', '))}</div>
-        ${line('Owed to suppliers (unpaid bills + received POs)', money(r.payablesValue))}<div class="small faint">${r.bills.length} bill(s) bought on credit${r.payables.length ? ` · ${r.payables.length} PO(s) — mark them paid on the PO page` : ''}</div>
+        ${line('Owed to suppliers (unpaid bills + received POs)', money(r.payablesValue))}<div class="small faint">${r.bills.length} bill(s) bought on credit${r.payables.length ? ` · ${r.payables.length} purchase order(s)` : ''} — pay them on Expenses or Suppliers</div>
         ${line('Stock value (today, at cost)', money(stockTable().reduce((a, x) => a + x.value, 0)))}</div></div>
     </div>
     ${closed && closed.notes ? `<div class="card card-pad mt"><b>Closing notes:</b> ${esc(closed.notes)}</div>` : ''}`;

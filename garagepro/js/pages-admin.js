@@ -101,11 +101,11 @@ function expPayType(e) {
   if (!later && init >= num(e.amount) - 0.005) return { payType: 'full', paidNow: '' };
   return init > 0 ? { payType: 'part', paidNow: init } : { payType: 'credit', paidNow: '' };
 }
-function editExpense(id) {
+function editExpense(id, preset) {
   const e = get('expenses', id);
   const later = e && Array.isArray(e.payments) ? e.payments.filter(p => !p.initial) : [];
   const m = openForm({
-    title: e ? (e.payments ? 'Edit expense / bill' : 'Edit expense') : 'New expense', fields: expenseFields(), data: e ? { ...e, ...expPayType(e) } : {},
+    title: e ? (e.payments ? 'Edit expense / bill' : 'Edit expense') : 'New expense', fields: expenseFields(), data: e ? { ...e, ...expPayType(e) } : { ...(preset || {}) },
     onSave: async vals => {
       if ((e && guardClosed(e.date, 'This expense')) || guardClosed(vals.date, 'That date')) return false;
       const amount = num(vals.amount), laterSum = later.reduce((a, p) => a + num(p.amount), 0);
@@ -115,14 +115,15 @@ function editExpense(id) {
       if (vals.payType === 'part' && (init <= 0 || (!later.length && init >= amount - 0.005))) throw new Error('For “Part paid”, the amount paid now must be more than 0 and less than the bill');
       if (init + laterSum > amount + 0.005) throw new Error(`The payments (${money(init + laterSum)}) are more than the bill`);
       if (init < -0.005) throw new Error(`Payments already recorded (${money(laterSum)}) are more than this amount`);
-      const o = e ? Object.assign(e, vals) : vals;
+      const o = e ? Object.assign(e, vals) : { ...(preset && preset.link ? preset.link : {}), ...vals };
       if (o.supplierId && !o.paidTo) o.paidTo = (get('suppliers', o.supplierId) || {}).name || '';
       if (vals.payType === 'full' && !later.length) delete o.payments;   // plain expense, paid on its date
       else o.payments = [...(init > 0.005 ? [{ date: o.date, amount: r2(init), method: o.method || '', initial: true }] : []), ...later];
       if (vals.payType === 'full') o.dueDate = '';
+      else if (!o.dueDate) { const sup = o.supplierId && get('suppliers', o.supplierId); if (sup && num(sup.creditDays) > 0) o.dueDate = addDays(o.date, num(sup.creditDays)); }
       delete o.payType; delete o.paidNow;
       await save('expenses', o); render();
-      if (expBalance(o) > 0.005) toast(`Saved — ${money(expBalance(o))} owed to ${expSupplierName(o) || 'the supplier'}`, 'ok');
+      if (expBalance(o) > 0.005) { toast(`Saved — ${money(expBalance(o))} owed to ${expSupplierName(o) || 'the supplier'}`, 'ok'); creditLimitWarning(o.supplierId); }
     },
     onDelete: e ? async () => { if (guardClosed(e.date, 'This expense')) return false; if (!(await confirmBox(e.payments ? 'Delete this bill and its payments?' : 'Delete expense?', 'Delete', true))) return false; await remove('expenses', e.id); render(); return true; } : null,
   });
@@ -134,73 +135,17 @@ function editExpense(id) {
   }
   if (e && expBalance(e) > 0.005) {
     const b = document.createElement('button'); b.className = 'btn primary'; b.textContent = '💳 Record payment';
-    b.onclick = () => { m.close(); recordBillPayment(e.id); };
+    b.onclick = () => { m.close(); payBill('exp', e.id); };
     m.el.querySelector('[data-close2]').before(b);
   }
+  if (e) billPhotoButton(m, 'expenseId', e.id);   // photo of the supplier's bill
   if (e && e.wage) {   // a wage payment: reprint the receipt the technician signs
     const b = document.createElement('button'); b.className = 'btn'; b.textContent = '🖨 Wage receipt';
     b.onclick = () => { m.close(); showWageReceipt(e.wage); };
     m.el.querySelector('[data-close2]').before(b);
   }
 }
-/* pay (part of) one bill bought on credit */
-function recordBillPayment(id) {
-  const e = get('expenses', id), bal = expBalance(e);
-  openForm({
-    title: `Pay ${expSupplierName(e) || 'supplier'} — ${esc(e.description || '')}`, saveLabel: 'Save payment',
-    fields: [{ k: 'amount', label: `Amount (owed ${money(bal)})`, type: 'number', req: true, def: bal }, { k: 'date', label: 'Date paid', type: 'date', req: true, def: today() },
-      { k: 'method', label: 'Payment method', type: 'select', options: S.settings.lists.paymentMethod, def: e.method || '' }, { k: 'ref', label: 'Reference (cheque no., transfer ref…)' }],
-    onSave: async v => {
-      if (guardClosed(v.date, 'That date')) return false;
-      const a = r2(num(v.amount)); if (a <= 0) throw new Error('Amount must be more than 0');
-      if (a > bal + 0.005) throw new Error(`Only ${money(bal)} is owed on this bill`);
-      e.payments = [...(e.payments || []), { date: v.date, amount: a, method: v.method || '', ref: v.ref || '' }];
-      await save('expenses', e); toast(expBalance(e) > 0.005 ? `Paid ${money(a)} — ${money(expBalance(e))} still owed` : 'Bill fully paid', 'ok'); render();
-    },
-  });
-}
-/* who we owe: unpaid bills grouped by supplier (by the supplier record, else by the name typed) */
-function supplierDebts() {
-  const g = {};
-  for (const e of unpaidBills()) {
-    const key = e.supplierId ? 's:' + e.supplierId : 'n:' + (e.paidTo || '—').trim().toLowerCase();
-    const r = g[key] = g[key] || { key, name: expSupplierName(e) || '—', bills: [], owed: 0, due: '' };
-    r.bills.push(e); r.owed = r2(r.owed + expBalance(e));
-    if (e.dueDate && (!r.due || e.dueDate < r.due)) r.due = e.dueDate;
-  }
-  return Object.values(g).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999') || b.owed - a.owed);
-}
-/* one payment to a supplier, applied to their oldest unpaid bills first */
-function paySupplier(key) {
-  const d = supplierDebts().find(x => x.key === key); if (!d) return;
-  openForm({
-    title: `Pay ${esc(d.name)} — owed ${money(d.owed)}`, saveLabel: 'Save payment',
-    fields: [{ k: 'amount', label: 'Amount paid', type: 'number', req: true, def: d.owed, help: `${d.bills.length} unpaid bill(s); the payment clears the oldest first` },
-      { k: 'date', label: 'Date paid', type: 'date', req: true, def: today() }, { k: 'method', label: 'Payment method', type: 'select', options: S.settings.lists.paymentMethod },
-      { k: 'ref', label: 'Reference (cheque no., transfer ref…)' }],
-    onSave: async v => {
-      if (guardClosed(v.date, 'That date')) return false;
-      let left = r2(num(v.amount)); if (left <= 0) throw new Error('Amount must be more than 0');
-      if (left > d.owed + 0.005) throw new Error(`Only ${money(d.owed)} is owed to ${d.name}`);
-      for (const e of d.bills.slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''))) {
-        if (left <= 0.005) break;
-        const a = r2(Math.min(left, expBalance(e)));
-        e.payments = [...(e.payments || []), { date: v.date, amount: a, method: v.method || '', ref: v.ref || '' }]; await save('expenses', e); left = r2(left - a);
-      }
-      const rest = supplierDebts().find(x => x.key === key);
-      toast(rest ? `Saved — ${money(rest.owed)} still owed to ${d.name}` : `${d.name} fully paid`, 'ok'); render();
-    },
-  });
-}
-function supplierDebtsCard() {
-  const list = supplierDebts(); if (!list.length) return '';
-  const total = r2(list.reduce((a, d) => a + d.owed, 0)), t = today();
-  return `<div class="card mb"><div class="card-head"><h3>🧾 Owed to suppliers <span class="badge">${money(total)}</span></h3></div>
-    ${table([{ h: 'Supplier', v: d => `<b>${esc(d.name)}</b>` }, { h: 'Bills', cls: 'num', v: d => d.bills.length },
-      { h: 'Next due', v: d => d.due ? `<span class="${d.due < t ? 'red' : d.due <= addDays(t, 3) ? 'amber' : ''}">${fmtDate(d.due)}${d.due < t ? ' · overdue' : ''}</span>` : '<span class="muted">no date</span>' },
-      { h: 'Owed', cls: 'num', v: d => `<b>${money(d.owed, false)}</b>` },
-      { h: '', v: d => `<button class="btn sm primary" onclick="event.stopPropagation();paySupplier('${esc(d.key)}')">Pay</button>` }], list, {})}</div>`;
-}
+/* paying bills, supplier balances and statements: js/money.js */
 PAGES.expenses = () => {
   const m = getFilter('expenses', 'month', monthKey(today())), show = getFilter('expenses', 'show', 'all');
   const months = [...new Set([monthKey(today()), ...S.expenses.map(e => monthKey(e.date))])].sort().reverse();
@@ -425,7 +370,7 @@ async function restoreBackup(file) {
       data = await decryptBackup(data, pw);
     }
     for (const c of COLLECTIONS) { if (c === 'secLog') continue; await DB.clear(c); S[c] = data[c] || []; if (S[c].length) await DB.putMany(c, S[c]); }   // the security log is kept, not replaced
-    await DB.clear('photos'); if ((data.photos || []).length) await DB.putMany('photos', data.photos);
+    if (!data.noPhotos) { await DB.clear('photos'); if ((data.photos || []).length) await DB.putMany('photos', data.photos); }   // the weekly e-mail backup has no photos: keep the ones here
     S.settings = mergeDeep(structuredClone(DEFAULT_SETTINGS), data.settings || {}); await saveSettings();
     const syncMeta = (await DB.all('meta')).find(x => x.id === 'sync'); if (syncMeta) { syncMeta.lastPush = ''; await DB.put('meta', syncMeta); }   // upload the restored data again
     await migrateSettings();
@@ -534,6 +479,7 @@ function offersSettingsHTML() {
     <div class="field"><label>Registration renewal service fee (AED)</label><input id="of_rn" type="number" value="${esc(o.renewalFee)}"></div>
     <div class="field"><label>Follow up recommended work after (days)</label><input id="of_fu" value="${esc((o.followUpDays || []).join(', '))}"><div class="help">e.g. 7, 30, 90</div></div>
     <div class="field span2"><label>Google review link (optional)</label><input id="of_rev" value="${esc(o.googleReviewLink || '')}" placeholder="https://g.page/r/…/review"><div class="help">Google Business Profile → Ask for reviews → copy link</div></div>
+    <div class="field span2"><label style="display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--ink)"><input type="checkbox" id="of_fbon" style="width:auto" ${o.feedbackOn ? 'checked' : ''}> Offer a private feedback link when a car is delivered</label><div class="help">Optional. The customer rates the job 1–5 in 10 seconds; 3 or less alerts you, 4–5 are shown your Google review link (if set).</div></div>
     <div class="field span2"><label style="display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--ink)"><input type="checkbox" id="of_revon" style="width:auto" ${o.reviewReminders === true ? 'checked' : ''}> Remind me to ask customers for a Google review</label><div class="help">Optional. When ticked (and a link is set), finished jobs appear in Reminders & follow-ups so you can send the review request.</div></div>
     <div class="field"><label>Ask for a review after (days)</label><input id="of_ra" type="number" value="${esc(o.reviewAfterDays)}"></div>
     <div class="field"><label>Ask the same customer again after (months)</label><input id="of_rm" type="number" value="${esc(o.reviewEveryMonths)}"></div>
@@ -541,7 +487,7 @@ function offersSettingsHTML() {
 }
 async function saveOffers() {
   const o = S.settings.offers, v = id => $(id).value.trim();
-  Object.assign(o, { healthCheckFee: num(v('#of_hc')), ppiPrice: num(v('#of_ppi')), renewalFee: num(v('#of_rn')), googleReviewLink: v('#of_rev'), reviewReminders: !!$('#of_revon').checked, reviewAfterDays: num(v('#of_ra')) || 1, reviewEveryMonths: num(v('#of_rm')) || 6,
+  Object.assign(o, { healthCheckFee: num(v('#of_hc')), ppiPrice: num(v('#of_ppi')), renewalFee: num(v('#of_rn')), googleReviewLink: v('#of_rev'), reviewReminders: !!$('#of_revon').checked, feedbackOn: !!$('#of_fbon').checked, reviewAfterDays: num(v('#of_ra')) || 1, reviewEveryMonths: num(v('#of_rm')) || 6,
     followUpDays: v('#of_fu').split(/[^\d]+/).map(num).filter(Boolean).sort((a, b) => a - b) });
   if (o.googleReviewLink && !/^https:\/\//.test(o.googleReviewLink)) return toast('The review link must start with https://', 'err');
   if (o.reviewReminders && !o.googleReviewLink) toast('Review reminders start once you add your Google review link', '');

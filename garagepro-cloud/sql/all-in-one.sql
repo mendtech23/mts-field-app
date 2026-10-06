@@ -963,3 +963,137 @@ end $$;
 revoke execute on function app.daily_ping() from public, anon, authenticated;
 revoke execute on function public.public_quote(text), public.public_quote_decide(text, text, text, text) from public;
 grant execute on function public.public_quote(text), public.public_quote_decide(text, text, text, text) to anon, authenticated;
+
+-- =====================================================================================================
+-- v3.8 — money control, quality, cloud space, day report, weekly e-mail backup (safe to run again)
+-- =====================================================================================================
+-- money collections (bank moves, day closings, fixed costs) are for the Owner and Manager only, like expenses
+create or replace function app.can_access(p_coll text) returns boolean
+  language plpgsql stable security definer set search_path = public, app as $$
+declare r text := app.my_role();
+begin
+  if r is null or not app.session_ok() then return false; end if;
+  if r = 'owner' then return app.mfa_ok(); end if;
+  if r = 'manager' then return p_coll not in ('staff', 'secLog'); end if;
+  if r = 'advisor' then return p_coll not in ('staff', 'secLog', 'expenses', 'incomes', 'transfers', 'cashups', 'fixedCosts'); end if;
+  return false;
+end $$;
+
+-- ---------- cloud space used (Owner) ----------
+create or replace function public.cloud_usage() returns jsonb
+  language plpgsql stable security definer set search_path = public, app as $$
+declare g uuid := app.my_garage();
+begin
+  if app.my_role() is distinct from 'owner' or not app.session_ok() then return null; end if;
+  return jsonb_build_object('db_bytes', pg_database_size(current_database()), 'limit_bytes', 500 * 1024 * 1024,
+    'photo_bytes', (select coalesce(sum(pg_column_size(data)), 0) from public.records where owner = g and coll = 'photos' and not deleted),
+    'photos', (select count(*) from public.records where owner = g and coll = 'photos' and not deleted),
+    'records', (select count(*) from public.records where owner = g and not deleted));
+end $$;
+
+-- ---------- private customer feedback from a link (no login) ----------
+create index if not exists records_feedback_token on public.records ((data->>'feedbackToken')) where coll = 'jobs';
+create or replace function public.public_feedback(p_token text) returns jsonb
+  language plpgsql stable security definer set search_path = public, app as $$
+declare j public.records; v jsonb; c jsonb; s jsonb;
+begin
+  if length(coalesce(p_token, '')) < 20 then return null; end if;
+  select * into j from public.records where coll = 'jobs' and data->>'feedbackToken' = p_token and not deleted limit 1;
+  if not found then return null; end if;
+  select data into v from public.records where owner = j.owner and coll = 'vehicles' and id = j.data->>'vehicleId';
+  select data into c from public.records where owner = j.owner and coll = 'customers' and id = j.data->>'customerId';
+  select data into s from public.records where owner = j.owner and coll = 'settings' and id = 'settings';
+  return jsonb_build_object('number', j.data->>'number', 'customer', split_part(coalesce(c->>'name', ''), ' ', 1),
+    'vehicle', jsonb_build_object('plate', v->>'plate', 'make', v->>'make', 'model', v->>'model'),
+    'garage', jsonb_build_object('name', s->>'garageName', 'phone', s->>'phone', 'whatsapp', s->>'whatsapp'),
+    'done', j.data ? 'feedback', 'rating', j.data->'feedback'->'rating');
+end $$;
+create or replace function public.public_feedback_submit(p_token text, p_rating int, p_comment text) returns jsonb
+  language plpgsql security definer set search_path = public, app as $$
+declare j public.records; s jsonb; nd jsonb; now_s text := to_char(now() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'); who text;
+begin
+  if length(coalesce(p_token, '')) < 20 or p_rating is null or p_rating < 1 or p_rating > 5 then raise exception 'Invalid request'; end if;
+  select * into j from public.records where coll = 'jobs' and data->>'feedbackToken' = p_token and not deleted limit 1 for update;
+  if not found then raise exception 'This link is not valid'; end if;
+  if j.data ? 'feedback' then return jsonb_build_object('already', true); end if;
+  perform set_config('app.actor', 'Customer (feedback link)', true);
+  select data into s from public.records where owner = j.owner and coll = 'settings' and id = 'settings';
+  select coalesce(data->>'name', 'Customer') into who from public.records where owner = j.owner and coll = 'customers' and id = j.data->>'customerId';
+  nd := j.data || jsonb_build_object('feedback', jsonb_build_object('rating', p_rating, 'comment', left(coalesce(p_comment, ''), 500), 'at', now_s), 'updatedAt', now_s, 'updatedBy', 'Customer (feedback link)');
+  update public.records set data = nd, updated_at = now() where owner = j.owner and coll = 'jobs' and id = j.id;
+  perform app.alert(j.owner, case when p_rating <= 3 then 'warn' else 'info' end, 'feedback',
+    format('%s rated job %s %s/5%s', coalesce(who, 'Customer'), j.data->>'number', p_rating, case when coalesce(p_comment, '') <> '' then ': ' || left(p_comment, 200) else '' end));
+  return jsonb_build_object('ok', true, 'review', case when p_rating >= 4 then nullif(s->'offers'->>'googleReviewLink', '') end);
+end $$;
+revoke execute on function public.public_feedback(text), public.public_feedback_submit(text, int, text) from public;
+grant execute on function public.public_feedback(text), public.public_feedback_submit(text, int, text) to anon, authenticated;
+
+-- ---------- owner's day report (sent when the day is closed in the app) ----------
+create table if not exists app.reports (id bigserial primary key, garage_id uuid not null, at timestamptz not null default now(), subject text, html text, sent boolean not null default false);
+create or replace function public.send_day_report(p_subject text, p_html text) returns bigint
+  language plpgsql security definer set search_path = public, app, extensions as $$
+declare g uuid := app.my_garage(); v_id bigint; v_url text; v_key text;
+begin
+  if app.my_role() not in ('owner', 'manager') or not app.session_ok() or not app.mfa_ok() then raise exception 'Only the Owner or a Manager can send the day report'; end if;
+  if (select value from app.config where key = 'alert_email') is null then raise exception 'Set the alert e-mail first (Staff & security)'; end if;
+  if (select count(*) from app.reports where garage_id = g and at > now() - interval '1 day') >= 10 then raise exception 'Too many day reports today'; end if;
+  insert into app.reports (garage_id, subject, html) values (g, left(coalesce(p_subject, 'Day report'), 150), left(coalesce(p_html, ''), 60000)) returning id into v_id;
+  select value into v_url from app.config where key = 'functions_url';
+  select value into v_key from app.config where key = 'anon_key';
+  if v_url is not null then
+    begin
+      perform net.http_post(url := v_url || '/notify', body := jsonb_build_object('report_id', v_id),
+                            headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization', 'Bearer ' || coalesce(v_key, '')));
+    exception when others then null;
+    end;
+  end if;
+  return v_id;
+end $$;
+create or replace function public.srv_report_get(p_id bigint) returns jsonb language sql stable security definer set search_path = public, app as $$
+  select to_jsonb(r) || jsonb_build_object('email', (select value from app.config where key = 'alert_email')) from app.reports r where id = p_id $$;
+create or replace function public.srv_report_sent(p_id bigint) returns void language sql security definer set search_path = public, app as $$
+  update app.reports set sent = true where id = p_id $$;
+
+-- ---------- weekly e-mail backup (Owner switches it on; Sunday 20:30 Dubai) ----------
+create or replace function public.set_backup_prefs(p_weekly boolean) returns void
+  language plpgsql security definer set search_path = public, app as $$
+begin
+  if app.my_role() is distinct from 'owner' or not app.mfa_ok() or not app.session_ok() then raise exception 'Only the Owner can change this'; end if;
+  insert into app.config values ('weekly_backup', case when p_weekly then 'on' else 'off' end) on conflict (key) do update set value = excluded.value;
+end $$;
+create or replace function public.get_alert_prefs() returns jsonb
+  language sql stable security definer set search_path = public, app as $$
+  select case when app.my_role() = 'owner' then jsonb_build_object(
+    'mode', coalesce((select value from app.config where key = 'email_mode'), 'security'),
+    'daily', coalesce((select value from app.config where key = 'daily_summary'), 'off') = 'on',
+    'backup', coalesce((select value from app.config where key = 'weekly_backup'), 'off') = 'on') end $$;
+/* every garage's data for the backup e-mail (photos left out to keep it small) */
+create or replace function public.srv_backup_data() returns jsonb language sql stable security definer set search_path = public, app as $$
+  select coalesce(jsonb_agg(jsonb_build_object('garage_id', g.owner, 'email', (select value from app.config where key = 'alert_email'),
+    'settings', (select data from public.records where owner = g.owner and coll = 'settings' and id = 'settings' and not deleted),
+    'colls', (select coalesce(jsonb_object_agg(x.coll, x.rows), '{}'::jsonb) from (select coll, jsonb_agg(data) rows from public.records
+              where owner = g.owner and not deleted and coll not in ('photos', 'settings') and data is not null group by coll) x))), '[]'::jsonb)
+  from (select distinct owner from public.records) g $$;
+create or replace function app.weekly_backup_ping() returns void language plpgsql security definer set search_path = public, app, extensions as $$
+declare v_url text; v_secret text;
+begin
+  if coalesce((select value from app.config where key = 'weekly_backup'), 'off') <> 'on' then return; end if;
+  select value into v_url from app.config where key = 'functions_url';
+  select value into v_secret from app.config where key = 'cron_secret';
+  if v_url is null then return; end if;
+  perform net.http_post(url := v_url || '/notify', body := jsonb_build_object('backup', true),
+                        headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-secret', coalesce(v_secret, '')), timeout_milliseconds := 60000);
+end $$;
+do $$ begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    perform cron.unschedule(jobid) from cron.job where jobname = 'mendtech-weekly-backup';
+    perform cron.schedule('mendtech-weekly-backup', '30 16 * * 0', 'select app.weekly_backup_ping()');   -- Sunday 16:30 UTC = 20:30 Dubai
+  end if;
+end $$;
+do $$ declare f text; begin
+  foreach f in array array['srv_report_get(bigint)', 'srv_report_sent(bigint)', 'srv_backup_data()'] loop
+    execute format('revoke execute on function public.%s from public, anon, authenticated', f);
+    execute format('grant execute on function public.%s to service_role', f);
+  end loop;
+end $$;
+revoke execute on function app.weekly_backup_ping() from public, anon, authenticated;

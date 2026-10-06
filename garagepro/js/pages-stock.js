@@ -108,7 +108,7 @@ PAGES.pos = () => {
     <div class="card">${table([{ h: 'PO', v: o => `<b>${esc(o.number)}</b>` }, { h: 'Date', v: o => fmtDate(o.date) }, { h: 'Supplier', v: o => esc((get('suppliers', o.supplierId) || {}).name || '') },
       { h: 'Items', v: o => `<span class="small">${esc((o.items || []).map(i => i.desc).slice(0, 3).join(', '))}${(o.items || []).length > 3 ? '…' : ''}</span>` },
       { h: 'Total', cls: 'num', v: o => money(poTotal(o), false) }, { h: 'Received', v: o => fmtDate(o.receivedDate) }, { h: 'Status', v: o => pill(o.status) },
-      { h: 'Supplier paid', v: o => o.status !== 'Received' ? '' : o.paidDate ? pill('Paid') : pill('Unpaid', 'red') }],
+      { h: 'Supplier paid', v: o => { if (o.status !== 'Received') return ''; const b = billOf(o, 'po'); return billBalance(b) <= 0.005 ? pill('Paid') : billPaid(b) > 0 ? pill('Part paid', 'amber') : pill('Unpaid', 'red'); } }],
       list, { click: o => `go('#/po/${o.id}')`, empty: 'No purchase orders here.' })}</div>`;
 };
 async function newPO(items = [], supplierId = '') {
@@ -136,8 +136,8 @@ PAGES.po = id => {
       ${field('Date', `<input type="date" value="${esc(o.date)}" ${locked ? 'disabled' : ''} onchange="poSet('${o.id}','date',this.value)">`)}
       ${field('Supplier invoice / ref', `<input value="${esc(o.ref || '')}" oninput="poSet('${o.id}','ref',this.value)">`)}
       ${field('Notes', `<input value="${esc(o.notes || '')}" oninput="poSet('${o.id}','notes',this.value)">`)}
-      ${locked ? field('Supplier bill paid on', `<div class="row" style="flex-wrap:nowrap"><input type="date" value="${esc(o.paidDate || '')}" onchange="poSet('${o.id}','paidDate',this.value,true)">${o.paidDate ? pill('Paid') : pill('Unpaid', 'red')}</div>`) : ''}
-      ${locked ? field('Paid by', `<select onchange="poSet('${o.id}','paidMethod',this.value)"><option value="">—</option>${S.settings.lists.paymentMethod.map(x => `<option ${x === o.paidMethod ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>`) : ''}</div>
+      ${locked ? field('Supplier bill due', `<input type="date" value="${esc(o.dueDate || '')}" onchange="poSet('${o.id}','dueDate',this.value,true)">`) : ''}</div>
+    ${locked && Auth.canPage('expenses') ? poPaymentCardHTML(o) : ''}
     <div class="card"><div class="card-head"><h3>Items</h3>${locked ? '' : `<div class="actions"><button class="btn sm" onclick="poAddItem('${o.id}')">＋ Add part</button></div>`}</div>
       <div class="tbl-wrap"><table class="tbl items-tbl"><thead><tr><th>Part</th><th class="num">Qty</th><th class="num">Unit cost</th><th class="num">Line total</th><th></th></tr></thead><tbody>
       ${(o.items || []).map((it, i) => `<tr><td><b>${esc(it.desc)}</b></td>
@@ -161,11 +161,15 @@ async function receivePO(id) {
   const o = get('purchaseOrders', id);
   if (!(o.items || []).length) return toast('Add items first', 'err');
   const changed = o.items.filter(it => { const p = get('parts', it.partId); return p && num(p.cost) !== num(it.cost); });
-  o.status = 'Received'; o.receivedDate = today(); await save('purchaseOrders', o);
+  o.status = 'Received'; o.receivedDate = today();
+  const sup = get('suppliers', o.supplierId); if (!o.dueDate && sup && num(sup.creditDays) > 0) o.dueDate = addDays(o.receivedDate, num(sup.creditDays));
+  await save('purchaseOrders', o);
   if (changed.length && await confirmBox(`${changed.length} part(s) arrived at a different cost. Update the unit cost on those parts to the new price?`, 'Update costs')) {
     for (const it of changed) { const p = get('parts', it.partId); p.cost = num(it.cost); await save('parts', p); }
   }
   toast('Received — stock updated', 'ok'); render();
+  if (Auth.canPage('expenses') && await confirmBox(`Did you pay ${sup ? sup.name : 'the supplier'} for this now?\n\nChoose "Not yet" if it is on credit — it is then listed under what you owe.`, 'Yes, record payment', false, 'Not yet')) payBill('po', o.id);
+  else if (sup && Auth.canPage('expenses')) creditLimitWarning(sup.id);
 }
 async function unreceivePO(id) { if (!(await confirmBox('Undo receiving? The quantities will be removed from stock again.'))) return; const o = get('purchaseOrders', id); o.status = 'Ordered'; o.receivedDate = ''; await save('purchaseOrders', o); render(); }
 async function deletePO(id) { if (!(await confirmBox('Delete this purchase order?', 'Delete', true))) return; await remove('purchaseOrders', id); go('#/pos'); }
@@ -180,6 +184,8 @@ const supplierFields = () => [
   { k: 'name', label: 'Supplier name', req: true, span: 2 }, { k: 'contact', label: 'Contact person' }, { k: 'phone', label: 'Phone / WhatsApp' },
   { k: 'email', label: 'Email', type: 'email' }, { k: 'trn', label: 'TRN' }, { k: 'category', label: 'Supplies (category)', span: 2 },
   { k: 'terms', label: 'Payment terms', list: ['Cash', '7 days', '15 days', '30 days credit', '60 days credit'] }, { k: 'address', label: 'Address' },
+  { k: 'creditDays', label: 'Credit days (for due dates)', type: 'number', help: 'Bills from this supplier are due this many days after the bill date' },
+  { k: 'creditLimit', label: 'Credit limit (AED)', type: 'number', help: 'You are warned when you owe more than this' },
   { k: 'notes', label: 'Notes', type: 'textarea', span: 'all' }];
 function editSupplier(id) {
   const s = get('suppliers', id);
@@ -196,7 +202,7 @@ PAGES.suppliers = () => {
       { h: 'Email', v: s => esc(s.email || '') }, { h: 'Supplies', v: s => esc(s.category || '') }, { h: 'Terms', v: s => esc(s.terms || '') },
       { h: 'Parts', cls: 'num', v: s => S.parts.filter(p => p.supplierId === s.id).length }, { h: 'Stock value', cls: 'num', v: s => money(val.filter(r => r.p.supplierId === s.id).reduce((a, r) => a + r.value, 0), false) },
       { h: 'Open POs', cls: 'num', v: s => S.purchaseOrders.filter(p => p.supplierId === s.id && p.status === 'Ordered').length },
-      ...(Auth.canPage('expenses') ? [{ h: 'We owe', cls: 'num', v: s => { const d = supplierDebts().find(x => x.key === 's:' + s.id); return d ? `<b class="red">${money(d.owed, false)}</b> <button class="btn sm" onclick="event.stopPropagation();paySupplier('s:${s.id}')">Pay</button>` : ''; } }] : [])],
+      ...(Auth.canPage('expenses') ? [{ h: 'We owe', cls: 'num', v: s => { const d = supplierDebts().find(x => x.key === 's:' + s.id); return d ? `<b class="red">${money(d.owed, false)}</b> <button class="btn sm" onclick="event.stopPropagation();supplierStatement('s:${s.id}')">Statement</button> <button class="btn sm" onclick="event.stopPropagation();paySupplier('s:${s.id}')">Pay</button>` : ''; } }] : [])],
       S.suppliers, { click: s => `editSupplier('${s.id}')`, empty: 'No suppliers yet.' })}</div>`;
 };
 
@@ -243,7 +249,7 @@ function techStats(t, month) {
   for (const j of S.jobs) {
     if (j.status === 'Cancelled' || (month && monthKey(j.date) !== month)) continue;
     if (j.technicianId === t.id) { jobs.add(j.id); if (DONE_JOB.includes(j.status)) delivered.add(j.id); }
-    for (const it of j.items || []) if (it.type === 'labour' && (it.technicianId || j.technicianId) === t.id) { hours += num(it.qty); revenue += lineTotal(it); }
+    for (const it of j.items || []) if (it.type === 'labour' && (it.technicianId || j.technicianId) === t.id) { hours += labourHours(it); revenue += lineTotal(it); }
   }
   const cost = hours * num(t.costRate);
   return { jobs: jobs.size, delivered: delivered.size, hours: r2(hours), revenue: r2(revenue), cost: r2(cost), contribution: r2(revenue - cost) };
@@ -313,4 +319,22 @@ function showWageReceipt(w) {
   fitDocs(m.el);
   m.el.querySelector('[data-close2]').onclick = () => m.close();
   m.el.querySelector('[data-print]').onclick = () => printHTML(wageReceiptHTML(w), true);
+}
+
+/* the supplier's bill for a received purchase order: payments, cheques, bill photo (v3.8) */
+function poPaymentCardHTML(o) {
+  const b = billOf(o, 'po'), bal = billBalance(b), paid = billPaid(b);
+  setTimeout(() => drawPOPhotos(o.id), 0);
+  return `<div class="card mb"><div class="card-head"><h3>Supplier bill ${bal <= 0.005 ? pill('Paid') : paid > 0 ? pill('Part paid', 'amber') : pill('Unpaid', 'red')}</h3><div class="actions">
+      <button class="btn sm" onclick="poPhotoAdd('${o.id}')">📷 Bill photo</button>${bal > 0.005 ? `<button class="btn sm primary" onclick="payBill('po','${o.id}')">💳 Record payment</button>` : ''}</div></div>
+    <div class="card-pad small">Total ${money(b.amount)} · paid ${money(paid)}${bal > 0.005 ? ` · <b class="red">owed ${money(bal)}</b>${b.due ? ` · due ${fmtDate(b.due)}` : ''}` : ''}
+      ${b.pays.length ? `<div class="muted mt-s">${b.pays.map(p => `${fmtDate(p.date)} — ${money(p.amount)}${p.method ? ' · ' + esc(p.method) : ''}${p.chequeNo ? ' · cheque ' + esc(p.chequeNo) + (p.chequeDate ? ' dated ' + fmtDate(p.chequeDate) : '') : ''}${p.status && p.status !== 'Pending' ? ' · ' + esc(p.status) : p.status ? ' · not cleared yet' : ''}${p.ref ? ' · ' + esc(p.ref) : ''}`).join('<br>')}</div>` : ''}
+      <div id="poPhotos" class="row mt-s" style="gap:8px;flex-wrap:wrap"></div></div></div>`;
+}
+async function drawPOPhotos(id) { const el = document.getElementById('poPhotos'); if (!el) return; const list = await billPhotos('poId', id); el.innerHTML = list.map(p => `<img src="${p.data}" alt="Bill photo" style="height:90px;border-radius:6px;border:1px solid var(--line);cursor:pointer" onclick="window.open().document.write('<img src=&quot;'+this.src+'&quot; style=&quot;max-width:100%&quot;>')">`).join(''); }
+function poPhotoAdd(id) {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.capture = 'environment';
+  inp.onchange = async () => { const f = inp.files[0]; if (!f) return; try { const im = await compressImage(f), now = new Date().toISOString();
+    await DB.put('photos', { id: uid(), poId: id, stage: 'Bill', caption: 'Supplier bill', date: now, updatedAt: now, by: currentUserName(), ...im }); syncDirty(); toast('Bill photo saved', 'ok'); drawPOPhotos(id); } catch (e) { toast(e.message, 'err'); } };
+  inp.click();
 }

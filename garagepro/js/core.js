@@ -1,19 +1,21 @@
 /* GaragePro — core: storage, data model, calculations */
 'use strict';
 
-const APP_VERSION = '3.7.1';
+const APP_VERSION = '3.8.0';
 const CFG = Object.assign({ mode: 'live', dbName: 'garagepro', supabaseUrl: '', supabaseKey: '', garageId: '' }, window.GP_CONFIG || {});
 const IS_PREVIEW = CFG.mode === 'preview';
 const COLLECTIONS = ['customers', 'vehicles', 'quotes', 'jobs', 'invoices', 'payments', 'parts',
   'purchaseOrders', 'suppliers', 'labour', 'technicians', 'expenses', 'messages', 'stockAdjustments',
-  'bookings', 'packages', 'staff', 'requests', 'secLog', 'campaigns', 'partners', 'renewals', 'incomes'];
+  'bookings', 'packages', 'staff', 'requests', 'secLog', 'campaigns', 'partners', 'renewals', 'incomes',
+  'transfers', 'cashups', 'fixedCosts'];
+const MONEY_COLLS = ['expenses', 'incomes', 'transfers', 'cashups', 'fixedCosts'];   // owner + manager only (a service advisor never sees money out)
 
 /* ---------- IndexedDB wrapper ---------- */
 const DB = {
   db: null,
   open() {
     return new Promise((resolve, reject) => {
-      const req = indexedDB.open(CFG.dbName, 7);   // v5: secLog · v6: campaigns, partners, renewals · v7: incomes
+      const req = indexedDB.open(CFG.dbName, 8);   // v5: secLog · v6: campaigns, partners, renewals · v7: incomes · v8: transfers, cashups, fixedCosts
       req.onupgradeneeded = () => {
         const d = req.result;
         for (const c of [...COLLECTIONS, 'meta']) if (!d.objectStoreNames.contains(c)) d.createObjectStore(c, { keyPath: 'id' });
@@ -161,6 +163,7 @@ const DEFAULT_SETTINGS = {
     followUp: 'Dear {customer},\n\nWhen we checked your {vehicle} ({plate}) on {date}, we recommended:\n{item}\n\nWould you like us to book this in? We can also come to you.\n{garagePhone}',
     review: 'Dear {customer},\n\nThank you for choosing {garage}! If you are happy with the work on your {vehicle}, a quick Google review would help us a lot:\n{reviewLink}\n\nThank you!\n{garagePhone}',
     requestDeclined: 'Dear {customer},\n\nThank you for your request to {brand}. Unfortunately we cannot take this job at the requested time. Please reply with another time that suits you, or call us on {garagePhone}.\n\nSorry for the inconvenience.',
+    feedback: 'Dear {customer},\n\nThank you for choosing {garage}. How did we do with your {vehicle}? It takes 10 seconds and only we see it:\n{feedbackLink}\n\nThank you!\n{garagePhone}',
   },
   lastBackup: null,
   closedMonths: {},
@@ -325,12 +328,15 @@ function globalSearch(q) {
 
 /* ---------- Document maths ---------- */
 function lineTotal(it) { return r2(num(it.qty) * num(it.rate)); }
+/* labour is charged per hour (qty = hours) or at a fixed price (v3.8: qty = 1 job; its hours, if typed, still count for the technician) */
+const labourHours = it => it.type !== 'labour' ? 0 : it.fixed ? num(it.hours) : num(it.qty);
+const qtyText = it => fmtNum(it.qty) + (it.type === 'labour' && !it.fixed ? ' h' : '');
 function calcDoc(doc) {
   let parts = 0, labour = 0, other = 0, cost = 0, hours = 0;
   for (const it of doc.items || []) {
     const lt = lineTotal(it);
     if (it.type === 'part') { parts += lt; cost += num(it.qty) * num(it.cost); }
-    else if (it.type === 'labour') { labour += lt; hours += num(it.qty); }
+    else if (it.type === 'labour') { labour += lt; hours += labourHours(it); }
     else { other += lt; cost += num(it.qty) * num(it.cost); }
   }
   const subtotal = r2(parts + labour + other);
@@ -582,6 +588,10 @@ async function migrateSettings() {
     const T = st.templates || {}, add = (k, after) => { if (T[k] && !T[k].includes('{directions}') && T[k].includes(after)) T[k] = T[k].replace(after, after + '\n{directions}'); };
     add('ready', 'Opening hours: 8am - 7pm.'); add('booking', 'Location: {address}'); add('needsWorkshop', 'Address: {address}');
     st.schema = 37; changed = true;
+  }
+  if (st.schema < 38) {   // v3.8: feedback message, money settings
+    st.templates = st.templates || {}; if (!st.templates.feedback) st.templates.feedback = DEFAULT_SETTINGS.templates.feedback;
+    st.money = st.money || {}; st.schema = 38; changed = true;
   }
   if (changed) await saveSettings();
 }

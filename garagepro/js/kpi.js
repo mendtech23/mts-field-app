@@ -23,19 +23,25 @@ function kpiData(from, to) {
       if (it.type !== 'labour') continue;
       const id = it.technicianId || (j && j.technicianId) || '';
       const t = tech[id] = tech[id] || { hours: 0, labour: 0, jobs: new Set() };
-      t.hours += num(it.qty); t.labour += lineTotal(it) * share; if (j) t.jobs.add(j.id);
+      t.hours += labourHours(it); t.labour += lineTotal(it) * share; if (j) t.jobs.add(j.id);
     }
   }
-  const techRows = Object.entries(tech).map(([id, t]) => ({ name: techName(id) || 'Not assigned', hours: r2(t.hours), labour: r2(t.labour), jobs: t.jobs.size, perHour: t.hours ? r2(t.labour / t.hours) : 0 }))
+  const techRows = Object.entries(tech).map(([id, t]) => ({ id, name: techName(id) || 'Not assigned', hours: r2(t.hours), labour: r2(t.labour), jobs: t.jobs.size, perHour: t.hours ? r2(t.labour / t.hours) : 0 }))
     .sort((a, b) => b.labour - a.labour);
   // customers: repeat = invoiced in the period AND had an invoice before it
   const custIds = [...new Set(invs.map(i => i.customerId))];
   const repeat = custIds.filter(cid => S.invoices.some(i => !i.void && i.customerId === cid && i.date < from)).length;
   // quotes → jobs
   const qs = S.quotes.filter(q => inR(q.date)), won = qs.filter(q => ['Approved', 'Converted'].includes(q.status)).length;
-  // comebacks: a job on the same car within 30 days of a delivered job, or typed Warranty / Comeback
+  // comebacks (v3.8): jobs marked as a comeback on the job card (or typed Warranty / Comeback); "possible" = same car back within 30 days, not marked
   const jobs = S.jobs.filter(j => j.status !== 'Cancelled' && inR(j.date));
-  const comeback = jobs.filter(j => /comeback|warranty/i.test(j.type || '') || S.jobs.some(p => p.id !== j.id && p.vehicleId === j.vehicleId && p.status === 'Delivered' && p.date < j.date && daysBetween(p.completed || p.date, j.date) <= 30 && !isMobile(p))).length;
+  const isCb = j => !!j.comebackOf || /comeback|warranty/i.test(j.type || '');
+  const comebackJobs = jobs.filter(isCb), comeback = comebackJobs.length;
+  const possible = jobs.filter(j => !isCb(j) && !isMobile(j) && S.jobs.some(p => p.id !== j.id && p.vehicleId === j.vehicleId && p.status === 'Delivered' && p.date < j.date && daysBetween((p.completed || p.date).slice(0, 10), j.date) <= 30)).length;
+  const cbTech = {}; for (const j of comebackJobs) { const o = j.comebackOf && get('jobs', j.comebackOf); const id = (o && o.technicianId) || ''; cbTech[id] = (cbTech[id] || 0) + 1; }
+  // private customer feedback (1–5) given in the period
+  const fb = S.jobs.filter(j => j.feedback && inR((j.feedback.at || '').slice(0, 10)));
+  const fbAvg = fb.length ? Math.round(fb.reduce((a, j) => a + num(j.feedback.rating), 0) / fb.length * 10) / 10 : null, fbLow = fb.filter(j => num(j.feedback.rating) <= 3);
   // mobile response time
   const resp = S.jobs.filter(j => isMobile(j) && inR(j.date)).map(responseMinutes).filter(x => x != null);
   // follow-ups & campaigns: messages sent in the period that led to a job within 30 days
@@ -46,7 +52,8 @@ function kpiData(from, to) {
   return {
     net, gp: r2(net - cost), gpPct: net ? Math.round((net - cost) / net * 100) : 0, invoices: invs.length, avg: invs.length ? r2(net / invs.length) : 0,
     techRows, customers: custIds.length, repeat, repeatPct: custIds.length ? Math.round(repeat / custIds.length * 100) : 0,
-    quotes: qs.length, won, convPct: qs.length ? Math.round(won / qs.length * 100) : 0, jobs: jobs.length, comeback, comebackPct: jobs.length ? Math.round(comeback / jobs.length * 100) : 0,
+    quotes: qs.length, won, convPct: qs.length ? Math.round(won / qs.length * 100) : 0, jobs: jobs.length, comeback, possible, cbTech, comebackPct: jobs.length ? Math.round(comeback / jobs.length * 100) : 0,
+    fb: fb.length, fbAvg, fbLow,
     respAvg: resp.length ? Math.round(resp.reduce((a, b) => a + b, 0) / resp.length) : null, resp60: resp.length ? Math.round(resp.filter(x => x <= 60).length / resp.length * 100) : null,
     fsent: fmsgs.filter(m => m.type !== 'review').length, fwon, reviews: fmsgs.filter(m => m.type === 'review').length,
     byType: Object.entries(byType).sort((a, b) => b[1].v - a[1].v),
@@ -60,11 +67,13 @@ PAGES.kpi = () => {
     `<div class="filters"><div class="seg">${KPI_PERIODS.map(([key, l]) => `<button class="${p === key ? 'on' : ''}" onclick="setFilter('kpi','p','${key}')">${l}</button>`).join('')}</div></div>
     <div class="grid g4 mb">${tile('Revenue', m(k.net), `${k.invoices} invoices · gross profit ${m(k.gp)} (${k.gpPct}%)`)}${tile('Average job value', m(k.avg), 'net per invoice')}
       ${tile('Repeat customers', k.repeatPct + '%', `${k.repeat} of ${k.customers} customers had been before`)}${tile('Quote conversion', k.convPct + '%', `${k.won} of ${k.quotes} quotations approved`)}</div>
-    <div class="grid g4 mb">${tile('Comebacks', k.comebackPct + '%', `${k.comeback} of ${k.jobs} jobs — lower is better`, k.comebackPct > 5 ? 'red' : '')}
+    <div class="grid g4 mb">${tile('Comebacks', k.comebackPct + '%', `${k.comeback} of ${k.jobs} jobs — lower is better${k.possible ? `<br>${k.possible} more car(s) came back within 30 days — mark them on the job if they were comebacks` : ''}`, k.comebackPct > 5 ? 'red' : '')}
       ${tile('Mobile response', k.respAvg == null ? '—' : fmtMins(k.respAvg), k.resp60 == null ? 'no mobile jobs' : `${k.resp60}% reached within 1 hour`)}
-      ${tile('Follow-ups &amp; campaigns', k.fsent ? Math.round(k.fwon / k.fsent * 100) + '%' : '—', `${k.fwon} of ${k.fsent} messages led to a booking`)}${tile('Review requests sent', k.reviews, 'Google reviews asked for')}</div>
+      ${tile('Follow-ups &amp; campaigns', k.fsent ? Math.round(k.fwon / k.fsent * 100) + '%' : '—', `${k.fwon} of ${k.fsent} messages led to a booking`)}${tile('Customer rating', k.fbAvg == null ? '—' : k.fbAvg + ' / 5', k.fb ? `${k.fb} private rating(s)${k.fbLow.length ? ` · <span class="red">${k.fbLow.length} unhappy (3 or less)</span>` : ''}` : 'no feedback yet', k.fbAvg != null && k.fbAvg < 4 ? 'red' : '')}</div>
+    ${k.fbLow.length ? `<div class="card mb"><div class="card-head"><h3>Unhappy customers — call them</h3></div>${table([{ h: 'Rating', v: j => '★'.repeat(num(j.feedback.rating)) }, { h: 'Customer', v: j => esc((customerOf(j) || {}).name || '') }, { h: 'Job', v: j => esc(j.number) },
+      { h: 'Comment', v: j => `<span class="small">${esc(j.feedback.comment || '')}</span>` }], k.fbLow, { click: j => `go('#/job/${j.id}')` })}</div>` : ''}
     <div class="card mb"><div class="card-head"><h3>Revenue per technician</h3></div>${table([{ h: 'Technician', v: r => `<b>${esc(r.name)}</b>` }, { h: 'Jobs', cls: 'num', v: r => r.jobs },
-      { h: 'Hours sold', cls: 'num', v: r => fmtNum(r.hours) }, { h: 'Labour revenue', cls: 'num', v: r => m(r.labour) }, { h: 'Per hour', cls: 'num', v: r => m(r.perHour) }], k.techRows, { empty: 'No labour sold in this period.' })}</div>
+      { h: 'Hours sold', cls: 'num', v: r => fmtNum(r.hours) }, { h: 'Labour revenue', cls: 'num', v: r => m(r.labour) }, { h: 'Per hour', cls: 'num', v: r => m(r.perHour) }, { h: 'Comebacks', cls: 'num', v: r => k.cbTech[r.id] ? `<span class="red">${k.cbTech[r.id]}</span>` : '' }], k.techRows, { empty: 'No labour sold in this period.' })}</div>
     <div class="grid g2">${kpiTrendHTML()}
       <div class="card"><div class="card-head"><h3>Jobs by type</h3></div>${table([{ h: 'Type', v: ([t]) => esc(t) }, { h: 'Jobs', cls: 'num', v: ([, x]) => x.n }, { h: 'Revenue', cls: 'num', v: ([, x]) => m(x.v) }], k.byType, { empty: 'No jobs in this period.' })}</div></div>`;
   kpiTrendHover();

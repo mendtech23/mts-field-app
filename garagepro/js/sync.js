@@ -188,7 +188,7 @@ const Sync = {
     const r = Cloud.accounts ? Cloud.role : 'owner';
     if (r === 'owner') return true;
     if (['staff', 'secLog'].includes(c)) return false;
-    return !(r === 'advisor' && ['expenses', 'incomes'].includes(c));
+    return !(r === 'advisor' && MONEY_COLLS.includes(c));
   },
   async pendingCount() {
     const since = ((await this.meta('sync')) || {}).lastPush || '';

@@ -523,6 +523,9 @@ function drawCloudSecurity() {
           ${[['security', 'Security warnings only', 'wrong passwords, wrong approval PINs, wrong authenticator codes, lockouts'], ['important', 'All important alerts', 'also voids, deletions, bank changes, new devices, logins, quotes approved online'], ['off', 'No e-mails', 'check alerts in the app only']]
             .map(([k, t, d]) => `<label class="row small" style="align-items:flex-start;gap:8px;padding:3px 0;cursor:pointer"><input type="radio" name="al_mode" value="${k}" style="width:auto;margin-top:3px" ${CL.prefs.mode === k ? 'checked' : ''} onchange="saveAlertPrefs()"><span><b>${t}</b><br><span class="muted">${d}</span></span></label>`).join('')}
           <label class="row small" style="gap:8px;padding:6px 0 0;cursor:pointer"><input type="checkbox" id="al_daily" style="width:auto" ${CL.prefs.daily ? 'checked' : ''} onchange="saveAlertPrefs()"> Also a summary of the day at 20:00</label>
+          <label class="row small" style="gap:8px;padding:6px 0 0;cursor:pointer"><input type="checkbox" id="al_backup" style="width:auto" ${CL.prefs.backup ? 'checked' : ''} onchange="saveBackupPref()"> Weekly backup by e-mail (Sunday evening, photos not included)</label>
+          <div class="small muted" style="padding-top:4px">The day report is e-mailed when someone closes the day in Cash &amp; bank.</div>
+          <div class="small" id="cloudSpace" style="padding-top:8px"></div>
           <hr class="sep"><div class="small muted mb">Authenticator app on your Owner login (shows as <b>${esc(TOTP_ISSUER)}</b>)</div>
           ${CL.factors.length ? CL.factors.map(f => `<div class="row small" style="padding:3px 0"><span class="grow">${esc(f.friendly_name || 'Phone')}</span>${CL.factors.length > 1 ? `<button class="btn sm ghost" onclick="removeAuthenticator('${f.id}')">Remove</button>` : ''}</div>`).join('') : '<div class="red small">not set up</div>'}
           <div class="row mt-s"><button class="btn sm" onclick="setupAuthenticator(${CL.factors.length ? 'true' : 'false'})">${CL.factors.length ? 'Add another phone' : 'Set up'}</button></div>
@@ -540,6 +543,7 @@ function drawCloudSecurity() {
         { h: 'Details', v: a => `<span class="small">${esc(a.summary || '')}</span>` }], aud.slice(0, 200), { empty: 'Nothing yet.' })}</div></div>
     ${cloudLocalLockHTML()}`;
   if (typeof checkSecurityHeaders === 'function') checkSecurityHeaders();
+  drawCloudSpace();
 }
 function isThisDevice(d) { return (d.label || '') === deviceLabel() && Date.now() - new Date(d.last_seen) < 10 * 60000; }
 function cloudLocalLockHTML() {
@@ -648,9 +652,23 @@ async function importPinStaff() {
     s.el.querySelector('[data-p]').onclick = () => printHTML(`<h2>mendtech. — staff logins</h2>${table([{ h: 'Name', v: r => esc(r.s.name) }, { h: 'Username', v: r => esc(r.user) }, { h: 'Password', v: r => esc(r.pass) }], done)}<p>Cut into strips and hand out privately.</p>`);
   };
 }
+async function saveBackupPref() {
+  const on = !!(document.getElementById('al_backup') || {}).checked;
+  try { await Cloud.rpc('set_backup_prefs', { p_weekly: on }); CL.prefs.backup = on; toast(on ? 'Weekly backup e-mail on — every Sunday evening' : 'Weekly backup e-mail off', 'ok'); }
+  catch (e) { toast(e.message, 'err'); loadCloudSecurity(); }
+}
+/* how much of the free cloud space is used (Owner) */
+async function drawCloudSpace() {
+  const el = document.getElementById('cloudSpace'); if (!el) return;
+  try {
+    const u = await Cloud.rpc('cloud_usage'); if (!u) return;
+    const mb = b => (num(b) / 1048576).toFixed(0), pct = Math.round(num(u.db_bytes) / num(u.limit_bytes) * 100);
+    el.innerHTML = `☁ Cloud space: <b class="${pct >= 80 ? 'red' : pct >= 60 ? 'amber' : ''}">${mb(u.db_bytes)} MB of ${mb(u.limit_bytes)} MB (${pct}%)</b> · photos ${mb(u.photo_bytes)} MB (${u.photos})${pct >= 80 ? ' — time to plan more space; tell Claude' : ''}`;
+  } catch (e) { }
+}
 async function saveAlertPrefs() {
   const mode = (document.querySelector('input[name="al_mode"]:checked') || {}).value || 'security', daily = !!(document.getElementById('al_daily') || {}).checked;
-  try { await Cloud.rpc('set_alert_prefs', { p_mode: mode, p_daily: daily }); CL.prefs = { mode, daily }; toast('Saved', 'ok'); drawCloudSecurity(); }
+  try { await Cloud.rpc('set_alert_prefs', { p_mode: mode, p_daily: daily }); CL.prefs = { ...CL.prefs, mode, daily }; toast('Saved', 'ok'); drawCloudSecurity(); }
   catch (e) { toast(e.message, 'err'); loadCloudSecurity(); }
 }
 async function saveAuditKeep(v) {
