@@ -9,7 +9,7 @@ const ev = (f, a) => P.evaluate(f, a);
 const set = async (vals) => ev(v => { for (const [k, x] of Object.entries(v)) { const el = document.getElementById('f_' + k); if (!el) throw new Error('no field ' + k); if (el.type === 'checkbox') el.checked = !!x; else el.value = x; } }, vals);
 const save = async () => { await P.click('.modal-back:last-child [data-save]'); await P.waitForTimeout(600); };
 const t = await ev(() => today()); const yday = await ev(() => addDays(today(), -1));
-ok(await ev(() => APP_VERSION) === '3.8.0' && await ev(() => COLLECTIONS.includes('transfers') && S.transfers !== undefined), 'v3.8.0 with new collections');
+ok((await ev(() => APP_VERSION)).startsWith('3.8') && await ev(() => COLLECTIONS.includes('transfers') && S.transfers !== undefined), 'v3.8.0 with new collections');
 // ---- accounts: set real balances, then movements ----
 await ev(() => go('#/money')); await P.waitForTimeout(400);
 ok(/Cash in hand/i.test(await ev(() => document.getElementById('view').innerText)), 'Cash & bank page opens');

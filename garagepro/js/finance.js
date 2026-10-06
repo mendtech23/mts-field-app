@@ -44,14 +44,81 @@ async function addBillPayment(b, pay) {
 }
 function poTotal(o) { return r2((o.items || []).reduce((a, it) => a + num(it.qty) * num(it.cost), 0)); }
 
+/* opening / setup costs (v3.8.1): the money it took to open the garage (fit-out, lifts, tools, first licence…).
+   It is an investment, not a running cost: kept out of monthly profit and shown under "Investment & payback"
+   (Reports), where the profit of the running business pays it back. Cash & bank and VAT still count it. */
+const isSetup = e => !!(e && e.setup);
+const expNetOf = e => num(e.amount) - num(e.vat);
+const openingDate = () => S.settings.openingDate || S.expenses.filter(isSetup).map(e => e.date).filter(Boolean).sort()[0] || '';
+/* profit of the running business between two dates (sales − parts cost − running expenses + other income profit) */
+function runningProfit(from, to) {
+  const inR = d => d && d >= from && d <= to;
+  const gp = S.invoices.filter(i => !i.void && inR(i.date)).reduce((a, i) => { const c = calcDoc(i); return a + c.net - c.cost; }, 0);
+  const exp = S.expenses.filter(e => !isSetup(e) && inR(e.date)).reduce((a, e) => a + expNetOf(e), 0);
+  return r2(gp - exp + incomeTotals(from, to).profit);
+}
+function investmentCardHTML() {
+  const setups = S.expenses.filter(isSetup), canEdit = Auth.canPage('expenses');
+  if (!setups.length) return canEdit ? `<div class="card card-pad mb small">💼 <b>Opening / setup costs</b> — the money spent to open the garage is an investment, not a monthly cost. Mark those expenses so they stay out of monthly profit and you can see when they are paid back.
+    <button class="btn sm" onclick="markSetupCosts()">💼 Mark opening costs</button></div>` : '';
+  const m = v => money(v, false), from = openingDate(), t = today();
+  const invested = r2(setups.reduce((a, e) => a + expNetOf(e), 0)), vat = r2(setups.reduce((a, e) => a + num(e.vat), 0));
+  const earned = from && from <= t ? runningProfit(from, t) : 0, left = r2(Math.max(0, invested - Math.max(0, earned)));   // a loss is shown, but doesn't grow the investment
+  const done = invested > 0 ? Math.max(0, Math.min(100, Math.round(earned / invested * 100))) : 0;
+  const days = from ? Math.max(1, daysBetween(from, t) + 1) : 1, perMonth = r2(earned / days * 30.44);
+  const pace = left <= 0 ? '<span class="green"><b>Paid back</b> — the running business has earned back everything it took to open. 🎉</span>'
+    : perMonth > 0 ? `At this pace (${m(perMonth)} profit a month) the rest is paid back in about <b>${Math.ceil(left / perMonth)} month(s)</b>${days < 60 ? ' <span class="muted">(early estimate — gets better with time)</span>' : ''}.`
+    : '<span class="amber">The running business is not in profit yet, so nothing is being paid back so far.</span>';
+  const byCat = {}; setups.forEach(e => byCat[e.category] = (byCat[e.category] || 0) + expNetOf(e));
+  const tr = k => r2(S.transfers.filter(x => x.kind === k).reduce((a, x) => a + num(x.amount), 0)), oIn = tr('ownerIn'), oOut = tr('ownerOut');
+  return `<div class="card mb"><div class="card-head"><h3>💼 Investment & payback</h3>${canEdit ? `<div class="actions"><button class="btn sm" onclick="markSetupCosts()">Mark opening costs</button></div>` : ''}</div><div class="card-pad">
+    <div class="grid g4 mb"><div class="kpi"><div class="lbl">Invested to open</div><div class="val">${m(invested)}</div><div class="hint">${setups.length} expense(s), net of VAT${vat ? ` · VAT ${m(vat)} claimed back` : ''}</div></div>
+      <div class="kpi"><div class="lbl">Profit earned since opening</div><div class="val ${earned < 0 ? 'red' : 'green'}">${m(earned)}</div><div class="hint">${from ? 'since ' + fmtDate(from) : ''}</div></div>
+      <div class="kpi"><div class="lbl">Still to recover</div><div class="val ${left > 0 ? 'amber' : 'green'}">${m(left)}</div><div class="hint">${done}% paid back</div></div>
+      <div class="kpi"><div class="lbl">Owner money</div><div class="val" style="font-size:19px">${m(r2(oIn - oOut))}</div><div class="hint">put in ${m(oIn)} · taken out ${m(oOut)} (Cash & bank)</div></div></div>
+    <div style="height:10px;background:var(--line);border-radius:6px;overflow:hidden" role="img" aria-label="${done}% paid back"><div style="width:${done}%;height:100%;background:var(--green)"></div></div>
+    <div class="small mt-s">${pace}</div>
+    <div class="small muted mt-s">Opening costs: ${Object.entries(byCat).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${esc(k)} ${m(v)}`).join(' · ')}. They are kept out of the monthly profit, so each month shows how the garage itself is doing.</div></div></div>`;
+}
+/* tick, in one go, the expenses that were for opening the garage */
+function markSetupCosts() {
+  const md = openModal({ title: '💼 Mark opening / setup costs', size: 'wide',
+    body: `<p class="small">Tick everything that was spent to <b>open</b> the garage (fit-out, lifts, tools, signboard, first licence, deposit…). Untick normal running costs (e.g. a month's rent or salary once you were open). You can change any expense later with its own tick.</p>
+      <div class="field"><label>The garage opened on</label><input type="date" class="inp" id="su_date" value="${esc(S.settings.openingDate || openingDate() || today())}"><div class="help">Expenses up to this date are listed. Profit is counted from this date for the payback.</div></div>
+      <div class="row mb"><button class="btn sm" id="su_all">Tick all</button><button class="btn sm" id="su_none">Untick all</button></div><div id="su_list"></div>`,
+    foot: '<button class="btn" data-c>Cancel</button><button class="btn primary" data-ok>Save</button>' });
+  const box = md.el.querySelector('#su_list'), dt = md.el.querySelector('#su_date');
+  const draw = () => {
+    const d = dt.value || today(), list = S.expenses.filter(e => e.date && (e.date <= d || isSetup(e))).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    box.innerHTML = list.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th></th><th>Date</th><th>What</th><th class="num">Amount</th></tr></thead><tbody>${list.map(e => { const lock = isClosedPeriod(e.date);
+      return `<tr><td><input type="checkbox" data-id="${e.id}" ${isSetup(e) || (!e.setupSet && e.date <= d) ? 'checked' : ''} ${lock ? 'disabled' : ''}></td><td>${fmtDate(e.date)}</td><td>${esc(e.description || e.category)}<div class="small muted">${esc(e.category)}${lock ? ' · month closed' : ''}</div></td><td class="num">${money(e.amount, false)}</td></tr>`; }).join('')}</tbody></table></div>`
+      : '<div class="muted">No expenses on or before this date.</div>';
+  };
+  dt.onchange = draw; draw();
+  md.el.querySelector('#su_all').onclick = () => box.querySelectorAll('input:not(:disabled)').forEach(c => { c.checked = true; });
+  md.el.querySelector('#su_none').onclick = () => box.querySelectorAll('input:not(:disabled)').forEach(c => { c.checked = false; });
+  md.el.querySelector('[data-c]').onclick = md.close;
+  md.el.querySelector('[data-ok]').onclick = async () => {
+    let n = 0, total = 0;
+    for (const c of box.querySelectorAll('input[data-id]:not(:disabled)')) {
+      const e = get('expenses', c.dataset.id); if (!e) continue;
+      if (c.checked) total += expNetOf(e);
+      if (isSetup(e) === c.checked && e.setupSet) continue;
+      e.setup = c.checked; e.setupSet = true; await save('expenses', e); n++;
+    }
+    S.settings.openingDate = dt.value || ''; await saveSettings();
+    md.close(); toast(`Saved — opening costs ${money(r2(total))}${n ? ` (${n} expense(s) updated)` : ''}`, 'ok'); render();
+  };
+}
 function monthData(mk) {
   const start = mk + '-01', end = monthEnd(mk);
   const inM = d => d && d >= start && d <= end;
   const invs = S.invoices.filter(i => !i.void && inM(i.date));
   const sales = invs.reduce((a, i) => { const t = calcDoc(i); for (const k of ['parts', 'labour', 'other', 'discount', 'net', 'vat', 'total', 'cost']) a[k] += t[k]; return a; }, { parts: 0, labour: 0, other: 0, discount: 0, net: 0, vat: 0, total: 0, cost: 0 });
-  const exps = S.expenses.filter(e => inM(e.date));
+  const allExps = S.expenses.filter(e => inM(e.date)), exps = allExps.filter(e => !isSetup(e)), setupExps = allExps.filter(isSetup);
   const expByCat = {}; let expNet = 0, expVat = 0;
-  exps.forEach(e => { const n = num(e.amount) - num(e.vat); expByCat[e.category] = (expByCat[e.category] || 0) + n; expNet += n; expVat += num(e.vat); });
+  exps.forEach(e => { const n = expNetOf(e); expByCat[e.category] = (expByCat[e.category] || 0) + n; expNet += n; expVat += num(e.vat); });
+  const setupNet = r2(setupExps.reduce((a, e) => a + expNetOf(e), 0)); setupExps.forEach(e => { expVat += num(e.vat); });   // opening costs: not in profit, but their VAT is still input VAT
   const oth = incomeTotals(start, end);
   const pays = S.payments.filter(p => inM(p.date));
   const methods = {};
@@ -78,7 +145,7 @@ function monthData(mk) {
   const payables = owed.filter(b => b.kind === 'po'), bills = owed.filter(b => b.kind === 'exp');
   const byLine = { auto: 0, mobile: 0 };
   invs.forEach(i => { byLine[lineOf(i)] += calcDoc(i).net; });
-  const r = { mk, start, end, invs, sales, exps, expByCat, expNet, expVat, oth, pays, methods, aging, debtors, wip, payables, bills, byLine };
+  const r = { mk, start, end, invs, sales, exps, setupExps, setupNet, expByCat, expNet, expVat, oth, pays, methods, aging, debtors, wip, payables, bills, byLine };
   r.gp = r2(sales.net - sales.cost); r.np = r2(r.gp - expNet + oth.profit); r.collected = r2(pays.reduce((a, p) => a + num(p.amount), 0) + oth.amount);
   r.receivables = r2(aging.reduce((a, b) => a + b, 0)); r.wipValue = r2(wip.reduce((a, j) => a + calcDoc(j).net, 0)); r.payablesValue = r2(owed.reduce((a, b) => a + billBalance(b, end), 0));
   r.cashExpected = r2(((methods.Cash || {}).in || 0) - ((methods.Cash || {}).out || 0));
@@ -134,7 +201,8 @@ PAGES.closing = () => {
         ${line('Parts sales', money(r.sales.parts))}${line('Labour sales', money(r.sales.labour))}${r.sales.other ? line('Other / sublet', money(r.sales.other)) : ''}${line('Discounts given', '− ' + money(r.sales.discount))}
         ${line('<b>Net revenue</b>', '<b>' + money(r.sales.net) + '</b>')}${line('Cost of parts used', '− ' + money(r.sales.cost))}${line('<b>Gross profit</b>', '<b>' + money(r.gp) + '</b>')}
         ${Object.entries(r.expByCat).sort((a, b) => b[1] - a[1]).map(([k, v]) => line(esc(k), '− ' + money(v), 'small')).join('')}
-        ${line('Total overheads', '− ' + money(r.expNet))}${r.oth.list.length ? Object.entries(r.oth.byCat).map(([k, v]) => line('💰 ' + esc(k), (v < 0 ? '− ' : '+ ') + money(Math.abs(v)), 'small')).join('') + line('Other income (profit)', '+ ' + money(r.oth.profit)) : ''}<div class="tr grand"><span>Net profit</span><span class="${r.np < 0 ? 'red' : ''}">${money(r.np)}</span></div></div></div>
+        ${line('Total overheads', '− ' + money(r.expNet))}${r.oth.list.length ? Object.entries(r.oth.byCat).map(([k, v]) => line('💰 ' + esc(k), (v < 0 ? '− ' : '+ ') + money(Math.abs(v)), 'small')).join('') + line('Other income (profit)', '+ ' + money(r.oth.profit)) : ''}<div class="tr grand"><span>Net profit</span><span class="${r.np < 0 ? 'red' : ''}">${money(r.np)}</span></div>
+        ${r.setupNet ? `<div class="small muted mt-s">💼 Opening / setup costs this month: <b>${money(r.setupNet)}</b> — an investment, kept out of this profit (see <a onclick="go('#/reports')">Reports → Investment & payback</a>).</div>` : ''}</div></div>
       <div class="card"><div class="card-head"><h3>🧾 VAT for the month</h3></div><div class="card-pad totals" style="width:100%">
         ${line('Taxable sales', money(r.sales.net))}${line('Output VAT (charged)', money(r.sales.vat))}${r.oth.vat ? line('Output VAT (other income)', money(r.oth.vat)) : ''}${line('Input VAT (on expenses)', '− ' + money(r.expVat))}
         <div class="tr grand"><span>VAT payable</span><span>${money(r.sales.vat + r.oth.vat - r.expVat)}</span></div>
@@ -170,7 +238,7 @@ async function closeMonth(mk) {
     S.settings.closedMonths = S.settings.closedMonths || {};
     S.settings.closedMonths[mk] = {
       closedAt: new Date().toISOString(), notes: m.el.querySelector('#cl_notes').value, cashCounted: counted,
-      snapshot: { revenue: r.sales.net, vat: r.sales.vat, cogs: r.sales.cost, grossProfit: r.gp, overheads: r.expNet, netProfit: r.np, collected: r.collected, receivables: r.receivables, invoices: r.invs.length },
+      snapshot: { revenue: r.sales.net, vat: r.sales.vat, cogs: r.sales.cost, grossProfit: r.gp, overheads: r.expNet, setupCosts: r.setupNet, netProfit: r.np, collected: r.collected, receivables: r.receivables, invoices: r.invs.length },
     };
     await saveSettings(); m.close(); toast(`${monthLabel(mk)} closed and locked`, 'ok'); render();
   };
@@ -189,11 +257,11 @@ async function exportMonthExcel(mk) {
   const r = monthData(mk), wb = XLSX.utils.book_new(), cn = id => (get('customers', id) || {}).name || '';
   const add = (name, rows) => XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), name);
   add('Summary', [{ Item: 'Net revenue', Amount: r.sales.net }, { Item: 'Parts sales', Amount: r.sales.parts }, { Item: 'Labour sales', Amount: r.sales.labour }, { Item: 'Other sales', Amount: r.sales.other }, { Item: 'Discounts', Amount: r.sales.discount },
-    { Item: 'Output VAT', Amount: r.sales.vat }, { Item: 'Input VAT', Amount: r.expVat }, { Item: 'Parts COGS', Amount: r.sales.cost }, { Item: 'Gross profit', Amount: r.gp }, { Item: 'Overheads (net of VAT)', Amount: r.expNet }, { Item: 'Net profit', Amount: r.np },
+    { Item: 'Output VAT', Amount: r.sales.vat }, { Item: 'Input VAT', Amount: r.expVat }, { Item: 'Parts COGS', Amount: r.sales.cost }, { Item: 'Gross profit', Amount: r.gp }, { Item: 'Overheads (net of VAT)', Amount: r.expNet }, { Item: 'Opening / setup costs (investment, not in profit)', Amount: r.setupNet }, { Item: 'Net profit', Amount: r.np },
     { Item: 'Other income received', Amount: r.oth.amount }, { Item: 'Other income profit (net of VAT and cost)', Amount: r.oth.profit }, { Item: 'Output VAT on other income', Amount: r.oth.vat }, { Item: 'Collected', Amount: r.collected }, { Item: 'Receivables at month end', Amount: r.receivables }, { Item: 'Work in progress', Amount: r.wipValue }, { Item: 'Supplier payables', Amount: r.payablesValue }]);
   add('Sales invoices', r.invs.map(i => { const s = invoiceState(i); return { Invoice: i.number, Date: i.date, Customer: cn(i.customerId), 'Customer TRN': (get('customers', i.customerId) || {}).trn || '', Plate: (vehicleOf(i) || {}).plate, Net: s.net, VAT: s.vat, Total: s.total, Paid: s.paid, Balance: s.balance }; }));
   add('Payments', r.pays.map(p => ({ Receipt: p.number, Date: p.date, Invoice: (get('invoices', p.invoiceId) || {}).number, Customer: cn(p.customerId), Method: p.method, Amount: num(p.amount), Reference: p.reference })));
-  add('Expenses', r.exps.map(e => ({ Date: e.date, Category: e.category, Description: e.description, 'Paid to': e.paidTo, Method: e.method, Net: r2(num(e.amount) - num(e.vat)), VAT: num(e.vat), Total: num(e.amount) })));
+  add('Expenses', [...r.exps, ...r.setupExps].map(e => ({ Date: e.date, Category: e.category, Description: e.description, 'Paid to': e.paidTo, Method: e.method, Net: r2(num(e.amount) - num(e.vat)), VAT: num(e.vat), Total: num(e.amount), 'Opening / setup cost': isSetup(e) ? 'Yes' : '' })));
   add('Other income', r.oth.list.map(i => ({ Date: i.date, Type: i.category, Description: i.description, 'Received from': i.receivedFrom, Method: i.method, Net: incomeNet(i), VAT: num(i.vat), Total: num(i.amount), Cost: num(i.cost), Profit: incomeProfit(i) })));
   XLSX.writeFile(wb, `GaragePro_${mk}_closing.xlsx`);
 }

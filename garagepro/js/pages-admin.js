@@ -92,7 +92,8 @@ const expenseFields = () => [
   { k: 'dueDate', label: 'Credit due date', type: 'date', help: 'When the rest must be paid (for credit)' },
   { section: 'More' },
   { k: 'vanId', label: 'For a van? (van costs)', type: 'select', options: () => S.settings.mob.vans.map(v => [v.id, v.name + (v.plate ? ' · ' + v.plate : '')]) },
-  { k: 'reference', label: 'Reference / bill no.' }];
+  { k: 'reference', label: 'Reference / bill no.' },
+  { k: 'setup', label: '💼 Opening / setup cost — money spent to open the garage', type: 'checkbox', span: 2, help: 'An investment, not a monthly cost: kept out of monthly profit and shown under Reports → Investment & payback. Cash & bank and VAT still count it.' }];
 /* how the bill was paid when it was entered, worked back from its payments (for the edit form) */
 function expPayType(e) {
   if (!e || !Array.isArray(e.payments)) return { payType: 'full', paidNow: '' };
@@ -121,7 +122,7 @@ function editExpense(id, preset) {
       else o.payments = [...(init > 0.005 ? [{ date: o.date, amount: r2(init), method: o.method || '', initial: true }] : []), ...later];
       if (vals.payType === 'full') o.dueDate = '';
       else if (!o.dueDate) { const sup = o.supplierId && get('suppliers', o.supplierId); if (sup && num(sup.creditDays) > 0) o.dueDate = addDays(o.date, num(sup.creditDays)); }
-      delete o.payType; delete o.paidNow;
+      delete o.payType; delete o.paidNow; o.setup = !!o.setup; o.setupSet = true;
       await save('expenses', o); render();
       if (expBalance(o) > 0.005) { toast(`Saved — ${money(expBalance(o))} owed to ${expSupplierName(o) || 'the supplier'}`, 'ok'); creditLimitWarning(o.supplierId); }
     },
@@ -154,14 +155,14 @@ PAGES.expenses = () => {
   const total = list.reduce((a, e) => a + num(e.amount), 0), owed = owedToSuppliers(), t = today();
   const pill2 = e => { const st = expState(e); if (st === 'Paid') return ''; const od = e.dueDate && e.dueDate < t;
     return `${pill(st, st === 'On credit' ? 'red' : 'amber')}${e.dueDate ? `<div class="small ${od ? 'red' : 'muted'}">due ${fmtDate(e.dueDate)}${od ? ' · overdue' : ''}</div>` : ''}`; };
-  view().innerHTML = pageHead('Expenses & overheads', 'Rent, salaries, utilities, tools — everything that isn\'t a part on a job. Feeds the P&L. Bought on credit? Choose “part paid” or “on credit” and record the payments later.', `<button class="btn primary" onclick="editExpense()">＋ Add expense</button>`) +
+  view().innerHTML = pageHead('Expenses & overheads', 'Rent, salaries, utilities, tools — everything that isn\'t a part on a job. Feeds the P&L. Bought on credit? Choose “part paid” or “on credit” and record the payments later.', `<button class="btn" onclick="markSetupCosts()">💼 Mark opening costs</button><button class="btn primary" onclick="editExpense()">＋ Add expense</button>`) +
     `<div class="filters"><select class="inp" onchange="setFilter('expenses','show',this.value)"><option value="all">All expenses</option><option value="unpaid" ${show === 'unpaid' ? 'selected' : ''}>Unpaid bills only</option></select>
       ${show === 'unpaid' ? '' : `<select class="inp" onchange="setFilter('expenses','month',this.value)"><option value="">All time</option>${months.map(x => `<option value="${x}" ${x === m ? 'selected' : ''}>${new Date(x + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</option>`).join('')}</select>`}</div>
     <div class="grid g6 mb"><div class="kpi"><div class="lbl">Total</div><div class="val">${money(total, false)}</div></div>
       <div class="kpi click" onclick="setFilter('expenses','show','unpaid')"><div class="lbl">Owed to suppliers</div><div class="val ${owed > 0 ? 'red' : 'green'}">${money(owed, false)}</div><div class="hint">${unpaidBills().length} unpaid bill(s)</div></div>
       ${Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, v]) => `<div class="kpi"><div class="lbl">${esc(k)}</div><div class="val" style="font-size:19px">${money(v, false)}</div></div>`).join('')}</div>
     ${supplierDebtsCard()}
-    <div class="card">${table([{ h: 'Date', v: e => fmtDate(e.date) }, { h: 'Category', v: e => esc(e.category) }, { h: 'Description', v: e => esc(e.description) }, { h: 'Paid to', v: e => esc(expSupplierName(e)) },
+    <div class="card">${table([{ h: 'Date', v: e => fmtDate(e.date) }, { h: 'Category', v: e => esc(e.category) + (isSetup(e) ? ' ' + pill('Opening cost', 'blue') : '') }, { h: 'Description', v: e => esc(e.description) }, { h: 'Paid to', v: e => esc(expSupplierName(e)) },
       { h: 'Method', v: e => esc(e.method || '') }, { h: 'Status', v: pill2 }, { h: 'VAT', cls: 'num', v: e => num(e.vat) ? money(e.vat, false) : '' }, { h: 'Amount', cls: 'num', v: e => `<b>${money(e.amount, false)}</b>` },
       { h: 'Owed', cls: 'num', v: e => expBalance(e) > 0.005 ? `<span class="red">${money(expBalance(e), false)}</span>` : '' }],
       list, { click: e => `editExpense('${e.id}')`, empty: show === 'unpaid' ? 'No unpaid bills. 🎉' : 'No expenses recorded for this period.', foot: [{ v: 'Total' }, {}, {}, {}, {}, {}, { cls: 'num', v: money(list.reduce((a, e) => a + num(e.vat), 0), false) }, { cls: 'num', v: money(total, false) }, { cls: 'num', v: money(list.reduce((a, e) => a + Math.max(0, expBalance(e)), 0), false) }] })}</div>`;
@@ -176,13 +177,13 @@ PAGES.reports = () => {
     const mk = `${y}-${String(mth).padStart(2, '0')}`;
     const invs = S.invoices.filter(i => !i.void && monthKey(i.date) === mk);
     const t = invs.reduce((a, i) => { const c = calcDoc(i); a.net += c.net; a.vat += c.vat; a.cost += c.cost; a.parts += c.parts; a.labour += c.labour; return a; }, { net: 0, vat: 0, cost: 0, parts: 0, labour: 0 });
-    const exp = S.expenses.filter(e => monthKey(e.date) === mk).reduce((a, e) => a + num(e.amount) - num(e.vat), 0);
+    const exp = S.expenses.filter(e => !isSetup(e) && monthKey(e.date) === mk).reduce((a, e) => a + expNetOf(e), 0), setup = S.expenses.filter(e => isSetup(e) && monthKey(e.date) === mk).reduce((a, e) => a + expNetOf(e), 0);
     const oth = incomeTotals(mk + '-01', mk + '-31');
     const col = S.payments.filter(p => monthKey(p.date) === mk).reduce((a, p) => a + num(p.amount), 0);
     const jobs = S.jobs.filter(j => j.status !== 'Cancelled' && monthKey(j.date) === mk).length;
-    rows.push({ mk, jobs, invs: invs.length, ...t, gp: t.net - t.cost, exp, oth: oth.profit, othVat: oth.vat, np: t.net - t.cost - exp + oth.profit, col: col + oth.amount });
+    rows.push({ mk, jobs, invs: invs.length, ...t, gp: t.net - t.cost, exp, setup, oth: oth.profit, othVat: oth.vat, np: t.net - t.cost - exp + oth.profit, col: col + oth.amount });
   }
-  const T = rows.reduce((a, r) => { for (const k of ['jobs', 'invs', 'net', 'vat', 'cost', 'parts', 'labour', 'gp', 'exp', 'oth', 'othVat', 'np', 'col']) a[k] = (a[k] || 0) + r[k]; return a; }, {});
+  const T = rows.reduce((a, r) => { for (const k of ['jobs', 'invs', 'net', 'vat', 'cost', 'parts', 'labour', 'gp', 'exp', 'setup', 'oth', 'othVat', 'np', 'col']) a[k] = (a[k] || 0) + r[k]; return a; }, {});
   const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '—';
   const m = v => money(v, false);
 
@@ -205,9 +206,10 @@ PAGES.reports = () => {
       <div class="kpi"><div class="lbl">Revenue ${y}</div><div class="val">${m(T.net)}</div><div class="hint">parts ${m(T.parts)} · labour ${m(T.labour)}</div></div>
       <div class="kpi"><div class="lbl">Gross profit</div><div class="val">${m(T.gp)}</div><div class="hint">margin ${pct(T.gp, T.net)}</div></div>
       <div class="kpi"><div class="lbl">Overheads</div><div class="val">${m(T.exp)}</div>${T.oth ? `<div class="hint">other income + ${m(T.oth)}</div>` : ''}</div>
-      <div class="kpi"><div class="lbl">Net profit</div><div class="val ${T.np < 0 ? 'red' : 'green'}">${m(T.np)}</div><div class="hint">net margin ${pct(T.np, T.net)}</div></div>
+      <div class="kpi"><div class="lbl">Net profit</div><div class="val ${T.np < 0 ? 'red' : 'green'}">${m(T.np)}</div><div class="hint">net margin ${pct(T.np, T.net)}${T.setup ? ` · opening costs ${m(T.setup)} kept out` : ''}</div></div>
       <div class="kpi"><div class="lbl">Collected</div><div class="val">${m(T.col)}</div></div>
       <div class="kpi"><div class="lbl">Avg. invoice</div><div class="val">${m(T.invs ? T.net / T.invs : 0)}</div><div class="hint">${T.invs} invoices</div></div></div>
+    ${investmentCardHTML()}
     <div class="card mb"><div class="card-head"><h3>Monthly P&L — ${y}</h3></div>${table([
       { h: 'Month', v: r => new Date(r.mk + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'short' }) }, { h: 'Jobs', cls: 'num', v: r => r.jobs || '' }, { h: 'Invoices', cls: 'num', v: r => r.invs || '' },
       { h: 'Revenue (net)', cls: 'num', v: r => m(r.net) }, { h: 'VAT collected', cls: 'num', v: r => m(r.vat) }, { h: 'Parts COGS', cls: 'num', v: r => m(r.cost) },
@@ -410,7 +412,7 @@ async function exportExcel() {
     Payments: S.payments.map(p => ({ Receipt: p.number, Date: p.date, Invoice: (get('invoices', p.invoiceId) || {}).number, Customer: cn(p.customerId), Amount: num(p.amount), Method: p.method, Reference: p.reference })),
     Stock: stockTable().map(r => ({ Code: r.p.code, Part: r.p.name, 'Part no': r.p.partNumber, Category: r.p.category, 'On hand': r.onHand, Cost: num(r.p.cost), Price: num(r.p.price), Value: r.value, 'Reorder level': num(r.p.reorderLevel), Bin: r.p.bin })),
     'Other income': S.incomes.map(i => ({ Date: i.date, Type: i.category, Description: i.description, Amount: num(i.amount), VAT: num(i.vat), Cost: num(i.cost), Profit: incomeProfit(i), 'Received from': i.receivedFrom, Method: i.method, Reference: i.reference })),
-    Expenses: S.expenses.map(e => ({ Date: e.date, Category: e.category, Description: e.description, Amount: num(e.amount), VAT: num(e.vat), 'Paid to': expSupplierName(e), Method: e.method, Paid: expPaid(e), Owed: expBalance(e), 'Due date': e.dueDate || '' })),
+    Expenses: S.expenses.map(e => ({ Date: e.date, Category: e.category, Description: e.description, Amount: num(e.amount), VAT: num(e.vat), 'Paid to': expSupplierName(e), Method: e.method, Paid: expPaid(e), Owed: expBalance(e), 'Due date': e.dueDate || '', 'Opening / setup cost': isSetup(e) ? 'Yes' : '' })),
   };
   for (const [name, rows] of Object.entries(sheets)) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), name);
   XLSX.writeFile(wb, `GaragePro_export_${today()}.xlsx`);
