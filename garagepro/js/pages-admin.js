@@ -93,7 +93,8 @@ const expenseFields = () => [
   { section: 'More' },
   { k: 'vanId', label: 'For a van? (van costs)', type: 'select', options: () => S.settings.mob.vans.map(v => [v.id, v.name + (v.plate ? ' · ' + v.plate : '')]) },
   { k: 'reference', label: 'Reference / bill no.' },
-  { k: 'setup', label: '💼 Opening / setup cost — money spent to open the garage', type: 'checkbox', span: 2, help: 'An investment, not a monthly cost: kept out of monthly profit and shown under Reports → Investment & payback. Cash & bank and VAT still count it.' }];
+  { k: 'setup', label: '💼 Opening / setup cost — money spent to open the garage', type: 'checkbox', span: 2, help: 'An investment, not a monthly cost: kept out of monthly profit and shown under Reports → Investment & payback. Cash & bank and VAT still count it.' },
+  { k: 'setupPart', label: 'Only part of it was for opening? Amount', type: 'number', help: 'e.g. rent 5,500 of which 1,000 was before opening → type 1000. Leave empty if the whole bill was for opening.' }];
 /* how the bill was paid when it was entered, worked back from its payments (for the edit form) */
 function expPayType(e) {
   if (!e || !Array.isArray(e.payments)) return { payType: 'full', paidNow: '' };
@@ -112,6 +113,7 @@ function editExpense(id, preset) {
       const amount = num(vals.amount), laterSum = later.reduce((a, p) => a + num(p.amount), 0);
       if (amount <= 0) throw new Error('Amount must be more than 0');
       if (num(vals.vat) > amount) throw new Error('VAT cannot be more than the amount');
+      if (num(vals.setupPart) < 0 || num(vals.setupPart) > amount + 0.005) throw new Error('The opening part cannot be more than the bill');
       const init = vals.payType === 'full' ? r2(amount - laterSum) : vals.payType === 'part' ? num(vals.paidNow) : 0;
       if (vals.payType === 'part' && (init <= 0 || (!later.length && init >= amount - 0.005))) throw new Error('For “Part paid”, the amount paid now must be more than 0 and less than the bill');
       if (init + laterSum > amount + 0.005) throw new Error(`The payments (${money(init + laterSum)}) are more than the bill`);
@@ -122,7 +124,7 @@ function editExpense(id, preset) {
       else o.payments = [...(init > 0.005 ? [{ date: o.date, amount: r2(init), method: o.method || '', initial: true }] : []), ...later];
       if (vals.payType === 'full') o.dueDate = '';
       else if (!o.dueDate) { const sup = o.supplierId && get('suppliers', o.supplierId); if (sup && num(sup.creditDays) > 0) o.dueDate = addDays(o.date, num(sup.creditDays)); }
-      delete o.payType; delete o.paidNow; o.setup = !!o.setup; o.setupSet = true;
+      delete o.payType; delete o.paidNow; if (num(o.setupPart) > 0) o.setup = true; o.setup = !!o.setup; o.setupPart = o.setup && num(o.setupPart) > 0 && num(o.setupPart) < amount ? num(o.setupPart) : ''; o.setupSet = true;
       await save('expenses', o); render();
       if (expBalance(o) > 0.005) { toast(`Saved — ${money(expBalance(o))} owed to ${expSupplierName(o) || 'the supplier'}`, 'ok'); creditLimitWarning(o.supplierId); }
     },
@@ -162,7 +164,7 @@ PAGES.expenses = () => {
       <div class="kpi click" onclick="setFilter('expenses','show','unpaid')"><div class="lbl">Owed to suppliers</div><div class="val ${owed > 0 ? 'red' : 'green'}">${money(owed, false)}</div><div class="hint">${unpaidBills().length} unpaid bill(s)</div></div>
       ${Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, v]) => `<div class="kpi"><div class="lbl">${esc(k)}</div><div class="val" style="font-size:19px">${money(v, false)}</div></div>`).join('')}</div>
     ${supplierDebtsCard()}
-    <div class="card">${table([{ h: 'Date', v: e => fmtDate(e.date) }, { h: 'Category', v: e => esc(e.category) + (isSetup(e) ? ' ' + pill('Opening cost', 'blue') : '') }, { h: 'Description', v: e => esc(e.description) }, { h: 'Paid to', v: e => esc(expSupplierName(e)) },
+    <div class="card">${table([{ h: 'Date', v: e => fmtDate(e.date) }, { h: 'Category', v: e => esc(e.category) + (isSetup(e) ? ' ' + pill(setupShare(e) < 1 ? 'Opening ' + money(e.setupPart, false) : 'Opening cost', 'blue') : '') }, { h: 'Description', v: e => esc(e.description) }, { h: 'Paid to', v: e => esc(expSupplierName(e)) },
       { h: 'Method', v: e => esc(e.method || '') }, { h: 'Status', v: pill2 }, { h: 'VAT', cls: 'num', v: e => num(e.vat) ? money(e.vat, false) : '' }, { h: 'Amount', cls: 'num', v: e => `<b>${money(e.amount, false)}</b>` },
       { h: 'Owed', cls: 'num', v: e => expBalance(e) > 0.005 ? `<span class="red">${money(expBalance(e), false)}</span>` : '' }],
       list, { click: e => `editExpense('${e.id}')`, empty: show === 'unpaid' ? 'No unpaid bills. 🎉' : 'No expenses recorded for this period.', foot: [{ v: 'Total' }, {}, {}, {}, {}, {}, { cls: 'num', v: money(list.reduce((a, e) => a + num(e.vat), 0), false) }, { cls: 'num', v: money(total, false) }, { cls: 'num', v: money(list.reduce((a, e) => a + Math.max(0, expBalance(e)), 0), false) }] })}</div>`;
@@ -177,7 +179,7 @@ PAGES.reports = () => {
     const mk = `${y}-${String(mth).padStart(2, '0')}`;
     const invs = S.invoices.filter(i => !i.void && monthKey(i.date) === mk);
     const t = invs.reduce((a, i) => { const c = calcDoc(i); a.net += c.net; a.vat += c.vat; a.cost += c.cost; a.parts += c.parts; a.labour += c.labour; return a; }, { net: 0, vat: 0, cost: 0, parts: 0, labour: 0 });
-    const exp = S.expenses.filter(e => !isSetup(e) && monthKey(e.date) === mk).reduce((a, e) => a + expNetOf(e), 0), setup = S.expenses.filter(e => isSetup(e) && monthKey(e.date) === mk).reduce((a, e) => a + expNetOf(e), 0);
+    const mExp = S.expenses.filter(e => monthKey(e.date) === mk), exp = mExp.reduce((a, e) => a + runNetOf(e), 0), setup = mExp.reduce((a, e) => a + setupNetOf(e), 0);
     const oth = incomeTotals(mk + '-01', mk + '-31');
     const col = S.payments.filter(p => monthKey(p.date) === mk).reduce((a, p) => a + num(p.amount), 0);
     const jobs = S.jobs.filter(j => j.status !== 'Cancelled' && monthKey(j.date) === mk).length;
@@ -412,7 +414,7 @@ async function exportExcel() {
     Payments: S.payments.map(p => ({ Receipt: p.number, Date: p.date, Invoice: (get('invoices', p.invoiceId) || {}).number, Customer: cn(p.customerId), Amount: num(p.amount), Method: p.method, Reference: p.reference })),
     Stock: stockTable().map(r => ({ Code: r.p.code, Part: r.p.name, 'Part no': r.p.partNumber, Category: r.p.category, 'On hand': r.onHand, Cost: num(r.p.cost), Price: num(r.p.price), Value: r.value, 'Reorder level': num(r.p.reorderLevel), Bin: r.p.bin })),
     'Other income': S.incomes.map(i => ({ Date: i.date, Type: i.category, Description: i.description, Amount: num(i.amount), VAT: num(i.vat), Cost: num(i.cost), Profit: incomeProfit(i), 'Received from': i.receivedFrom, Method: i.method, Reference: i.reference })),
-    Expenses: S.expenses.map(e => ({ Date: e.date, Category: e.category, Description: e.description, Amount: num(e.amount), VAT: num(e.vat), 'Paid to': expSupplierName(e), Method: e.method, Paid: expPaid(e), Owed: expBalance(e), 'Due date': e.dueDate || '', 'Opening / setup cost': isSetup(e) ? 'Yes' : '' })),
+    Expenses: S.expenses.map(e => ({ Date: e.date, Category: e.category, Description: e.description, Amount: num(e.amount), VAT: num(e.vat), 'Paid to': expSupplierName(e), Method: e.method, Paid: expPaid(e), Owed: expBalance(e), 'Due date': e.dueDate || '', 'Opening / setup part (net)': isSetup(e) ? setupNetOf(e) : '' })),
   };
   for (const [name, rows] of Object.entries(sheets)) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), name);
   XLSX.writeFile(wb, `GaragePro_export_${today()}.xlsx`);

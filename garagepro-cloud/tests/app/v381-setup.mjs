@@ -6,7 +6,7 @@ const errs = []; const ctx = await b.newContext({ viewport: { width: 1300, heigh
 await P.goto('http://localhost:8099/new/index.html'); await P.waitForTimeout(2500);
 const ev = (f, a) => P.evaluate(f, a);
 const save = async () => { await P.click('.modal-back:last-child [data-save]'); await P.waitForTimeout(600); };
-ok((await ev(() => APP_VERSION)) === '3.8.1', 'version 3.8.1');
+ok((await ev(() => APP_VERSION)) .startsWith('3.8'), 'version 3.8.x');
 const d0 = await ev(() => addDays(today(), -40));
 const ids = await ev(async d0 => {
   const a = await save('expenses', { date: addDays(d0, -5), category: 'Tools & Equipment', description: 'Car lift', amount: 21000, vat: 1000, method: 'Bank transfer' });
@@ -58,6 +58,27 @@ await ev(id => editExpense(id), ids.c); await P.waitForTimeout(300);
 ok(await ev(() => document.getElementById('f_setup').checked), 'form shows it ticked');
 await ev(() => { document.getElementById('f_setup').checked = false; }); await save();
 ok(await ev(id => get('expenses', id).setup === false, ids.c), 'untick on the form');
+// only part of a bill is opening cost: rent 5,500 of which 1,000 was before opening
+const rentBefore = await ev(([id, mk]) => ({ setup: monthData(mk).setupNet, np: monthData(mk).np }), [ids.c, await ev(id => monthKey(get('expenses', id).date), ids.c)]);
+await ev(id => { const e = get('expenses', id); e.amount = 5500; return save('expenses', e); }, ids.c);
+const mkc = await ev(id => monthKey(get('expenses', id).date), ids.c);
+const rent0 = await ev(mk => ({ setup: monthData(mk).setupNet, np: monthData(mk).np, exp: monthData(mk).expNet }), mkc);
+await ev(id => editExpense(id), ids.c); await P.waitForTimeout(300);
+await ev(() => { document.getElementById('f_setupPart').value = '1000'; }); await save();
+const rc = await ev(id => ({ setup: get('expenses', id).setup, part: get('expenses', id).setupPart, net: setupNetOf(get('expenses', id)), run: runNetOf(get('expenses', id)) }), ids.c);
+ok(rc.setup === true && rc.part === 1000 && rc.net === 1000 && rc.run === 4500, 'form: typing an opening part of 1,000 marks it — 1,000 opening, 4,500 normal rent', rc);
+const rent1 = await ev(mk => ({ setup: monthData(mk).setupNet, np: monthData(mk).np, exp: monthData(mk).expNet }), mkc);
+ok(Math.abs(rent1.setup - rent0.setup - 1000) < 0.01 && Math.abs(rent1.exp - rent0.exp + 1000) < 0.01, 'month: only 1,000 moves out of profit', { rent0, rent1 });
+// same through the Mark opening costs window: change the part to 1,500
+await ev(() => markSetupCosts()); await P.waitForTimeout(300);
+ok(await ev(id => document.querySelector(`#su_list input[data-part="${id}"]`).value, ids.c) === '1000', 'window shows the opening part');
+await ev(id => { const i = document.querySelector(`#su_list input[data-part="${id}"]`); i.value = '1500'; i.dispatchEvent(new Event('input', { bubbles: true })); }, ids.c);
+await P.click('.modal-back:last-child [data-ok]'); await P.waitForTimeout(700);
+ok(await ev(id => setupNetOf(get('expenses', id)), ids.c) === 1500, 'window: opening part changed to 1,500');
+await ev(() => go('#/reports')); await P.waitForTimeout(400);
+const inv2 = await ev(() => S.expenses.filter(isSetup).reduce((a, e) => a + setupNetOf(e), 0));
+ok((await ev(() => document.getElementById('view').innerText)).includes(await ev(v => money(v, false), inv2)), 'Investment card counts only the opening part', inv2);
+await ev(id => { const e = get('expenses', id); e.setup = false; e.setupPart = ''; return save('expenses', e); }, ids.c);
 // expenses list tag
 await ev(mk => { setFilter('expenses', 'show', 'all'); setFilter('expenses', 'month', mk); go('#/expenses'); }, mk); await P.waitForTimeout(400);
 ok(/Opening cost/i.test(await ev(() => document.getElementById('view').innerText)), 'expenses list tags opening costs');
