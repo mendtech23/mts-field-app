@@ -21,7 +21,7 @@ function followUpReminders(add) {
       sub: `${c.name} · found ${fmtDate(first)} · ${stage}-day follow-up` });
   }
   const months = num(off.reviewEveryMonths) || 6, after = num(off.reviewAfterDays) || 1;
-  for (const j of S.jobs) {
+  for (const j of reviewRemindersOn() ? S.jobs : []) {   // optional: only when switched on in Settings (and a review link is set)
     if (j.status !== 'Delivered' && (j.mobile || {}).status !== 'Completed') continue;
     const done = (j.completed || j.date || '').slice(0, 10), d = daysBetween(done, today());
     if (d < after || d > 14) continue;
@@ -29,7 +29,7 @@ function followUpReminders(add) {
     const asked = S.messages.filter(m => m.customerId === c.id && m.type === 'review').map(m => m.date).sort().pop();
     if (asked && daysBetween(asked.slice(0, 10), today()) < months * 30) continue;
     add({ cat: 'Review request', ico: '⭐', bg: 'var(--greenSoft)', sort: 18, vehicle: v, customer: c, tpl: 'review', title: `Ask ${c.name} for a Google review`,
-      sub: `${j.number} · ${v ? v.plate : ''} · completed ${fmtDate(done)}${off.googleReviewLink ? '' : ' · ⚠ add your Google review link in Settings'}` });
+      sub: `${j.number} · ${v ? v.plate : ''} · completed ${fmtDate(done)} · optional` });
   }
 }
 
@@ -115,3 +115,6 @@ async function sendCampaign(id, i) {
   render();
 }
 async function deleteCampaign(id) { if (!(await confirmBox('Delete this campaign? Messages already sent are not affected.', 'Delete', true))) return; await remove('campaigns', id); go('#/followups'); }
+
+/* Google review reminders are optional (v3.7.1): on only when the Owner ticks it in Settings → Services & offers and a review link is set */
+function reviewRemindersOn() { const o = S.settings.offers || {}; return !!o.googleReviewLink && o.reviewReminders === true; }

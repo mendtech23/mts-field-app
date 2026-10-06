@@ -533,15 +533,17 @@ function offersSettingsHTML() {
     <div class="field"><label>Pre-purchase inspection price (AED)</label><input id="of_ppi" type="number" value="${esc(o.ppiPrice)}"></div>
     <div class="field"><label>Registration renewal service fee (AED)</label><input id="of_rn" type="number" value="${esc(o.renewalFee)}"></div>
     <div class="field"><label>Follow up recommended work after (days)</label><input id="of_fu" value="${esc((o.followUpDays || []).join(', '))}"><div class="help">e.g. 7, 30, 90</div></div>
-    <div class="field span2"><label>Google review link</label><input id="of_rev" value="${esc(o.googleReviewLink || '')}" placeholder="https://g.page/r/…/review"><div class="help">Google Business Profile → Ask for reviews → copy link</div></div>
+    <div class="field span2"><label>Google review link (optional)</label><input id="of_rev" value="${esc(o.googleReviewLink || '')}" placeholder="https://g.page/r/…/review"><div class="help">Google Business Profile → Ask for reviews → copy link</div></div>
+    <div class="field span2"><label style="display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--ink)"><input type="checkbox" id="of_revon" style="width:auto" ${o.reviewReminders === true ? 'checked' : ''}> Remind me to ask customers for a Google review</label><div class="help">Optional. When ticked (and a link is set), finished jobs appear in Reminders & follow-ups so you can send the review request.</div></div>
     <div class="field"><label>Ask for a review after (days)</label><input id="of_ra" type="number" value="${esc(o.reviewAfterDays)}"></div>
     <div class="field"><label>Ask the same customer again after (months)</label><input id="of_rm" type="number" value="${esc(o.reviewEveryMonths)}"></div>
   </div><div class="row end mt"><button class="btn primary" onclick="saveOffers()">Save</button></div></div>`;
 }
 async function saveOffers() {
   const o = S.settings.offers, v = id => $(id).value.trim();
-  Object.assign(o, { healthCheckFee: num(v('#of_hc')), ppiPrice: num(v('#of_ppi')), renewalFee: num(v('#of_rn')), googleReviewLink: v('#of_rev'), reviewAfterDays: num(v('#of_ra')) || 1, reviewEveryMonths: num(v('#of_rm')) || 6,
+  Object.assign(o, { healthCheckFee: num(v('#of_hc')), ppiPrice: num(v('#of_ppi')), renewalFee: num(v('#of_rn')), googleReviewLink: v('#of_rev'), reviewReminders: !!$('#of_revon').checked, reviewAfterDays: num(v('#of_ra')) || 1, reviewEveryMonths: num(v('#of_rm')) || 6,
     followUpDays: v('#of_fu').split(/[^\d]+/).map(num).filter(Boolean).sort((a, b) => a - b) });
   if (o.googleReviewLink && !/^https:\/\//.test(o.googleReviewLink)) return toast('The review link must start with https://', 'err');
+  if (o.reviewReminders && !o.googleReviewLink) toast('Review reminders start once you add your Google review link', '');
   await saveSettings(); secLog('settings', 'Prices / offers changed', 'info'); toast('Saved', 'ok'); render();
 }
