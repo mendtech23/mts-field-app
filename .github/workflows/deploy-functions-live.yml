@@ -54,9 +54,13 @@ jobs:
         if: steps.token.outputs.ok == 'true'
         working-directory: work
         run: |
-          supabase functions deploy login       --project-ref "$PROJECT_REF" --no-verify-jwt --use-api
-          supabase functions deploy staff-admin --project-ref "$PROJECT_REF" --use-api
-          supabase functions deploy notify      --project-ref "$PROJECT_REF" --no-verify-jwt --use-api
+          # The access token must still work and the project must not be paused.
+          supabase projects list | grep -E "$PROJECT_REF|REFERENCE" || { echo "::error::The access token can't see project $PROJECT_REF (token expired/revoked, or project paused?)"; exit 1; }
+          # Upload through the API first; if Supabase refuses that route, bundle with Docker instead.
+          dep() { supabase functions deploy "$@" --project-ref "$PROJECT_REF" --use-api || { echo "::warning::API upload of $1 refused — retrying with the Docker bundler"; supabase functions deploy "$@" --project-ref "$PROJECT_REF"; }; }
+          dep login --no-verify-jwt
+          dep staff-admin
+          dep notify --no-verify-jwt
 
       - name: Set function secrets
         if: steps.token.outputs.ok == 'true'
