@@ -201,7 +201,7 @@ function table(cols, rows, opt = {}) {
 }
 
 const PILL_COLORS = {
-  Booked: 'blue', 'In Progress': 'orange', 'Awaiting Parts': 'amber', 'Awaiting Approval': 'violet', Ready: 'green', Delivered: 'gray', Cancelled: 'red',
+  Booked: 'blue', 'In Progress': 'orange', 'Awaiting Parts': 'amber', 'Awaiting Approval': 'violet', 'On Hold': 'violet', Ready: 'green', Delivered: 'gray', Cancelled: 'red',
   Draft: 'gray', Sent: 'blue', Approved: 'green', Declined: 'red', Converted: 'violet', Expired: 'amber',
   Paid: 'green', Partial: 'amber', Unpaid: 'red', Overdue: 'red', Void: 'gray', 'Not invoiced': 'gray',
   Ordered: 'blue', Received: 'green', OK: 'green', 'Due Soon': 'amber', 'No record': 'gray', Attention: 'amber', Replace: 'red',

@@ -43,7 +43,7 @@ const canShareFiles = () => { try { return !!(navigator.canShare && navigator.ca
 function openSendDialog(kind, doc, extra = {}) {
   const { v, c } = docParties(doc);
   const st = S.settings;
-  const text = fillTemplate(st.templates[docTemplateKey(kind, doc)], docMessageCtx(kind, doc, extra));
+  const text = kind === 'receipt' && !extra.invoice && !doc.invoiceId && doc.jobId ? advanceReceiptText(doc) : fillTemplate(st.templates[docTemplateKey(kind, doc)], docMessageCtx(kind, doc, extra));
   const subject = `${docTitle(kind, doc)} ${doc.number} — ${v.plate || ''} ${vehicleLabel(v)}${doc.plain ? '' : ' — ' + brandFor(doc)}`;
   const hasShare = canShareFiles();
   const m = openModal({

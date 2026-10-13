@@ -6,7 +6,7 @@ const errs = []; const ctx = await b.newContext({ viewport: { width: 1300, heigh
 await P.goto('http://localhost:8099/new/index.html'); await P.waitForTimeout(2500);
 const ev = (f, a) => P.evaluate(f, a);
 const save = async () => { await P.click('.modal-back:last-child [data-save]'); await P.waitForTimeout(600); };
-ok((await ev(() => APP_VERSION)) .startsWith('3.8'), 'version 3.8.x');
+ok(parseFloat(await ev(() => APP_VERSION)) >= 3.8, 'version 3.8 or later');
 const d0 = await ev(() => addDays(today(), -40));
 const ids = await ev(async d0 => {
   const a = await save('expenses', { date: addDays(d0, -5), category: 'Tools & Equipment', description: 'Car lift', amount: 21000, vat: 1000, method: 'Bank transfer' });

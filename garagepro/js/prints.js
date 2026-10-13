@@ -85,6 +85,7 @@ function statementHTML(cid, from = '', to = today()) {
   const rows = [
     ...invs.map(i => ({ date: i.date, ref: i.number, desc: `Invoice — ${(vehicleOf(i) || {}).plate || ''} ${vehicleLabel(vehicleOf(i))}`, dr: invoiceState(i).total, cr: 0 })),
     ...S.payments.filter(p => ids.has(p.invoiceId)).map(p => ({ date: p.date, ref: p.number, desc: `Payment ${p.method || ''} — ${(get('invoices', p.invoiceId) || {}).number || ''}`, dr: 0, cr: num(p.amount) })),
+    ...S.payments.filter(p => p.customerId === cid && p.jobId && !p.invoiceId).map(p => ({ date: p.date, ref: p.number, desc: `Advance ${p.method || ''} — job ${(get('jobs', p.jobId) || {}).number || ''}`, dr: 0, cr: num(p.amount) })),
   ].sort((a, b) => (a.date || '').localeCompare(b.date || '') || b.dr - a.dr);
   let bal = 0, opening = 0;
   const shown = [];

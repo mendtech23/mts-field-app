@@ -1,7 +1,7 @@
 /* GaragePro — core: storage, data model, calculations */
 'use strict';
 
-const APP_VERSION = '3.8.2';
+const APP_VERSION = '3.9.0';
 const CFG = Object.assign({ mode: 'live', dbName: 'garagepro', supabaseUrl: '', supabaseKey: '', garageId: '' }, window.GP_CONFIG || {});
 const IS_PREVIEW = CFG.mode === 'preview';
 const COLLECTIONS = ['customers', 'vehicles', 'quotes', 'jobs', 'invoices', 'payments', 'parts',
@@ -175,8 +175,8 @@ const DEFAULT_SETTINGS = {
   offers: { healthCheckFee: 49, ppiPrice: 299, renewalFee: 150, googleReviewLink: '', reviewAfterDays: 1, followUpDays: [7, 30, 90], reviewEveryMonths: 6 },
 };
 
-const JOB_STATUSES = ['Booked', 'In Progress', 'Awaiting Parts', 'Awaiting Approval', 'Ready', 'Delivered', 'Cancelled'];
-const OPEN_JOB = ['Booked', 'In Progress', 'Awaiting Parts', 'Awaiting Approval'];
+const JOB_STATUSES = ['Booked', 'In Progress', 'Awaiting Parts', 'Awaiting Approval', 'On Hold', 'Ready', 'Delivered', 'Cancelled'];
+const OPEN_JOB = ['Booked', 'In Progress', 'Awaiting Parts', 'Awaiting Approval', 'On Hold'];   // On Hold (v3.9): car on standby, waiting for the customer
 const DONE_JOB = ['Ready', 'Delivered'];
 const QUOTE_STATUSES = ['Draft', 'Sent', 'Approved', 'Declined', 'Converted', 'Expired'];
 const PO_STATUSES = ['Ordered', 'Received', 'Cancelled'];

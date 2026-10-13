@@ -141,6 +141,11 @@ function editExpense(id, preset) {
     b.onclick = () => { m.close(); payBill('exp', e.id); };
     m.el.querySelector('[data-close2]').before(b);
   }
+  if (e && !e.wage && !e.fixedCostId) {   // v3.9: same expense again (fuel, the same supplier…) — new date, same details
+    const b = document.createElement('button'); b.className = 'btn'; b.textContent = '↻ Repeat';
+    b.onclick = () => { m.close(); repeatExpense(e.id); };
+    m.el.querySelector('[data-close2]').before(b);
+  }
   if (e) billPhotoButton(m, 'expenseId', e.id);   // photo of the supplier's bill
   if (e && e.wage) {   // a wage payment: reprint the receipt the technician signs
     const b = document.createElement('button'); b.className = 'btn'; b.textContent = '🖨 Wage receipt';
@@ -157,7 +162,7 @@ PAGES.expenses = () => {
   const total = list.reduce((a, e) => a + num(e.amount), 0), owed = owedToSuppliers(), t = today();
   const pill2 = e => { const st = expState(e); if (st === 'Paid') return ''; const od = e.dueDate && e.dueDate < t;
     return `${pill(st, st === 'On credit' ? 'red' : 'amber')}${e.dueDate ? `<div class="small ${od ? 'red' : 'muted'}">due ${fmtDate(e.dueDate)}${od ? ' · overdue' : ''}</div>` : ''}`; };
-  view().innerHTML = pageHead('Expenses & overheads', 'Rent, salaries, utilities, tools — everything that isn\'t a part on a job. Feeds the P&L. Bought on credit? Choose “part paid” or “on credit” and record the payments later.', `<button class="btn" onclick="markSetupCosts()">💼 Mark opening costs</button><button class="btn primary" onclick="editExpense()">＋ Add expense</button>`) +
+  view().innerHTML = pageHead('Expenses & overheads', 'Rent, salaries, utilities, tools — everything that isn\'t a part on a job. Feeds the P&L. Bought on credit? Choose “part paid” or “on credit” and record the payments later.', `<button class="btn" onclick="markSetupCosts()">💼 Mark opening costs</button><button class="btn" onclick="repeatLastExpense()">↻ Repeat last</button><button class="btn primary" onclick="editExpense()">＋ Add expense</button>`) +
     `<div class="filters"><select class="inp" onchange="setFilter('expenses','show',this.value)"><option value="all">All expenses</option><option value="unpaid" ${show === 'unpaid' ? 'selected' : ''}>Unpaid bills only</option></select>
       ${show === 'unpaid' ? '' : `<select class="inp" onchange="setFilter('expenses','month',this.value)"><option value="">All time</option>${months.map(x => `<option value="${x}" ${x === m ? 'selected' : ''}>${new Date(x + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</option>`).join('')}</select>`}</div>
     <div class="grid g6 mb"><div class="kpi"><div class="lbl">Total</div><div class="val">${money(total, false)}</div></div>

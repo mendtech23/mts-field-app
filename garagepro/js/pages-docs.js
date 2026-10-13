@@ -56,7 +56,7 @@ async function newDoc(kind) {
     const base = { vehicleId: v.id, customerId: v.customerId, date: today(), odometer: '', items: [], discount: 0, discountType: 'pct', vatRate: S.settings.vatRate };
     let d;
     if (kind === 'quote') d = { ...base, number: await nextNo('quote'), status: 'Draft', validUntil: addDays(today(), num(S.settings.quoteValidDays) || 14) };
-    if (kind === 'job') d = { ...base, number: await nextNo('job'), status: 'Booked', type: S.settings.lists.jobType[0], promised: addDays(today(), 1) };
+    if (kind === 'job') d = { ...base, number: await nextNo('job'), status: 'Booked', type: defaultJobType(), promised: addDays(today(), 1) };
     if (kind === 'invoice') d = { ...base, number: await nextNo('invoice'), dueDate: addDays(today(), invoiceDueDaysFor(v.customerId)) };
     await save(KINDS[kind].coll, d);
     go(`#/${kind}/${d.id}`);
@@ -237,7 +237,7 @@ async function convertQuote() {
   } else {
     job = await save('jobs', {
       number: await nextNo('job'), date: today(), vehicleId: q.vehicleId, customerId: q.customerId, odometer: q.odometer, items: structuredClone(q.items || []),
-      discount: q.discount, discountType: q.discountType, ...discountFields(q), vatRate: q.vatRate, status: 'Booked', type: S.settings.lists.jobType[0], complaint: q.description || '', quoteId: q.id, promised: addDays(today(), 1),
+      discount: q.discount, discountType: q.discountType, ...discountFields(q), vatRate: q.vatRate, status: 'Booked', type: defaultJobType(), complaint: q.description || '', quoteId: q.id, promised: addDays(today(), 1),
     });
   }
   q.status = 'Converted'; q.jobId = job.id; await save('quotes', q);
@@ -277,7 +277,7 @@ function lineSeg(page) {
 const lineMatch = (page, d) => { const l = getFilter(page, 'line', 'all'); return l === 'all' || lineOf(d) === l; };
 PAGES.jobs = () => {
   const f = getFilter('jobs', 'status', 'In workshop');
-  view().innerHTML = pageHead('Job Cards', 'Work orders — everything done to a car during a visit (workshop and mobile).', `<button class="btn" onclick="newMobileJob()">🚐 Mobile request</button><button class="btn primary" onclick="go('#/checkin')">＋ Check-in / new job</button>`) +
+  view().innerHTML = pageHead('Job Cards', 'Work orders — everything done to a car during a visit (workshop and mobile).', `<button class="btn" onclick="newMobileJob()">🚐 Mobile request</button><button class="btn" onclick="quickPastJob()">⚡ Quick past job</button><button class="btn primary" onclick="go('#/checkin')">＋ Check-in / new job</button>`) +
     `<div class="filters">${liveSearch('jobs', 'Search job no., plate, customer, complaint…', 'drawJobs')}${lineSeg('jobs')}
       <div class="seg">${['In workshop', 'Ready', 'Delivered', 'Cancelled', 'All'].map(k => `<button class="${f === k ? 'on' : ''}" onclick="setFilter('jobs','status','${k}')">${k}</button>`).join('')}</div>
       <select class="inp" onchange="setFilter('jobs','tech',this.value)"><option value="">All technicians</option>${S.technicians.map(t => `<option value="${t.id}" ${getFilter('jobs', 'tech') === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></div>
@@ -329,7 +329,7 @@ function jobSideHTML(j) {
   const q = j.quoteId && get('quotes', j.quoteId);
   const labourByTech = {};
   for (const it of j.items || []) if (it.type === 'labour') { const t = techName(it.technicianId || j.technicianId) || 'Unassigned'; labourByTech[t] = (labourByTech[t] || 0) + labourHours(it); }
-  return signaturesCardHTML(j) + qualityCardHTML(j) + `<div class="card mb"><div class="card-head"><h3>Job info</h3></div><div class="card-pad"><dl class="kv" style="grid-template-columns:110px 1fr">
+  return advanceCardHTML(j) + signaturesCardHTML(j) + qualityCardHTML(j) + `<div class="card mb"><div class="card-head"><h3>Job info</h3></div><div class="card-pad"><dl class="kv" style="grid-template-columns:110px 1fr">
     <dt>Days in shop</dt><dd>${daysBetween(j.date, j.completed || today())}</dd>
     ${q ? `<dt>From quote</dt><dd><a onclick="go('#/quote/${q.id}')">${esc(q.number)}</a></dd>` : ''}
     <dt>Hours</dt><dd>${Object.entries(labourByTech).map(([t, h]) => `${esc(t)}: ${fmtNum(h)} h`).join('<br>') || '—'}</dd>
@@ -342,7 +342,7 @@ function jobSideHTML(j) {
 async function jobStatus(s) {
   const j = ED.doc; const prev = j.status;
   if (s === prev) return;
-  if (s === 'Cancelled' && !(await confirmBox(`Cancel job ${j.number}? Parts on it will return to stock.`, 'Cancel job', true))) return;
+  if (s === 'Cancelled' && !(await confirmBox(`Cancel job ${j.number}? Parts on it will return to stock.${advanceTotal(j) ? `\n\n⚠ The customer paid an advance of ${money(advanceTotal(j))} on this job. If you give it back, delete the advance on the job card so Cash & bank stays right.` : ''}`, 'Cancel job', true))) return;
   j.status = s;
   if ((s === 'Ready' || s === 'Delivered') && !j.completed) j.completed = today();
   if (s === 'Delivered' && j.odometer) { const v = vehicleOf(j); if (v && num(j.odometer) > num(v.odometer)) { v.odometer = num(j.odometer); await save('vehicles', v); } }
@@ -354,14 +354,15 @@ async function jobStatus(s) {
     if (await confirmBox('This job has no invoice yet. Create the invoice now?', 'Create invoice')) createInvoiceFromJob();
   } else if (s === 'Delivered') offerFeedbackOnDelivery(j);
 }
-async function makeInvoiceFromJob(j) {
+async function makeInvoiceFromJob(j, date = today()) {
   if (isMobile(j)) applyCalloutRules(j);
   const inv = await save('invoices', {
-    number: await nextNo('invoice'), date: today(), jobId: j.id, vehicleId: j.vehicleId, customerId: j.customerId, odometer: j.odometer, line: j.line || 'auto',
+    number: await nextNo('invoice'), date, jobId: j.id, vehicleId: j.vehicleId, customerId: j.customerId, odometer: j.odometer, line: j.line || 'auto',
     items: applyHealthCheckRule(structuredClone(j.items || [])), discount: j.discount, discountType: j.discountType, ...discountFields(j), vatRate: j.vatRate ?? S.settings.vatRate,
-    workDone: j.diagnosis || (isMobile(j) ? (j.mobile || {}).problem || '' : ''), lpo: j.lpo || '', dueDate: addDays(today(), invoiceDueDaysFor(j.customerId)),
+    workDone: j.diagnosis || (isMobile(j) ? (j.mobile || {}).problem || '' : ''), lpo: j.lpo || '', dueDate: addDays(date, invoiceDueDaysFor(j.customerId)),
   });
   j.invoiceId = inv.id; await save('jobs', j);
+  await attachAdvances(j, inv);   // v3.9: money taken in advance now counts as paid on the invoice
   toast(`Invoice ${inv.number} created`, 'ok');
   return inv;
 }
@@ -369,7 +370,7 @@ async function createInvoiceFromJob() {
   await edFlush();
   const j = ED.doc;
   if (!(j.items || []).length && !(await confirmBox('This job card has no parts or labour. Create an empty invoice?'))) return;
-  const inv = await makeInvoiceFromJob(j);
+  const inv = await makeInvoiceFromJob(j, await pickInvoiceDate(j));
   go('#/invoice/' + inv.id);
 }
 async function syncInvoiceFromJob() {
@@ -468,7 +469,7 @@ PAGES.invoice = id => {
         ${pays.length ? `<div class="small amber mt-s">⚠ Payments have been recorded against this invoice — editing items changes the balance.</div>` : ''}`,
       main: '',
       side: `<div class="card mb"><div class="card-head"><h3>Payments</h3>${s.balance > 0 && !inv.void ? `<div class="actions"><button class="btn sm primary" onclick="recordPayment('${inv.id}')">＋ Add</button></div>` : ''}</div>
-        ${pays.length ? pays.map(p => `<div class="alert-row"><div class="grow"><b>${money(p.amount)}</b> <span class="muted small">${esc(p.method)}</span><div class="small faint">${esc(p.number)} · ${fmtDate(p.date)}${p.reference ? ' · ' + esc(p.reference) : ''}</div></div>
+        ${pays.length ? pays.map(p => `<div class="alert-row"><div class="grow"><b>${money(p.amount)}</b> <span class="muted small">${esc(p.method)}${p.advance ? ' · advance' : ''}</span><div class="small faint">${esc(p.number)} · ${fmtDate(p.date)}${p.reference ? ' · ' + esc(p.reference) : ''}</div></div>
           <button class="btn sm ghost" title="Receipt" onclick="receiptActions('${p.id}')">🧾</button><button class="btn sm ghost" title="Delete" onclick="deletePayment('${p.id}')">✕</button></div>`).join('') : '<div class="empty" style="padding:18px">No payments yet</div>'}</div>
         <div class="card mb"><div class="card-pad"><label class="row small" style="align-items:flex-start;gap:8px;cursor:pointer"><input type="checkbox" id="plain_invoice" style="width:auto;margin-top:3px" ${ED.doc.plain ? 'checked' : ''} onchange="edSet('plain', this.checked, true)">
         <span><b>Plain document</b> — no company name, logo, TRN, bank or contact details on the print / PDF</span></label>${ED.doc.plain ? `<div class="small muted mt-s">${ED.kind === 'invoice' ? 'Printed as “INVOICE” (not a tax invoice — no TRN).' : 'The customer link shows no company details either.'}</div>` : ''}</div></div>
@@ -502,7 +503,7 @@ function recordPayment(invoiceId) {
     title: `Record payment — ${esc(inv.number)}`, size: 'narrow', cols: 2,
     fields: [
       { k: 'amount', label: `Amount (${S.settings.currency})`, type: 'number', req: true, def: s.balance.toFixed(2), help: `Balance due ${money(s.balance)}` },
-      { k: 'date', label: 'Date', type: 'date', req: true, def: today() },
+      { k: 'date', label: 'Date', type: 'date', req: true, def: inv.date < today() && (inv.createdAt || '').slice(0, 10) === today() ? inv.date : today() },   // an invoice entered today for earlier work: paid on that day too (change if not)
       { k: 'method', label: 'Method', type: 'select', options: S.settings.lists.paymentMethod, def: 'Cash', blank: false },
       { k: 'reference', label: 'Reference', ph: 'Card slip / cheque / transfer ref' },
     ],
@@ -543,7 +544,7 @@ PAGES.payments = () => {
     <div class="grid g6 mb"><div class="kpi"><div class="lbl">Total received</div><div class="val">${money(total, false)}</div><div class="hint">${list.length} payments</div></div>
       ${Object.entries(byMethod).map(([k, val]) => `<div class="kpi"><div class="lbl">${esc(k)}</div><div class="val" style="font-size:20px">${money(val, false)}</div></div>`).join('')}</div>
     <div class="card">${table([
-      { h: 'Receipt', v: p => `<b>${esc(p.number)}</b>` }, { h: 'Date', v: p => fmtDate(p.date) }, { h: 'Invoice', v: p => { const i = get('invoices', p.invoiceId); return i ? `<a onclick="event.stopPropagation();go('#/invoice/${i.id}')">${esc(i.number)}</a>` : ''; } },
+      { h: 'Receipt', v: p => `<b>${esc(p.number)}</b>` }, { h: 'Date', v: p => fmtDate(p.date) }, { h: 'Invoice', v: p => { const i = get('invoices', p.invoiceId), j = !i && p.jobId && get('jobs', p.jobId); return i ? `<a onclick="event.stopPropagation();go('#/invoice/${i.id}')">${esc(i.number)}</a>${p.advance ? ' <span class="small muted">(advance)</span>' : ''}` : j ? `<a onclick="event.stopPropagation();go('#/job/${j.id}')">Advance · ${esc(j.number)}</a>` : ''; } },
       { h: 'Customer', v: p => esc((get('customers', p.customerId) || {}).name) }, { h: 'Vehicle', v: p => plateTag(get('vehicles', p.vehicleId)) },
       { h: 'Method', v: p => esc(p.method || '') }, { h: 'Reference', v: p => esc(p.reference || '') }, { h: 'Amount', cls: 'num', v: p => `<b>${money(p.amount, false)}</b>` }],
       list, { click: p => `receiptActions('${p.id}')`, empty: 'No payments in this period.', foot: [{ v: 'Total' }, {}, {}, {}, {}, {}, {}, { cls: 'num', v: money(total, false) }] })}</div>`;

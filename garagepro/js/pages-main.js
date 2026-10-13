@@ -8,7 +8,7 @@ const MAKES = ['Toyota', 'Nissan', 'Lexus', 'Honda', 'Mitsubishi', 'Hyundai', 'K
 const customerFields = () => [
   { k: 'name', label: 'Customer / company name', req: true, span: 2 },
   { k: 'type', label: 'Type', type: 'select', options: S.settings.lists.customerType, def: 'Individual', blank: false },
-  { k: 'phone', label: 'Mobile', type: 'tel', req: true, ph: '050 123 4567' },
+  { k: 'phone', label: 'Mobile', type: 'tel', ph: '050 123 4567', help: 'Leave empty if not known yet — it shows under Missing details' },
   { k: 'whatsapp', label: 'WhatsApp (if different)', type: 'tel' },
   { k: 'email', label: 'Email', type: 'email' },
   { k: 'address', label: 'Area / address', span: 2 },
@@ -23,7 +23,8 @@ const customerFields = () => [
 const vehicleFields = (withOwner = true) => [
   ...(withOwner ? [{ k: 'customerId', label: 'Owner', type: 'select', req: true, span: 'all', options: () => [...S.customers].sort((a, b) => a.name.localeCompare(b.name)).map(c => [c.id, `${c.name} — ${c.phone || ''}`]) }] : []),
   { section: 'Identification' },
-  { k: 'plate', label: 'Number plate', type: 'plate', req: true, ph: 'A 12345' },
+  { k: 'plate', label: 'Number plate', type: 'plate', ph: 'A 12345' },
+  { k: 'plateUnknown', label: 'Plate not known yet (a temporary TEMP-… number is used)', type: 'checkbox' },
   { k: 'emirate', label: 'Emirate / state', type: 'select', options: S.settings.lists.emirate, def: 'Dubai' },
   { k: 'vin', label: 'VIN / chassis no.', type: 'plate', ph: '17 characters' },
   { k: 'make', label: 'Make', req: true, list: MAKES },
@@ -63,6 +64,10 @@ async function saveVehicle(vals, existing) {
   const v = existing ? { ...existing } : {};
   const oldOwner = v.customerId;
   Object.assign(v, vals);
+  if (!String(v.plate || '').trim()) {   // plate not known yet → a temporary TEMP-001… (shows under Missing details)
+    if (!v.plateUnknown) { toast('Enter the number plate, or tick “Plate not known yet”', 'err'); return false; }
+    v.plate = await nextTempPlate();
+  } else if (!/^TEMP/i.test(v.plate)) v.plateUnknown = false;   // a real plate was entered
   v.plateNorm = norm(v.plate); v.vinNorm = norm(v.vin);
   const dup = S.vehicles.find(x => x.id !== v.id && ((v.plateNorm && x.plateNorm === v.plateNorm && (x.emirate || '') === (v.emirate || '')) || (v.vinNorm && x.vinNorm === v.vinNorm)));
   if (dup) { toast(`A vehicle with this ${dup.vinNorm === v.vinNorm && v.vinNorm ? 'VIN' : 'plate'} already exists (${dup.plate})`, 'err'); return false; }
@@ -185,7 +190,7 @@ PAGES.dashboard = () => {
       ${Auth.can('finance') ? kpi('Revenue this month', money(revenue, false), `GP ${money(revenue - cogs, false)} · collected ${money(collected, false)}<br>This week ${money(wkRev, false)} ${trend(wkRev, pwRev)}`, '#/reports') : kpi('Vehicles on file', S.vehicles.length, '', '#/vehicles')}
       ${Auth.canPage('invoices') ? kpi('Outstanding', money(outstanding, false), 'unpaid invoices', '#/invoices') : kpi('Low stock parts', low.length, '', '#/parts')}
     </div>
-    ${supplierDueHTML()}${todaysBookingsHTML()}${Auth.canPage('dispatch') ? mobileTodayHTML() : ''}
+    ${supplierDueHTML()}${missingInfoHTML()}${todaysBookingsHTML()}${Auth.canPage('dispatch') ? mobileTodayHTML() : ''}
     <div class="grid g3">
       <div class="card span2"><div class="card-head"><h3>🔧 Workshop board</h3><div class="actions"><button class="btn sm" onclick="go('#/jobs')">All jobs</button></div></div>
         ${table([
@@ -261,8 +266,8 @@ function drawCheckin() {
 function checkinJobFields(v) {
   const techs = S.technicians.filter(t => t.active !== false);
   return `<div class="grid g4">
-    <div class="field"><label>Odometer in (km) <span class="req">*</span></label><input id="ci_odo" type="number" placeholder="${v ? 'Last: ' + fmtNum(currentOdo(v)) : ''}"></div>
-    <div class="field"><label>Job type</label><select id="ci_type">${S.settings.lists.jobType.map(t => `<option>${esc(t)}</option>`).join('')}</select></div>
+    <div class="field"><label>Odometer in (km)</label><input id="ci_odo" type="number" placeholder="${v ? 'Last: ' + fmtNum(currentOdo(v)) : 'not known'}"></div>
+    <div class="field"><label>Job type</label><select id="ci_type">${S.settings.lists.jobType.map(t => `<option ${t === defaultJobType() ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></div>
     <div class="field"><label>Technician</label><select id="ci_tech"><option value="">— assign later —</option>${techs.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div>
     <div class="field"><label>Promised date</label><input id="ci_prom" type="date" value="${addDays(today(), 1)}"></div>
     <div class="field spanall"><label>Customer complaint / request</label><textarea id="ci_comp" placeholder="e.g. Periodic service, AC not cooling, noise from front left when braking…"></textarea></div></div>`;
@@ -286,7 +291,7 @@ function checkinNew(q) {
   return `<div class="card"><div class="card-head"><h3>🆕 New vehicle — not in the system yet</h3></div><div class="card-pad">
     <div class="grid g4">
       <div class="fieldset-title">Vehicle</div>
-      <div class="field"><label>Number plate <span class="req">*</span></label><input id="nv_plate" class="plate-input" value="${esc(isVin ? '' : q.toUpperCase())}"></div>
+      <div class="field"><label>Number plate</label><input id="nv_plate" class="plate-input" value="${esc(isVin ? '' : q.toUpperCase())}"><label class="small row" style="gap:6px;margin-top:4px"><input type="checkbox" id="nv_noplate" style="width:auto" onchange="$('#nv_plate').disabled=this.checked"> Not known yet</label></div>
       <div class="field"><label>Emirate</label><select id="nv_emirate">${S.settings.lists.emirate.map(e => `<option>${esc(e)}</option>`).join('')}</select></div>
       <div class="field span2"><label>VIN / chassis</label><input id="nv_vin" class="plate-input" value="${esc(isVin ? q.toUpperCase() : '')}"></div>
       <div class="field"><label>Make <span class="req">*</span></label><input id="nv_make" list="nv_makes"><datalist id="nv_makes">${MAKES.map(m => `<option value="${m}">`).join('')}</datalist></div>
@@ -294,7 +299,7 @@ function checkinNew(q) {
       <div class="field"><label>Year</label><input id="nv_year" type="number"></div>
       <div class="field"><label>Colour</label><input id="nv_color"></div>
       <div class="fieldset-title">Owner</div>
-      <div class="field"><label>Mobile <span class="req">*</span></label><input id="nc_phone" placeholder="050 123 4567" autocomplete="off"><div class="help" id="nc_match"></div></div>
+      <div class="field"><label>Mobile</label><input id="nc_phone" placeholder="050 123 4567" autocomplete="off"><div class="help" id="nc_match">Empty = not known yet</div></div>
       <div class="field span2"><label>Name <span class="req">*</span></label><input id="nc_name"></div>
       <div class="field"><label>Type</label><select id="nc_type">${S.settings.lists.customerType.map(e => `<option>${esc(e)}</option>`).join('')}</select></div>
       <div class="field span2"><label>Email</label><input id="nc_email" type="email"></div>
@@ -322,20 +327,21 @@ async function checkinCreate(what) {
     let v = exactVehicle($('#ciQ').value);
     if (!v) {
       const g = id => ($('#' + id).value || '').trim();
-      if (!g('nv_plate')) throw new Error('Number plate is required');
+      const noPlate = !!($('#nv_noplate') || {}).checked;
+      if (!g('nv_plate') && !noPlate) throw new Error('Enter the number plate, or tick “Not known yet”');
       if (!g('nv_make') || !g('nv_model')) throw new Error('Make and model are required');
       let c = get('customers', $('#nc_existing').value);
       if (!c) {
-        if (!g('nc_phone') || !g('nc_name')) throw new Error('Owner name and mobile are required');
+        if (!g('nc_name')) throw new Error('Enter the owner’s name (mobile can wait if you don’t have it)');
         c = await saveCustomer({ name: g('nc_name'), phone: g('nc_phone'), email: g('nc_email'), type: g('nc_type') });
         if (!c) return;
       }
-      v = await saveVehicle({ customerId: c.id, plate: g('nv_plate').toUpperCase(), emirate: g('nv_emirate'), vin: g('nv_vin').toUpperCase(), make: g('nv_make'), model: g('nv_model'), year: g('nv_year'), color: g('nv_color'), odometer: num(g('ci_odo')) || '', status: 'Active' });
+      v = await saveVehicle({ customerId: c.id, plate: noPlate ? '' : g('nv_plate').toUpperCase(), plateUnknown: noPlate, emirate: g('nv_emirate'), vin: g('nv_vin').toUpperCase(), make: g('nv_make'), model: g('nv_model'), year: g('nv_year'), color: g('nv_color'), odometer: num(g('ci_odo')) || '', status: 'Active' });
       if (!v) return;
     }
     if (what === 'vehicle') return go('#/vehicle/' + v.id);
     const odo = num($('#ci_odo').value);
-    if (what === 'job' && !odo) { $('#ci_odo').focus(); throw new Error('Enter the odometer reading'); }
+    if (what === 'job' && !odo && !(await confirmBox('No odometer reading. Open the job without it? (You can add the km later on the job card.)', 'Continue without km', false, 'Enter km'))) { $('#ci_odo').focus(); return; }
     if (odo && odo < currentOdo(v) && !(await confirmBox(`Odometer ${fmtNum(odo)} km is lower than the last recorded ${fmtNum(currentOdo(v))} km. Continue?`))) return;
     const base = { vehicleId: v.id, customerId: v.customerId, date: today(), odometer: odo || '', items: [], discount: 0, discountType: 'pct', vatRate: S.settings.vatRate };
     if (what === 'job') {
@@ -587,7 +593,7 @@ PAGES.customer = id => {
   const bal = customerBalance(c.id);
   const billed = invs.filter(i => !i.void).reduce((a, i) => a + invoiceState(i).total, 0);
   view().innerHTML = `<div class="crumb"><a onclick="go('#/customers')">Customers</a> / ${esc(c.name)}</div>` +
-    customerCreditNote(c.id) + pageHead(esc(c.name), `${esc(c.type || '')} · ${esc(c.code || '')}${num(c.creditDays) > 0 ? ` · credit ${num(c.creditDays)} days` : ''}${num(c.creditLimit) > 0 ? ` · limit ${money(c.creditLimit)}` : ''}`, `<button class="btn" onclick="editCustomer('${c.id}')">Edit</button>
+    customerCreditNote(c.id) + (customerAdvances(c.id).length ? `<div class="card card-pad mb small" style="background:var(--greenSoft)">💵 Advance held: <b>${money(customerAdvances(c.id).reduce((a, p) => a + num(p.amount), 0))}</b> on ${customerAdvances(c.id).map(p => { const j = get('jobs', p.jobId); return j ? `<a onclick="go('#/job/${j.id}')">${esc(j.number)}</a>` : ''; }).join(', ')} — it comes off the invoice when the job is invoiced.</div>` : '') + pageHead(esc(c.name), `${esc(c.type || '')} · ${esc(c.code || '')}${num(c.creditDays) > 0 ? ` · credit ${num(c.creditDays)} days` : ''}${num(c.creditLimit) > 0 ? ` · limit ${money(c.creditLimit)}` : ''}`, `<button class="btn" onclick="editCustomer('${c.id}')">Edit</button>
       <button class="btn wa" onclick="openMessageDialog({customer:get('customers','${c.id}'),vehicle:S.vehicles.find(v=>v.customerId==='${c.id}')})">💬 Message</button>
       <button class="btn" onclick="printStatement('${c.id}')">🖨 Statement</button>
       ${bal > 0 ? `<button class="btn" onclick="sendStatement('${c.id}')">Send statement</button>` : ''}`) +

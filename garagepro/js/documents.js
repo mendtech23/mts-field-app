@@ -160,11 +160,12 @@ function jobCardHTML(j, extra = {}) {
 function receiptHTML(p, extra = {}) {
   const inv = extra.invoice || get('invoices', p.invoiceId) || {}, s = inv.id ? invoiceState(inv) : null, { v, c } = docParties(inv.id ? inv : p);
   const mth = (p.method || '').toLowerCase();
-  return bdDoc(`${bdHead('PAYMENT RECEIPT', [['Receipt no.', p.number], ['Date', fmtDate(p.date)], ['Invoice no.', inv.number || '']])}
+  const rr = receiptRef(p, inv);
+  return bdDoc(`${bdHead('PAYMENT RECEIPT', [['Receipt no.', p.number], ['Date', fmtDate(p.date)], [rr.label, rr.no]])}
     <div class="bd-two"><div><div class="bd-sec">Received from</div>${bdField('Name', c.name)}${bdField('Mobile', c.phone)}${bdField('Email', c.email)}</div>
       <div><div class="bd-sec">Vehicle</div>${bdField('Make/Model', [v.make, v.model].filter(Boolean).join(' '))}${bdField('Plate no.', [v.plate, v.emirate].filter(Boolean).join(' · '))}${bdField('VIN', v.vin)}</div></div>
     <table class="bd-items"><thead><tr><th class="c-n">#</th><th class="c-d">Description</th><th class="c-a">Amount</th></tr></thead><tbody>
-      <tr><td class="c-n">1</td><td class="c-d">Payment against invoice ${esc(inv.number || '')}${p.reference ? `<small>Reference: ${esc(p.reference)}</small>` : ''}</td><td class="c-a">${money(p.amount, false)}</td></tr></tbody></table>
+      <tr><td class="c-n">1</td><td class="c-d">${esc(rr.desc)}${p.reference ? `<small>Reference: ${esc(p.reference)}</small>` : ''}</td><td class="c-a">${money(p.amount, false)}</td></tr></tbody></table>
     <div class="bd-after"><div class="bd-left"><div class="bd-sec">Payment method</div><div class="bd-cbrow">${bdCB(mth.includes('cash'), 'Cash')}${bdCB(mth.includes('card'), 'Card')}${bdCB(/bank|transfer|cheque/.test(mth), 'Bank transfer')}${bdCB(mth.includes('credit'), 'Credit (fleet)')}</div>
       ${/stripe|wio|machine|cheque/i.test(p.method || '') ? `<p class="bd-p">Method: ${esc(p.method)}</p>` : ''}<p class="bd-words">Amount in words: ${esc(amountInWords(p.amount))}</p></div>
       <div class="bd-right"><div class="bd-tot"><div class="grand"><span>RECEIVED</span><b>${money(p.amount)}</b></div>
@@ -478,7 +479,8 @@ function buildJobPDF(j, extra = {}) {
 
 function buildReceiptPDF(p, extra = {}) {
   const B = brandPDF(), { pdf, K } = B, inv = extra.invoice || get('invoices', p.invoiceId) || {}, s = inv.id ? invoiceState(inv) : null, { v, c } = docParties(inv.id ? inv : p);
-  let y = B.header('PAYMENT RECEIPT', [['Receipt no.', p.number], ['Date', fmtDate(p.date)], ['Invoice no.', inv.number || '']]);
+  const rr = receiptRef(p, inv);
+  let y = B.header('PAYMENT RECEIPT', [['Receipt no.', p.number], ['Date', fmtDate(p.date)], [rr.label, rr.no]]);
   const colW = (K.R - K.M - 22 * PX) / 2, x2 = K.M + colW + 22 * PX;
   B.sec('Received from', K.M, y + 2.4); B.sec('Vehicle', x2, y + 2.4);
   const fy = y + 2.4 + 7 * PX + 24 * PX - 1.2;
@@ -487,7 +489,7 @@ function buildReceiptPDF(p, extra = {}) {
   y = fy + 2 * 24 * PX + 8;
   pdf.autoTable({
     startY: y, theme: 'plain', margin: { left: K.M, right: K.W - K.R },
-    head: [['#', 'DESCRIPTION', 'AMOUNT']], body: [[1, `Payment against invoice ${inv.number || ''}${p.reference ? '\nReference: ' + p.reference : ''}`, money(p.amount, false)]],
+    head: [['#', 'DESCRIPTION', 'AMOUNT']], body: [[1, `${rr.desc}${p.reference ? '\nReference: ' + p.reference : ''}`, money(p.amount, false)]],
     styles: { font: B.face.reg[0], fontSize: 10.5 * 0.75, textColor: RGB(BRAND.navy), cellPadding: 2.1, minCellHeight: 27 * PX, valign: 'middle' },
     headStyles: { font: B.face.semi[0], fillColor: RGB(BRAND.navy), textColor: 255, fontSize: 9.5 * 0.75 },
     columnStyles: { 0: { cellWidth: 28 * PX, halign: 'center', textColor: RGB(BRAND.steel) }, 2: { cellWidth: 92 * PX, halign: 'right', font: B.face.semi[0] } },

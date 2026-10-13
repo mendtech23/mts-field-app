@@ -3,7 +3,7 @@
 Update this file at the end of every piece of work: what shipped, what the owner still has to do, new ideas, answers to open questions.
 
 ## Where things stand (2026-10-13)
-- **Built:** v3.8.2 (branch `claude/handoff-continuation-l39e0b`).
+- **Built:** v3.9.0 (branch `claude/handoff-continuation-l39e0b`), app only — sent 2026-10-13.
 - **Live:** v3.8.0 confirmed installed by the owner (SQL + Netlify done, functions deployed to live and preview on 2026-10-06). v3.8.1 / v3.8.2 were sent as zips (app only, no SQL) — ask whether they were installed.
 - Cloud space at install: 13 MB of 500 MB (3%), no photos yet. Tell them to check monthly; act at ~300 MB (move photos to separate storage).
 
@@ -20,6 +20,7 @@ Update this file at the end of every piece of work: what shipped, what the owner
 | 3.8.0 | Cash & bank, close the day, fixed costs, day report + weekly backup e-mail, supplier bills/cheques/statements/credit limits, customer credit, labour fixed price, comebacks, private feedback page, smaller photos, cloud meter | **yes** + notify function |
 | 3.8.1 | Opening / setup costs kept out of monthly profit; Reports → Investment & payback | no |
 | 3.8.2 | Only part of a bill can be the opening cost | no |
+| 3.9.0 | Advance on a job, Quick past job, invoice date follows the job, plate/phone/km "not known yet" (TEMP- plates), Missing details list, default job type Mechanical Repair, On Hold status, Repeat expense | no |
 
 ## Owner's to-do list (remind gently, don't nag)
 - First-time setup after 3.8: Cash & bank real balances + cash float; fixed costs list (they'll enter and price it themselves); supplier credit days/limits; customer credit terms; optional weekly backup tick (file is not password-protected); optional private feedback tick.
@@ -34,8 +35,6 @@ Which to build: 1 balance sheet, 2 owner's account, 3 loans & instalments, 4 VAT
 Also asked: VAT registered (TRN)? any loans (incl. family/friends)? opening costs paid from own pocket or the business account?
 
 ## Ideas list (not started — only when the owner says)
-- **Advance / deposit on a job** (asked for in practice 14 Oct: a customer paid 3,000 for parts before the work was finished). Today payments need an invoice, so the workaround is an early invoice + payment, edited when the job is done. Proper version: record an advance on the job card, count it in Cash & bank, apply it to the invoice automatically.
-- Customer phone is required, so unknown owners get a placeholder; consider allowing "phone unknown" (and no messages to that customer).
 - "Find part" button (search by car + part, original vs copy grade on quotes)
 - Tuning: agreement + waiver, build sheet
 - Diagnostic assistant once they buy an Autel scanner (needs the model, a sample report, and an Anthropic API key the owner puts in Supabase secrets themselves)
@@ -44,6 +43,12 @@ Also asked: VAT registered (TRN)? any loans (incl. family/friends)? opening cost
 - WhatsApp automation, online payments, memberships, Arabic, barcode scanning
 - Photos to separate storage when the cloud meter gets high
 - Netlify connected to GitHub so updates publish without dragging folders (owner still decides when live changes)
+
+## v3.9 design notes
+- Advance = a payment with `jobId`, `invoiceId: ''`, `advance: true`; `makeInvoiceFromJob` attaches it (`attachAdvances`). Counted in Cash & bank / day report from its date; customer page and statement show it.
+- Razzak's Urvan was entered with the old workaround (INV-0013 = 3,000 "parts advance") before 3.9 — leave it; edit that invoice's lines when the job is finished.
+- Invoice from a job dated earlier asks "job date or today"; payment form defaults to the invoice date when the invoice was created today for an earlier date.
+- Temporary plates: `plateUnknown` + `TEMP-001…`; Missing details also flags plates with 4+ letters (e.g. SUNNY-AJECT), customers with no phone / garage's own number / "unknown|pending" names, cars with no owner or no km.
 
 ## Decisions made
 - Google review reminders and private feedback are optional ticks.
