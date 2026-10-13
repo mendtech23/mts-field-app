@@ -27,12 +27,15 @@ Update this file at the end of every piece of work: what shipped, what the owner
 - Mark opening costs (Expenses → Mark opening costs).
 - Rent example: rent 5,500, paid 1,000, rest due mid-month → expense 5,500 "Part paid now, rest on credit", paid now 1,000, due date the 15th; Record payment of 4,500 when paid. (Their answer: this is a part payment, not a split opening cost.)
 - Auto-lock 10 minutes (Staff & security).
+- Catching up October work from the notebook (export compared 14 Oct): several jobs, 2 supplier bills and 2 customers still to enter; owner sending missing amounts.
 
 ## Open questions to the owner (accounting, asked 2026-10-06, not answered yet)
 Which to build: 1 balance sheet, 2 owner's account, 3 loans & instalments, 4 VAT return helper (FTA layout; warning at AED 375,000 if not registered), 5 corporate tax estimate (UAE 9% over AED 375,000 profit; accountant to confirm small business relief), 6 equipment depreciation, 7 bank reconciliation (statement import), 8 year-end pack. Recommended first: 1, 2, 4, 7.
 Also asked: VAT registered (TRN)? any loans (incl. family/friends)? opening costs paid from own pocket or the business account?
 
 ## Ideas list (not started — only when the owner says)
+- **Advance / deposit on a job** (asked for in practice 14 Oct: a customer paid 3,000 for parts before the work was finished). Today payments need an invoice, so the workaround is an early invoice + payment, edited when the job is done. Proper version: record an advance on the job card, count it in Cash & bank, apply it to the invoice automatically.
+- Customer phone is required, so unknown owners get a placeholder; consider allowing "phone unknown" (and no messages to that customer).
 - "Find part" button (search by car + part, original vs copy grade on quotes)
 - Tuning: agreement + waiver, build sheet
 - Diagnostic assistant once they buy an Autel scanner (needs the model, a sample report, and an Anthropic API key the owner puts in Supabase secrets themselves)
