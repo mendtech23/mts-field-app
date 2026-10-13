@@ -1,4 +1,7 @@
 relay-data/
-.claude/
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+!.claude/skills/
 ~$*
 *.tmp.*
