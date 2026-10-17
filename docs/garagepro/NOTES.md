@@ -28,6 +28,7 @@ Update this file at the end of every piece of work: what shipped, what the owner
 - Mark opening costs (Expenses → Mark opening costs).
 - Rent example: rent 5,500, paid 1,000, rest due mid-month → expense 5,500 "Part paid now, rest on credit", paid now 1,000, due date the 15th; Record payment of 4,500 when paid. (Their answer: this is a part payment, not a split opening cost.)
 - Auto-lock 10 minutes (Staff & security).
+- Service list imported into the app by the owner (2026-10-17, MendTech_App_Import_Services.xlsx, 149 items, prices = hours × labour rate for now). Owner filling prices in the catalogue and sending it back → then build "update prices from Excel".
 - Catching up October work from the notebook (export compared 14 Oct): several jobs, 2 supplier bills and 2 customers still to enter; owner sending missing amounts.
 
 ## Open questions to the owner (accounting, asked 2026-10-06, not answered yet)
