@@ -35,6 +35,8 @@ Which to build: 1 balance sheet, 2 owner's account, 3 loans & instalments, 4 VAT
 Also asked: VAT registered (TRN)? any loans (incl. family/friends)? opening costs paid from own pocket or the business account?
 
 ## Ideas list (not started — only when the owner says)
+- **Update prices from Excel**: the import only ADDS services (skips names that exist). When the owner fills prices in the service catalogue (sent 2026-10-17 as Mendtech_Service_Catalogue_v2.xlsx: 105 garage + 48 mobile services, codes G-### / M-### in the app import), the import must also UPDATE rate/hours of existing ones (match by Op Code, then name). Fixed-price items need a "fixed price" flag on labour operations (today: hours × rate).
+- Booking page service lists (Settings → Mobile & booking) should be shortened from the catalogue; booking page offers "AC gas top-up" but the mobile catalogue says no refrigerant work on site — owner to decide.
 - "Find part" button (search by car + part, original vs copy grade on quotes)
 - Tuning: agreement + waiver, build sheet
 - Diagnostic assistant once they buy an Autel scanner (needs the model, a sample report, and an Anthropic API key the owner puts in Supabase secrets themselves)
