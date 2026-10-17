@@ -36,7 +36,7 @@ Also asked: VAT registered (TRN)? any loans (incl. family/friends)? opening cost
 
 ## Ideas list (not started — only when the owner says)
 - **Update prices from Excel**: the import only ADDS services (skips names that exist). When the owner fills prices in the service catalogue (sent 2026-10-17 as Mendtech_Service_Catalogue_v2.xlsx: 105 garage + 48 mobile services, codes G-### / M-### in the app import), the import must also UPDATE rate/hours of existing ones (match by Op Code, then name). Fixed-price items need a "fixed price" flag on labour operations (today: hours × rate).
-- Booking page service lists (Settings → Mobile & booking) should be shortened from the catalogue; booking page offers "AC gas top-up" but the mobile catalogue says no refrigerant work on site — owner to decide.
+- Booking page service lists (Settings → Mobile & booking) could be shortened from the catalogue (only if the owner asks).
 - "Find part" button (search by car + part, original vs copy grade on quotes)
 - Tuning: agreement + waiver, build sheet
 - Diagnostic assistant once they buy an Autel scanner (needs the model, a sample report, and an Anthropic API key the owner puts in Supabase secrets themselves)
@@ -58,6 +58,7 @@ Also asked: VAT registered (TRN)? any loans (incl. family/friends)? opening cost
 - Weekly backup e-mail is opt-in and not password-protected (owner told).
 - Day report is sent only when the day is closed (owner/manager) in Cash & bank.
 - Opening costs: kept out of monthly profit (not depreciated) — depreciation is idea #6 if wanted.
+- AC gas top-up (2026-10-17): stays on the mobile booking page. Done on site only after a safety-standards check, and it depends on the area. Catalogue wording "no refrigerant work unless properly equipped" stays as the rule.
 
 ## Known small issues
 - `garagepro/HANDOFF.md`, `README.txt` and `GO LIVE - STEPS.txt` ship with the website (anyone can open them at the site address). No secrets in them, but keep it that way; HANDOFF.md now just points here.
