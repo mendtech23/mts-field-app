@@ -29,7 +29,7 @@ Update this file at the end of every piece of work: what shipped, what the owner
 - Rent example: rent 5,500, paid 1,000, rest due mid-month → expense 5,500 "Part paid now, rest on credit", paid now 1,000, due date the 15th; Record payment of 4,500 when paid. (Their answer: this is a part payment, not a split opening cost.)
 - Auto-lock 10 minutes (Staff & security).
 - Service list imported into the app by the owner (2026-10-17, MendTech_App_Import_Services.xlsx, 149 items, prices = hours × labour rate for now). Owner filling prices in the catalogue and sending it back → then build "update prices from Excel".
-- Export 25 Oct checked: 13 jobs/invoices, 5,700 invoiced = 5,700 cash received. Open points sent to owner: Razzak 3,000 advance gone (INV-0013 now 1,600, paid 20 Oct), 3 payments dated before their invoice (INV-0015/16/17), JC-0023 dated 25 Oct vs invoice 24 Oct, INV-0016 empty 0-line, no expenses after 6 Oct (8 notebook bills 185 + parts for jobs), rent balance 1,700 due 25 Oct, AAH 01-03 placeholder names, Altima no owner, Honda City km 12345.
+- Export 25 Oct checked: 13 jobs/invoices, 5,700 invoiced = 5,700 cash received. Razzak answered: 3,000 = parts bought, 1,600 = labour (customer paid 4,600). Told owner: INV-0013 add Custom line → type Part 3,000 (cost stays 0), payment 3,000 on 12 Oct, expense 3,000 'Parts for Razzak Urvan' category Other. Other open points: 3 payments dated before their invoice (INV-0015/16/17), JC-0023 dated 25 Oct vs invoice 24 Oct, INV-0016 empty 0-line, no expenses after 6 Oct (8 notebook bills 185 + parts for jobs), rent balance 1,700 due 25 Oct, AAH 01-03 placeholder names, Altima no owner, Honda City km 12345.
 - Catching up October work from the notebook (export compared 14 Oct): several jobs, 2 supplier bills and 2 customers still to enter; owner sending missing amounts.
 
 ## Open questions to the owner (accounting, asked 2026-10-06, not answered yet)
@@ -39,6 +39,7 @@ Also asked: VAT registered (TRN)? any loans (incl. family/friends)? opening cost
 ## Ideas list (not started — only when the owner says)
 - **Update prices from Excel**: the import only ADDS services (skips names that exist). When the owner fills prices in the service catalogue (sent 2026-10-17 as Mendtech_Service_Catalogue_v2.xlsx: 105 garage + 48 mobile services, codes G-### / M-### in the app import), the import must also UPDATE rate/hours of existing ones (match by Op Code, then name). Fixed-price items need a "fixed price" flag on labour operations (today: hours × rate).
 - Booking page service lists (Settings → Mobile & booking) could be shortened from the catalogue (only if the owner asks).
+- **Parts bought for one job** (owner buys parts with cash per job, no stock): one button on the job that adds the part line with its cost AND records the cash out, so profit and cash are right without a separate expense (today: custom part line with cost 0 + an expense).
 - "Find part" button (search by car + part, original vs copy grade on quotes)
 - Tuning: agreement + waiver, build sheet
 - Diagnostic assistant once they buy an Autel scanner (needs the model, a sample report, and an Anthropic API key the owner puts in Supabase secrets themselves)
