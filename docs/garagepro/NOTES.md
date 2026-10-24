@@ -59,6 +59,14 @@ Based on the 25 Oct export (all labour-only invoices, parts bought with cash per
 6. Dashboard nudge "no expenses recorded for X days" — recommended
 7. Update prices from Excel + fixed-price items — when the priced catalogue comes back
 8. Missing details also flags placeholder names like "AAH 01"
+Owner then asked for the full list "and more" (2026-10-25). Added to the proposal:
+9. Quick expense buttons on the dashboard (Fuel / Parts / Consumables, photo of the bill, 3 taps) — recommended v3.10
+10. Optional "finish the job" check: km, complaint, work done asked when a job is delivered (tick in settings) — recommended v3.10
+11. Owner's account (money put in / taken out; opening costs paid from own pocket) — v3.11
+12. Simple balance sheet / "what the business owns and owes" — v3.11
+13. Service reminder by WhatsApp from km / date (uses the catalogue intervals) — v3.11
+14. Booking page list from the catalogue (mobile AC gas stays, safety check note) — v3.11
+15. Later: VAT return helper (when registered), bank reconciliation, year-end pack, depreciation, loans; Find part; packages/memberships; Autel diagnostics; time clock; Arabic; Netlify auto-publish.
 
 ## v3.9 design notes
 - Advance = a payment with `jobId`, `invoiceId: ''`, `advance: true`; `makeInvoiceFromJob` attaches it (`attachAdvances`). Counted in Cash & bank / day report from its date; customer page and statement show it.
