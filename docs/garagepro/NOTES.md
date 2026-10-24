@@ -29,6 +29,7 @@ Update this file at the end of every piece of work: what shipped, what the owner
 - Rent example: rent 5,500, paid 1,000, rest due mid-month → expense 5,500 "Part paid now, rest on credit", paid now 1,000, due date the 15th; Record payment of 4,500 when paid. (Their answer: this is a part payment, not a split opening cost.)
 - Auto-lock 10 minutes (Staff & security).
 - Service list imported into the app by the owner (2026-10-17, MendTech_App_Import_Services.xlsx, 149 items, prices = hours × labour rate for now). Owner filling prices in the catalogue and sending it back → then build "update prices from Excel".
+- Export 25 Oct checked: 13 jobs/invoices, 5,700 invoiced = 5,700 cash received. Open points sent to owner: Razzak 3,000 advance gone (INV-0013 now 1,600, paid 20 Oct), 3 payments dated before their invoice (INV-0015/16/17), JC-0023 dated 25 Oct vs invoice 24 Oct, INV-0016 empty 0-line, no expenses after 6 Oct (8 notebook bills 185 + parts for jobs), rent balance 1,700 due 25 Oct, AAH 01-03 placeholder names, Altima no owner, Honda City km 12345.
 - Catching up October work from the notebook (export compared 14 Oct): several jobs, 2 supplier bills and 2 customers still to enter; owner sending missing amounts.
 
 ## Open questions to the owner (accounting, asked 2026-10-06, not answered yet)
