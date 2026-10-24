@@ -49,6 +49,17 @@ Also asked: VAT registered (TRN)? any loans (incl. family/friends)? opening cost
 - Photos to separate storage when the cloud meter gets high
 - Netlify connected to GitHub so updates publish without dragging folders (owner still decides when live changes)
 
+## v3.10 proposal (sent 2026-10-25, waiting for the owner's go — "let me know first")
+Based on the 25 Oct export (all labour-only invoices, parts bought with cash per job, payments dated before invoices, empty lines, no technician, no expenses after 6 Oct):
+1. Parts bought for this job (part line with cost + cash out in one step) — recommended
+2. Payment dated before the invoice → warn, offer "record as advance" — recommended
+3. Job date later than its invoice → warn — recommended
+4. Empty 0-amount lines removed on save (ask first) — recommended
+5. Technician: pre-pick when there is only one technician — recommended
+6. Dashboard nudge "no expenses recorded for X days" — recommended
+7. Update prices from Excel + fixed-price items — when the priced catalogue comes back
+8. Missing details also flags placeholder names like "AAH 01"
+
 ## v3.9 design notes
 - Advance = a payment with `jobId`, `invoiceId: ''`, `advance: true`; `makeInvoiceFromJob` attaches it (`attachAdvances`). Counted in Cash & bank / day report from its date; customer page and statement show it.
 - Razzak's Urvan was entered with the old workaround (INV-0013 = 3,000 "parts advance") before 3.9 — leave it; edit that invoice's lines when the job is finished.
